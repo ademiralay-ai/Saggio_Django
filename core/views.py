@@ -1166,6 +1166,9 @@ def sap_process_builder(request, process_id):
 	steps = list(proc.steps.values('id', 'order', 'step_type', 'label', 'config').order_by('order'))
 	template_names = SAPTemplateService.list_template_names()
 	ftp_accounts = list(FTPAccount.objects.filter(is_active=True).values('id', 'name', 'protocol', 'host', 'port').order_by('name'))
+	telegram_groups = list(TelegramGroup.objects.filter(is_active=True).order_by('name'))
+	mail_accounts = list(MailAccount.objects.filter(is_active=True).order_by('name'))
+	proc_notify = proc.flow_config.get('_notify', {}) if isinstance(proc.flow_config, dict) else {}
 	return render(request, 'core/sap_process_builder.html', {
 		'current': 'sap_process',
 		'page_title': f'Süreç: {proc.name}',
@@ -1174,6 +1177,9 @@ def sap_process_builder(request, process_id):
 		'steps_json': json.dumps(steps, default=str),
 		'template_names': template_names,
 		'ftp_accounts_json': json.dumps(ftp_accounts, default=str),
+		'telegram_groups': telegram_groups,
+		'mail_accounts': mail_accounts,
+		'proc_notify': proc_notify,
 	})
 
 
@@ -1253,12 +1259,52 @@ def sap_process_runtime_settings_save(request, process_id):
 	proc.telegram_notifications_enabled = bool(body.get('telegram_notifications_enabled', proc.telegram_notifications_enabled))
 	proc.telegram_voice_enabled = bool(body.get('telegram_voice_enabled', proc.telegram_voice_enabled))
 	proc.mail_notifications_enabled = bool(body.get('mail_notifications_enabled', proc.mail_notifications_enabled))
+
+	# Bildirim hedef kayıtları: flow_config['_notify'] altında sakla (migration'sız)
+	def _parse_id(v):
+		try:
+			s = str(v or '').strip()
+			return int(s) if s else None
+		except (ValueError, TypeError):
+			return None
+
+	tg_group_id = _parse_id(body.get('notify_telegram_group_id'))
+	mail_account_id = _parse_id(body.get('notify_mail_account_id'))
+
+	if not isinstance(proc.flow_config, dict):
+		proc.flow_config = {}
+	notify_cfg = dict(proc.flow_config.get('_notify', {}))
+	if tg_group_id is not None:
+		grp = TelegramGroup.objects.filter(pk=tg_group_id, is_active=True, default_bot__isnull=False).first()
+		if grp:
+			notify_cfg['telegram_group_id'] = int(grp.id)
+			notify_cfg['telegram_bot_id'] = int(grp.default_bot_id)
+		else:
+			notify_cfg.pop('telegram_group_id', None)
+			notify_cfg.pop('telegram_bot_id', None)
+	elif 'notify_telegram_group_id' in body and not tg_group_id:
+		# Kullanıcı açıkça boş seçti → temizle
+		notify_cfg.pop('telegram_group_id', None)
+		notify_cfg.pop('telegram_bot_id', None)
+
+	if mail_account_id is not None:
+		ma = MailAccount.objects.filter(pk=mail_account_id, is_active=True).first()
+		if ma:
+			notify_cfg['mail_account_id'] = int(ma.id)
+		else:
+			notify_cfg.pop('mail_account_id', None)
+	elif 'notify_mail_account_id' in body and not mail_account_id:
+		notify_cfg.pop('mail_account_id', None)
+
+	proc.flow_config = {**proc.flow_config, '_notify': notify_cfg}
+
 	proc.save(update_fields=[
 		'ghost_overlay_enabled',
 		'office_express_auto_close',
 		'telegram_notifications_enabled',
 		'telegram_voice_enabled',
 		'mail_notifications_enabled',
+		'flow_config',
 		'updated_at',
 	])
 
@@ -2542,9 +2588,15 @@ def sap_process_run_preview(request, process_id):
 		_runtime_finish(process_id)
 		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
 
-	# Bildirim konfigürasyonu — öncelik şablondaki notification alanı
+	# Bildirim konfigürasyonu
+	# Öncelik sırası: 1) proc.flow_config['_notify'] (builder'da seçilen), 2) şablondaki notification
 	_notify_cfg = {}
 	_notify_setup_notes = []
+
+	# 1) Süreç üzerinde kayıtlı bildirim hedefleri
+	_proc_notify = proc.flow_config.get('_notify', {}) if isinstance(proc.flow_config, dict) else {}
+
+	# 2) Şablon notification alanı (fallback)
 	_template_notify = {}
 	try:
 		tpl_name = str(conn.get('template_name', '') or '').strip()
@@ -2565,8 +2617,13 @@ def sap_process_run_preview(request, process_id):
 			return None
 
 	if proc.telegram_notifications_enabled:
-		tg_bot_id = _as_int(_template_notify.get('telegram_bot_id'))
-		tg_group_id = _as_int(_template_notify.get('telegram_group_id'))
+		# Önce builder'dan kaydedilen grup/bot'u dene
+		tg_bot_id = _as_int(_proc_notify.get('telegram_bot_id'))
+		tg_group_id = _as_int(_proc_notify.get('telegram_group_id'))
+		# Yoksa şablondan oku
+		if not (tg_bot_id and tg_group_id):
+			tg_bot_id = _as_int(_template_notify.get('telegram_bot_id'))
+			tg_group_id = _as_int(_template_notify.get('telegram_group_id'))
 		if tg_bot_id and tg_group_id:
 			_notify_cfg['telegram_bot_id'] = tg_bot_id
 			_notify_cfg['telegram_group_id'] = tg_group_id
@@ -2576,18 +2633,10 @@ def sap_process_run_preview(request, process_id):
 				if value:
 					_notify_cfg[key] = value
 		else:
-			groups = list(TelegramGroup.objects.filter(is_active=True, default_bot__isnull=False, default_bot__is_active=True).order_by('id'))
-			if groups:
-				grp = groups[0]
-				_notify_cfg['telegram_bot_id'] = int(grp.default_bot_id)
-				_notify_cfg['telegram_group_id'] = int(grp.id)
-				_notify_cfg['telegram_voice_enabled'] = bool(proc.telegram_voice_enabled)
-				_notify_setup_notes.append(f'Telegram fallback uygulandı: {grp.name}')
-			else:
-				_notify_setup_notes.append('Telegram bildirim atlandı: aktif/default botlu grup bulunamadı.')
+			_notify_setup_notes.append('Telegram bildirim atlandı: süreç ayarlarında veya şablonda Telegram grubu seçili değil.')
 
 	if proc.mail_notifications_enabled:
-		mail_id = _as_int(_template_notify.get('mail_account_id'))
+		mail_id = _as_int(_proc_notify.get('mail_account_id')) or _as_int(_template_notify.get('mail_account_id'))
 		if mail_id:
 			_notify_cfg['mail_account_id'] = mail_id
 			for key in ('mail_to', 'mail_subject', 'mail_start_message', 'mail_end_message'):
@@ -2595,19 +2644,20 @@ def sap_process_run_preview(request, process_id):
 				if value:
 					_notify_cfg[key] = value
 		else:
-			mails = list(MailAccount.objects.filter(is_active=True).order_by('id'))
-			if len(mails) == 1:
-				_notify_cfg['mail_account_id'] = int(mails[0].id)
-				_notify_setup_notes.append(f'Mail fallback uygulandı: {mails[0].name}')
-			else:
-				_notify_setup_notes.append('Mail bildirimi atlandı: şablonda mail hesabı seçili değil.')
+			_notify_setup_notes.append('Mail bildirimi atlandı: süreç ayarlarında veya şablonda mail hesabı seçili değil.')
+
 
 	# Başlangıç bildirimi
 	if ('telegram_bot_id' in _notify_cfg and 'telegram_group_id' in _notify_cfg) or ('mail_account_id' in _notify_cfg):
 		start_notes = _notify_sap_event(_notify_cfg, 'start')
 		for n in (start_notes or []):
-			if not n.get('ok'):
-				_notify_setup_notes.append(f"{n.get('channel')}: {n.get('msg')}")
+			ch = n.get('channel', '')
+			ok_flag = n.get('ok', False)
+			msg = n.get('msg', '')
+			if not ok_flag:
+				_notify_setup_notes.append(f"{ch} hatası: {msg}")
+			else:
+				_notify_setup_notes.append(f"{ch} gönderildi.")
 
 	try:
 		upto_index = int(body.get('upto_index', len(steps) - 1))

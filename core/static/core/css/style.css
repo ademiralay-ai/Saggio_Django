@@ -2108,6 +2108,28 @@ tbody tr:hover {
     font-size: 12px;
 }
 
+.spb-notify-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 4px;
+}
+
+.spb-notify-row label {
+    min-width: 130px;
+    font-size: 13px;
+}
+
+.spb-select-inline {
+    flex: 1;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-glass);
+    background: var(--bg-card);
+    color: var(--text-main);
+    font-size: 13px;
+}
+
 .spb-run-log {
     background: var(--bg-card);
     border: 1px solid var(--border-glass);
@@ -2159,11 +2181,11 @@ tbody tr:hover {
 
 .spb-live-panel {
     position: fixed;
-    left: 14px;
-    top: 108px;
+    left: calc(var(--sidebar-width) + 14px);
+    bottom: 18px;
     width: 280px;
-    max-height: calc(100vh - 140px);
-    z-index: 40;
+    max-height: calc(100vh - 98px);
+    z-index: 260;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -2172,6 +2194,10 @@ tbody tr:hover {
     border-radius: 12px;
     box-shadow: 0 10px 34px rgba(0, 0, 0, .22);
     padding: 10px;
+}
+
+body.sidebar-collapsed .spb-live-panel {
+    left: calc(var(--sidebar-collapsed-width) + 14px);
 }
 
 .spb-live-head {

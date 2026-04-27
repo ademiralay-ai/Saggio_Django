@@ -84,6 +84,16 @@
                 </span>
             </label>
 
+            <div class="spb-runtime-option spb-notify-row">
+                <label for="spb-notify-tg-group"><strong>Telegram Grubu</strong></label>
+                <select id="spb-notify-tg-group" class="spb-select-inline">
+                    <option value="">— Grup seçiniz —</option>
+                    {% for grp in telegram_groups %}
+                    <option value="{{ grp.id }}" {% if proc_notify.telegram_group_id == grp.id|stringformat:"s" or proc_notify.telegram_group_id == grp.id %}selected{% endif %}>{{ grp.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
             <label class="spb-runtime-option" for="spb-telegram-voice-enabled">
                 <input id="spb-telegram-voice-enabled" type="checkbox" {% if process.telegram_voice_enabled %}checked{% endif %}>
                 <span>
@@ -99,6 +109,16 @@
                     <small>Kapalıysa süreçte mail gönderimleri atlanır.</small>
                 </span>
             </label>
+
+            <div class="spb-runtime-option spb-notify-row">
+                <label for="spb-notify-mail-account"><strong>Mail Hesabı</strong></label>
+                <select id="spb-notify-mail-account" class="spb-select-inline">
+                    <option value="">— Hesap seçiniz —</option>
+                    {% for ma in mail_accounts %}
+                    <option value="{{ ma.id }}" {% if proc_notify.mail_account_id == ma.id|stringformat:"s" or proc_notify.mail_account_id == ma.id %}selected{% endif %}>{{ ma.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
     </div>
 
@@ -1140,6 +1160,8 @@
         const telegramEnabled = !!document.getElementById('spb-telegram-enabled')?.checked;
         const telegramVoiceEnabled = !!document.getElementById('spb-telegram-voice-enabled')?.checked;
         const mailEnabled = !!document.getElementById('spb-mail-enabled')?.checked;
+        const tgGroupId = document.getElementById('spb-notify-tg-group')?.value || '';
+        const mailAccountId = document.getElementById('spb-notify-mail-account')?.value || '';
         try {
             const resp = await fetch(RUNTIME_SETTINGS_URL, {
                 method: 'POST',
@@ -1150,6 +1172,8 @@
                     telegram_notifications_enabled: telegramEnabled,
                     telegram_voice_enabled: telegramVoiceEnabled,
                     mail_notifications_enabled: mailEnabled,
+                    notify_telegram_group_id: tgGroupId,
+                    notify_mail_account_id: mailAccountId,
                 }),
             });
             const data = await resp.json();
@@ -1461,6 +1485,8 @@
         document.getElementById('spb-telegram-enabled')?.addEventListener('change', saveRuntimeSettings);
         document.getElementById('spb-telegram-voice-enabled')?.addEventListener('change', saveRuntimeSettings);
         document.getElementById('spb-mail-enabled')?.addEventListener('change', saveRuntimeSettings);
+        document.getElementById('spb-notify-tg-group')?.addEventListener('change', saveRuntimeSettings);
+        document.getElementById('spb-notify-mail-account')?.addEventListener('change', saveRuntimeSettings);
 
         document.getElementById('spb-add-btn')?.addEventListener('click', () => {
             const picker = document.getElementById('spb-type-picker');
