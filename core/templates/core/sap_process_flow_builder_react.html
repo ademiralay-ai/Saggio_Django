@@ -1,0 +1,20 @@
+﻿{% load static %}<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="process-id" content="{{ process.id }}">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>İş Akışı Tasarımcısı - {{ process.name }}</title>
+    <link rel="stylesheet" href="{% static 'core/flow_builder/main.1cc00791.css' %}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script src="{% static 'core/flow_builder/453.20359781.chunk.js' %}"></script>
+    <script src="{% static 'core/flow_builder/main.1f2cdbd7.js' %}"></script>
+</body>
+</html>

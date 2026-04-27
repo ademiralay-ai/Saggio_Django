@@ -1,0 +1,253 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} | Saggio RPA</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'core/css/style.css' %}">
+</head>
+<body>
+    <div class="bg-grid"></div>
+
+    {% with current=request.resolver_match.url_name %}
+    <div class="app-shell">
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-brand">
+                <div class="logo-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="logo-text">Saggio RPA</div>
+            </div>
+
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <p class="menu-group">Genel</p>
+                    <a class="nav-link {% if current == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}" data-label="Dashboard">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                
+                <li class="nav-item">
+                    <p class="menu-group">Orkestrasyon</p>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'robots' %}active{% endif %}" href="{% url 'robots' %}" data-label="Robotlar">
+                        <i class="fas fa-robot"></i>
+                        <span>Robotlar</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'processes' %}active{% endif %}" href="{% url 'processes' %}" data-label="Süreçler">
+                        <i class="fas fa-tasks"></i>
+                        <span>Süreçler</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'queues' %}active{% endif %}" href="{% url 'queues' %}" data-label="Kuyruk Yonetimi">
+                        <i class="fas fa-list"></i>
+                        <span>Kuyruk Yonetimi</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'scheduler' %}active{% endif %}" href="{% url 'scheduler' %}" data-label="Scheduler">
+                        <i class="fas fa-clock"></i>
+                        <span>Scheduler</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'sap_scan' %}active{% endif %}" href="{% url 'sap_scan' %}" data-label="SAP Derin Tarama">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <span>SAP Derin Tarama</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'sap_process' %}active{% endif %}" href="{% url 'sap_process_list' %}" data-label="SAP Süreçleri">
+                        <i class="fas fa-project-diagram"></i>
+                        <span>SAP Süreçleri</span>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <p class="menu-group">Bildirim</p>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'telegram_bots_manage' %}active{% endif %}" href="{% url 'telegram_bots_manage' %}" data-label="Telegram Botlari">
+                        <i class="fab fa-telegram"></i>
+                        <span>Telegram Botlari</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'telegram_groups_manage' %}active{% endif %}" href="{% url 'telegram_groups_manage' %}" data-label="Telegram Gruplari">
+                        <i class="fas fa-users"></i>
+                        <span>Telegram Gruplari</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'mail_accounts_manage' %}active{% endif %}" href="{% url 'mail_accounts_manage' %}" data-label="Mail Hesaplari">
+                        <i class="fas fa-envelope"></i>
+                        <span>Mail Hesaplari</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'ftp_accounts_manage' %}active{% endif %}" href="{% url 'ftp_accounts_manage' %}" data-label="FTP Hesaplari">
+                        <i class="fas fa-server"></i>
+                        <span>FTP Hesaplari</span>
+                    </a>
+                </li>
+                
+                <li class="nav-item">
+                    <p class="menu-group">Izleme</p>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'reports' %}active{% endif %}" href="{% url 'reports' %}" data-label="Raporlar">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Raporlar</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current == 'settings' %}active{% endif %}" href="{% url 'settings' %}" data-label="Ayarlar">
+                        <i class="fas fa-cog"></i>
+                        <span>Ayarlar</span>
+                    </a>
+                </li>
+            </ul>
+
+        </aside>
+        <button id="sidebar-overlay" class="sidebar-overlay" type="button" aria-label="Menuyu kapat"></button>
+
+        <div class="content-area">
+            <header class="topbar">
+                <div class="header-left">
+                    <button id="sidebar-toggle" class="icon-btn" type="button" aria-label="Menuyu ac/kapat">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div>
+                        <h1>{{ page_title }}</h1>
+                        <p class="header-left-subtitle">{{ page_subtitle }}</p>
+                    </div>
+                </div>
+
+                <div class="header-actions">
+                    <button id="header-notify-btn" class="btn" type="button" title="Bildirimler">
+                        <i class="fas fa-bell"></i>
+                    </button>
+                    <a class="btn btn-primary" href="/admin/" title="Admin Paneli">
+                        <i class="fas fa-lock"></i>
+                        Admin
+                    </a>
+                    <button id="theme-toggle-btn" class="btn" type="button" aria-label="Temayi degistir">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <main class="container">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    {% endwith %}
+
+    <footer class="live-footer" aria-label="Canli robot durumu">
+        <div class="live-ticker">
+            <div class="ticker-track" aria-hidden="true">
+                <span class="tk-robot">RBT-QA-01</span> <span class="tk-online">Online</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-process">Süreç: Fatura Aktarım</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-hours">Calisma saati: 06:12</span>
+
+                <span class="tk-sep">||</span>
+                <span class="tk-robot">RBT-FIN-02</span> <span class="tk-online">Online</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-process">Süreç: Banka Mutabakat</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-hours">Calisma saati: 02:47</span>
+
+                <span class="tk-sep">||</span>
+                <span class="tk-robot">RBT-OPS-03</span> <span class="tk-offline">Offline</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-process">Süreç: Ticket Kapanış</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-hours">Calisma saati: 00:36</span>
+
+                <span class="tk-sep">||</span>
+                <span class="tk-robot">RBT-HR-04</span> <span class="tk-online">Online</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-process">Süreç: Personel Bordro Ön Kontrol</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-hours">Calisma saati: 03:05</span>
+            </div>
+            <div class="ticker-track" aria-hidden="true">
+                <span class="tk-robot">RBT-QA-01</span> <span class="tk-online">Online</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-process">Süreç: Fatura Aktarım</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-hours">Calisma saati: 06:12</span>
+
+                <span class="tk-sep">||</span>
+                <span class="tk-robot">RBT-FIN-02</span> <span class="tk-online">Online</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-process">Süreç: Banka Mutabakat</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-hours">Calisma saati: 02:47</span>
+
+                <span class="tk-sep">||</span>
+                <span class="tk-robot">RBT-OPS-03</span> <span class="tk-offline">Offline</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-process">Süreç: Ticket Kapanış</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-hours">Calisma saati: 00:36</span>
+
+                <span class="tk-sep">||</span>
+                <span class="tk-robot">RBT-HR-04</span> <span class="tk-online">Online</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-process">Süreç: Personel Bordro Ön Kontrol</span>
+                <span class="tk-sep">|</span>
+                <span class="tk-hours">Calisma saati: 03:05</span>
+            </div>
+        </div>
+    </footer>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    {% block vendor_scripts %}{% endblock %}
+    <script src="{% static 'core/js/theme.js' %}"></script>
+    {% block page_scripts %}{% endblock %}
+
+    <script>
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-times-circle',
+                info: 'fa-info-circle'
+            };
+
+            toast.innerHTML = `
+                <div class="toast-icon"><i class="fas ${icons[type]}"></i></div>
+                <div style="font-weight: 600; font-size: 14px;">${message}</div>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const notifyBtn = document.getElementById('header-notify-btn');
+            notifyBtn?.addEventListener('click', () => {
+                showToast('Bildirimler kontrol ediliyor...', 'info');
+            });
+        });
+    </script>
+</body>
+</html>

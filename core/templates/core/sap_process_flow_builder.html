@@ -1,0 +1,1184 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+{% csrf_token %}
+<section class="sap-page-head">
+    <div class="sap-head-chip">
+        <i class="fas fa-diagram-project"></i>
+        SAP Flow Builder Pro
+    </div>
+    <p>Profesyonel surec cizimi, baglanti yonetimi ve hizli duzenleme.</p>
+</section>
+
+<div class="fb-shell">
+    <header class="fb-topbar">
+        <div class="fb-topbar-left">
+            <div class="fb-brand-dot"></div>
+            <div>
+                <div class="fb-title">{{ process.name }}</div>
+                <div class="fb-subtitle">{{ process.description|default:"Aciklama yok" }}</div>
+            </div>
+        </div>
+        <div class="fb-topbar-actions">
+            <button id="fb-auto-layout" type="button" class="btn btn-sm"><i class="fas fa-sitemap"></i> Auto Layout</button>
+            <button id="fb-fit" type="button" class="btn btn-sm"><i class="fas fa-expand"></i> Fit</button>
+            <button id="fb-zoom-out" type="button" class="btn btn-sm"><i class="fas fa-minus"></i></button>
+            <span id="fb-zoom-label" class="fb-zoom-label">100%</span>
+            <button id="fb-zoom-in" type="button" class="btn btn-sm"><i class="fas fa-plus"></i></button>
+            <button id="fb-save" type="button" class="btn btn-primary btn-sm"><i class="fas fa-save"></i> Kaydet</button>
+            <a href="{% url 'sap_process_builder' process.id %}" class="btn btn-sm"><i class="fas fa-list"></i> List</a>
+            <a href="{% url 'sap_process_list' %}" class="btn btn-sm"><i class="fas fa-arrow-left"></i> Geri</a>
+        </div>
+    </header>
+
+    <div class="fb-grid">
+        <aside class="fb-left">
+            <div class="fb-panel-head">
+                <i class="fas fa-toolbox"></i>
+                Node Library
+            </div>
+            <div class="fb-left-body">
+                <div class="fb-search-wrap">
+                    <i class="fas fa-search"></i>
+                    <input id="fb-tool-search" type="text" placeholder="Arac ara...">
+                </div>
+                <div id="fb-tool-groups" class="fb-tool-groups"></div>
+            </div>
+        </aside>
+
+        <section class="fb-stage-wrap">
+            <div class="fb-stage-toolbar">
+                <span><i class="fas fa-mouse-pointer"></i> Baglanti: cikis noktasi -> hedef nokta</span>
+                <button id="fb-clear-selection" type="button" class="btn btn-sm">Secimi Temizle</button>
+            </div>
+            <div id="fb-stage" class="fb-stage">
+                <div id="fb-viewport" class="fb-viewport">
+                    <svg id="fb-edges" class="fb-edges"></svg>
+                    <svg id="fb-draft-edge" class="fb-draft-edge"></svg>
+                    <div id="fb-nodes" class="fb-nodes"></div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="fb-right">
+            <div class="fb-panel-head">
+                <i class="fas fa-sliders-h"></i>
+                Inspector
+            </div>
+            <div id="fb-inspector" class="fb-inspector">
+                <div class="fb-empty">Node veya baglanti secin</div>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<style>
+.fb-shell {
+    background: radial-gradient(circle at 20% 0%, #1e293b 0%, #0f172a 38%, #0b1220 100%);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 14px;
+    overflow: hidden;
+    min-height: calc(100vh - 200px);
+}
+
+.fb-topbar {
+    height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(8px);
+}
+
+.fb-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.fb-brand-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #38bdf8;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.75);
+}
+
+.fb-title {
+    color: #e2e8f0;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.fb-subtitle {
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+.fb-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.fb-zoom-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 56px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    color: #cbd5e1;
+    font-size: 12px;
+    background: rgba(30, 41, 59, 0.7);
+}
+
+.fb-grid {
+    display: grid;
+    grid-template-columns: 290px 1fr 320px;
+    min-height: calc(100vh - 258px);
+}
+
+.fb-left,
+.fb-right {
+    background: rgba(15, 23, 42, 0.72);
+    border-right: 1px solid rgba(148, 163, 184, 0.2);
+    display: flex;
+    flex-direction: column;
+}
+
+.fb-right {
+    border-right: none;
+    border-left: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.fb-panel-head {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #cbd5e1;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.fb-left-body,
+.fb-inspector {
+    padding: 12px;
+    overflow: auto;
+}
+
+.fb-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 12px;
+    color: #94a3b8;
+    background: rgba(30, 41, 59, 0.7);
+}
+
+.fb-search-wrap input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 12px;
+    color: #e2e8f0;
+    background: transparent;
+}
+
+.fb-group {
+    margin-bottom: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(30, 41, 59, 0.45);
+}
+
+.fb-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #cbd5e1;
+}
+
+.fb-group-body {
+    padding: 0 8px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.fb-tool {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.8);
+    cursor: grab;
+    user-select: none;
+}
+
+.fb-tool:hover {
+    border-color: rgba(56, 189, 248, 0.8);
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.5);
+}
+
+.fb-tool-icon {
+    width: 24px;
+    text-align: center;
+    color: #38bdf8;
+}
+
+.fb-tool-text {
+    flex: 1;
+    font-size: 12px;
+    color: #e2e8f0;
+}
+
+.fb-stage-wrap {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.fb-stage-toolbar {
+    height: 44px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 12px;
+    color: #94a3b8;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.fb-stage {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    background-color: #0f172a;
+    background-image:
+        linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+        linear-gradient(rgba(148, 163, 184, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px, 40px 40px, 10px 10px, 10px 10px;
+}
+
+.fb-viewport {
+    width: 4200px;
+    height: 2600px;
+    transform-origin: 0 0;
+    position: relative;
+}
+
+.fb-edges,
+.fb-draft-edge {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.fb-edges path {
+    fill: none;
+    stroke: #f59e0b;
+    stroke-width: 2.2;
+    pointer-events: stroke;
+    cursor: pointer;
+}
+
+.fb-edges path.is-selected {
+    stroke: #ef4444;
+    stroke-width: 3.2;
+}
+
+.fb-edges text {
+    fill: #e11d48;
+    font-size: 11px;
+    font-weight: 700;
+    pointer-events: none;
+}
+
+.fb-draft-edge path {
+    fill: none;
+    stroke: #38bdf8;
+    stroke-width: 2.1;
+    stroke-dasharray: 6 6;
+}
+
+.fb-nodes {
+    position: absolute;
+    inset: 0;
+}
+
+.fb-node {
+    position: absolute;
+    width: 220px;
+    min-height: 88px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 12px;
+    background: linear-gradient(160deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+    box-shadow: 0 10px 26px rgba(2, 6, 23, 0.55);
+    user-select: none;
+}
+
+.fb-node.is-selected {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4), 0 14px 28px rgba(2, 6, 23, 0.6);
+}
+
+.fb-node.is-connect-source {
+    border-color: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.4), 0 14px 28px rgba(2, 6, 23, 0.6);
+}
+
+.fb-node-head {
+    height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    color: #e2e8f0;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: move;
+}
+
+.fb-node-body {
+    padding: 9px 10px 10px;
+    color: #94a3b8;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.fb-port {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    transform: translateY(-50%);
+    border: 2px solid #e2e8f0;
+    cursor: crosshair;
+}
+
+.fb-port-in {
+    left: -8px;
+    background: #0ea5e9;
+}
+
+.fb-port-out {
+    right: -8px;
+    background: #22c55e;
+}
+
+.fb-port:hover {
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.28);
+}
+
+.fb-ins-card {
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: rgba(15, 23, 42, 0.8);
+}
+
+.fb-ins-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #cbd5e1;
+    margin-bottom: 8px;
+}
+
+.fb-ins-row {
+    margin-bottom: 8px;
+}
+
+.fb-ins-row label {
+    display: block;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 3px;
+}
+
+.fb-ins-row input,
+.fb-ins-row select {
+    width: 100%;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.85);
+    color: #e2e8f0;
+    font-size: 12px;
+    padding: 7px 9px;
+    outline: none;
+}
+
+.fb-ins-row input:focus,
+.fb-ins-row select:focus {
+    border-color: #38bdf8;
+}
+
+.fb-edge-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 7px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    color: #e2e8f0;
+    font-size: 11px;
+}
+
+.fb-empty {
+    color: #94a3b8;
+    font-size: 12px;
+    text-align: center;
+    margin-top: 18px;
+}
+
+@media (max-width: 1300px) {
+    .fb-grid {
+        grid-template-columns: 240px 1fr 280px;
+    }
+
+    .fb-node {
+        width: 200px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .fb-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .fb-left,
+    .fb-right {
+        display: none;
+    }
+}
+</style>
+
+<script>
+const PROCESS_ID = {{ process.id }};
+const FLOW_CONFIG = {{ flow_config_json|safe }};
+const TEMPLATE_NAMES = {{ template_names|safe }};
+
+const NODE_TYPES = {
+    sap_fill: { label: 'SAP Fill', icon: 'fa-fill-drip', color: '#3b82f6', group: 'SAP' },
+    sap_run: { label: 'SAP Run', icon: 'fa-play', color: '#6366f1', group: 'SAP' },
+    sap_wait: { label: 'Wait', icon: 'fa-hourglass-half', color: '#f97316', group: 'Control Flow' },
+    sap_scan: { label: 'SAP Scan', icon: 'fa-magnifying-glass', color: '#06b6d4', group: 'SAP' },
+    sap_action: { label: 'SAP Action', icon: 'fa-bolt', color: '#22c55e', group: 'SAP' },
+    ftp_list: { label: 'FTP List', icon: 'fa-folder-open', color: '#0ea5e9', group: 'Integration' },
+    ftp_download: { label: 'FTP Download', icon: 'fa-file-download', color: '#14b8a6', group: 'Integration' },
+    ftp_upload: { label: 'FTP Upload', icon: 'fa-file-upload', color: '#f59e0b', group: 'Integration' },
+    sap_close: { label: 'SAP Close', icon: 'fa-circle-xmark', color: '#ef4444', group: 'SAP' },
+    if_else: { label: 'IF / ELSE', icon: 'fa-code-branch', color: '#f97316', group: 'Control Flow' },
+    loop_generic: { label: 'Loop Generic', icon: 'fa-rotate', color: '#a855f7', group: 'Control Flow' },
+    loop_next: { label: 'Loop Next', icon: 'fa-forward', color: '#64748b', group: 'Control Flow' },
+    py_script: { label: 'Python Script', icon: 'fa-file-code', color: '#84cc16', group: 'Script' },
+};
+
+const GROUP_ORDER = ['Control Flow', 'SAP', 'Integration', 'Script'];
+
+function csrf() {
+    const m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : '';
+}
+
+function esc(v) {
+    return String(v || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+}
+
+class FlowBuilderPro {
+    constructor() {
+        this.nodes = [];
+        this.connections = [];
+        this.selectedNodeId = null;
+        this.selectedConnectionId = null;
+        this.connectFromNodeId = null;
+
+        this.zoom = 1;
+        this.panX = 120;
+        this.panY = 120;
+
+        this.dragNodeId = null;
+        this.dragOffsetX = 0;
+        this.dragOffsetY = 0;
+
+        this.stage = document.getElementById('fb-stage');
+        this.viewport = document.getElementById('fb-viewport');
+        this.nodesLayer = document.getElementById('fb-nodes');
+        this.edgesLayer = document.getElementById('fb-edges');
+        this.draftLayer = document.getElementById('fb-draft-edge');
+        this.inspector = document.getElementById('fb-inspector');
+        this.zoomLabel = document.getElementById('fb-zoom-label');
+
+        this.init();
+    }
+
+    init() {
+        this.loadData();
+        this.renderToolbox();
+        this.bindTopbar();
+        this.bindStage();
+        this.applyViewportTransform();
+        this.renderAll();
+        this.fitToView();
+    }
+
+    loadData() {
+        const inNodes = Array.isArray(FLOW_CONFIG.nodes) ? FLOW_CONFIG.nodes : [];
+        const inEdges = Array.isArray(FLOW_CONFIG.connections) ? FLOW_CONFIG.connections : [];
+        this.nodes = inNodes.map((n, idx) => ({
+            id: String(n.id || ('node-' + Date.now() + '-' + idx)),
+            type: String(n.type || 'sap_action'),
+            label: String(n.label || NODE_TYPES[n.type]?.label || 'Node'),
+            x: Number(n.x || (120 + idx * 240)),
+            y: Number(n.y || 180),
+            order: Number(n.order || idx),
+            config: (n.config && typeof n.config === 'object') ? n.config : {},
+        }));
+        this.connections = inEdges
+            .filter((c) => c && c.from && c.to)
+            .map((c, i) => ({
+                id: String(c.id || ('edge-' + Date.now() + '-' + i)),
+                from: String(c.from),
+                to: String(c.to),
+                label: String(c.label || ''),
+            }));
+    }
+
+    bindTopbar() {
+        document.getElementById('fb-save').addEventListener('click', () => this.save());
+        document.getElementById('fb-auto-layout').addEventListener('click', () => {
+            this.autoLayout();
+            this.renderAll();
+            this.fitToView();
+        });
+        document.getElementById('fb-fit').addEventListener('click', () => this.fitToView());
+        document.getElementById('fb-zoom-in').addEventListener('click', () => this.setZoom(this.zoom * 1.1));
+        document.getElementById('fb-zoom-out').addEventListener('click', () => this.setZoom(this.zoom / 1.1));
+        document.getElementById('fb-clear-selection').addEventListener('click', () => {
+            this.clearSelection();
+            this.renderAll();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedConnectionId) {
+                const tag = String((e.target && e.target.tagName) || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+                e.preventDefault();
+                this.deleteConnection(this.selectedConnectionId);
+            }
+        });
+    }
+
+    bindStage() {
+        this.stage.addEventListener('wheel', (e) => {
+            if (!e.ctrlKey) return;
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.08 : 0.92;
+            this.setZoom(this.zoom * factor);
+        }, { passive: false });
+
+        this.stage.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        this.stage.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const nodeType = e.dataTransfer.getData('text/plain');
+            if (!NODE_TYPES[nodeType]) return;
+            const p = this.screenToWorld(e.clientX, e.clientY);
+            this.createNode(nodeType, p.x - 110, p.y - 44);
+        });
+
+        this.stage.addEventListener('mousemove', (e) => {
+            if (!this.connectFromNodeId) return;
+            const source = this.nodeById(this.connectFromNodeId);
+            if (!source) return;
+            const p = this.screenToWorld(e.clientX, e.clientY);
+            const start = this.getOutPortPoint(source);
+            this.renderDraftEdge(start, p);
+        });
+
+        this.stage.addEventListener('click', (e) => {
+            if (e.target === this.stage || e.target === this.viewport || e.target === this.nodesLayer) {
+                this.clearSelection();
+                this.renderAll();
+            }
+        });
+    }
+
+    applyViewportTransform() {
+        this.viewport.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.zoom})`;
+        this.zoomLabel.textContent = `${Math.round(this.zoom * 100)}%`;
+    }
+
+    setZoom(value) {
+        this.zoom = Math.max(0.35, Math.min(1.8, value));
+        this.applyViewportTransform();
+    }
+
+    renderToolbox() {
+        const wrap = document.getElementById('fb-tool-groups');
+        const searchInput = document.getElementById('fb-tool-search');
+        const draw = () => {
+            const q = String(searchInput.value || '').trim().toLowerCase();
+            const groups = {};
+            Object.keys(NODE_TYPES).forEach((id) => {
+                const meta = NODE_TYPES[id];
+                const txt = `${id} ${meta.label} ${meta.group}`.toLowerCase();
+                if (q && !txt.includes(q)) return;
+                if (!groups[meta.group]) groups[meta.group] = [];
+                groups[meta.group].push({ id, ...meta });
+            });
+
+            wrap.innerHTML = '';
+            GROUP_ORDER.forEach((groupName) => {
+                const items = groups[groupName] || [];
+                if (!items.length) return;
+                const group = document.createElement('div');
+                group.className = 'fb-group';
+                group.innerHTML = `
+                    <div class="fb-group-head">
+                        <span>${esc(groupName)}</span>
+                        <span>${items.length}</span>
+                    </div>
+                    <div class="fb-group-body"></div>
+                `;
+                const body = group.querySelector('.fb-group-body');
+                items.forEach((item) => {
+                    const tool = document.createElement('div');
+                    tool.className = 'fb-tool';
+                    tool.draggable = true;
+                    tool.innerHTML = `
+                        <span class="fb-tool-icon"><i class="fas ${item.icon}"></i></span>
+                        <span class="fb-tool-text">${esc(item.label)}</span>
+                    `;
+                    tool.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.effectAllowed = 'copy';
+                        e.dataTransfer.setData('text/plain', item.id);
+                    });
+                    body.appendChild(tool);
+                });
+                wrap.appendChild(group);
+            });
+        };
+
+        searchInput.addEventListener('input', draw);
+        draw();
+    }
+
+    renderAll() {
+        this.renderNodes();
+        this.renderEdges();
+        this.renderInspector();
+    }
+
+    renderNodes() {
+        this.nodesLayer.innerHTML = '';
+        this.nodes.forEach((node) => {
+            const meta = NODE_TYPES[node.type] || NODE_TYPES.sap_action;
+            const el = document.createElement('div');
+            const selected = this.selectedNodeId === node.id;
+            const source = this.connectFromNodeId === node.id;
+            el.className = `fb-node${selected ? ' is-selected' : ''}${source ? ' is-connect-source' : ''}`;
+            el.style.left = `${node.x}px`;
+            el.style.top = `${node.y}px`;
+            el.id = `fb-node-${node.id}`;
+            el.innerHTML = `
+                <div class="fb-node-head" style="border-left:4px solid ${meta.color}">
+                    <i class="fas ${meta.icon}"></i>
+                    <span>${esc(node.label)}</span>
+                </div>
+                <div class="fb-node-body">${esc(meta.label)}</div>
+                <div class="fb-port fb-port-in" title="Baglanti al"></div>
+                <div class="fb-port fb-port-out" title="Baglanti ver"></div>
+            `;
+
+            const head = el.querySelector('.fb-node-head');
+            head.addEventListener('mousedown', (e) => this.startNodeDrag(e, node.id));
+
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.connectFromNodeId && this.connectFromNodeId !== node.id) {
+                    this.finishConnect(node.id);
+                    return;
+                }
+                this.selectedNodeId = node.id;
+                this.selectedConnectionId = null;
+                this.renderAll();
+            });
+
+            el.querySelector('.fb-port-out').addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.startConnect(node.id);
+            });
+
+            el.querySelector('.fb-port-in').addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (this.connectFromNodeId) this.finishConnect(node.id);
+            });
+
+            this.nodesLayer.appendChild(el);
+        });
+    }
+
+    renderEdges() {
+        this.edgesLayer.innerHTML = '';
+        this.connections.forEach((edge) => {
+            const fromNode = this.nodeById(edge.from);
+            const toNode = this.nodeById(edge.to);
+            if (!fromNode || !toNode) return;
+            const p1 = this.getOutPortPoint(fromNode);
+            const p2 = this.getInPortPoint(toNode);
+            const d = this.cubicPath(p1, p2);
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', d);
+            path.setAttribute('class', this.selectedConnectionId === edge.id ? 'is-selected' : '');
+            path.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.selectedConnectionId = edge.id;
+                this.selectedNodeId = null;
+                this.connectFromNodeId = null;
+                this.renderAll();
+            });
+            this.edgesLayer.appendChild(path);
+
+            if (edge.label) {
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', String((p1.x + p2.x) / 2));
+                text.setAttribute('y', String((p1.y + p2.y) / 2 - 7));
+                text.setAttribute('text-anchor', 'middle');
+                text.textContent = edge.label;
+                this.edgesLayer.appendChild(text);
+            }
+        });
+    }
+
+    renderInspector() {
+        if (this.selectedConnectionId) {
+            const edge = this.connections.find((c) => c.id === this.selectedConnectionId);
+            if (!edge) {
+                this.selectedConnectionId = null;
+                this.renderInspector();
+                return;
+            }
+            const fromNode = this.nodeById(edge.from);
+            const toNode = this.nodeById(edge.to);
+            this.inspector.innerHTML = `
+                <div class="fb-ins-card">
+                    <div class="fb-ins-title">Secili Baglanti</div>
+                    <div class="fb-ins-row"><label>Hat</label><div class="fb-empty" style="margin:0;text-align:left">${esc(fromNode?.label || edge.from)} -> ${esc(toNode?.label || edge.to)}</div></div>
+                    <div class="fb-ins-row">
+                        <label>Etiket</label>
+                        <input id="ins-edge-label" type="text" value="${esc(edge.label || '')}" placeholder="true/false/next">
+                    </div>
+                    <button id="ins-edge-delete" type="button" class="btn btn-danger btn-sm" style="width:100%"><i class="fas fa-trash"></i> Cizgiyi Sil</button>
+                </div>
+            `;
+            document.getElementById('ins-edge-label').addEventListener('change', (e) => {
+                edge.label = e.target.value;
+                this.renderEdges();
+            });
+            document.getElementById('ins-edge-delete').addEventListener('click', () => {
+                this.deleteConnection(edge.id);
+            });
+            return;
+        }
+
+        if (!this.selectedNodeId) {
+            this.inspector.innerHTML = '<div class="fb-empty">Node veya baglanti secin</div>';
+            return;
+        }
+
+        const node = this.nodeById(this.selectedNodeId);
+        if (!node) {
+            this.selectedNodeId = null;
+            this.renderInspector();
+            return;
+        }
+        const outEdges = this.connections.filter((c) => c.from === node.id);
+
+        let dynamicFields = '';
+        if (node.type === 'sap_fill') {
+            dynamicFields = `
+                <div class="fb-ins-row">
+                    <label>Sablon</label>
+                    <select id="ins-template-name">
+                        <option value="">Sec...</option>
+                        ${TEMPLATE_NAMES.map((t) => `<option value="${esc(t)}" ${node.config.template_name === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+                    </select>
+                </div>
+            `;
+        } else if (node.type === 'if_else') {
+            dynamicFields = `
+                <div class="fb-ins-row">
+                    <label>Ifade</label>
+                    <input id="ins-if-expression" type="text" value="${esc(node.config.expression || '')}" placeholder="or: int(runtime.get('count', 0)) > 0">
+                </div>
+            `;
+        } else if (node.type === 'py_script') {
+            dynamicFields = `
+                <div class="fb-ins-row">
+                    <label>Script path</label>
+                    <input id="ins-py-path" type="text" value="${esc(node.config.script_path || '')}" placeholder="scripts/task.py">
+                </div>
+                <div class="fb-ins-row">
+                    <label>Args</label>
+                    <input id="ins-py-args" type="text" value="${esc((node.config.args || []).join(' '))}" placeholder="--mode daily">
+                </div>
+                <div class="fb-ins-row">
+                    <label>Timeout sec</label>
+                    <input id="ins-py-timeout" type="number" min="1" max="1800" value="${Number(node.config.timeout_sec || 60)}">
+                </div>
+            `;
+        } else if (node.type === 'loop_generic') {
+            dynamicFields = `
+                <div class="fb-ins-row">
+                    <label>Counter key</label>
+                    <input id="ins-loop-counter" type="text" value="${esc(node.config.counter_key || 'loop_counter')}">
+                </div>
+            `;
+        }
+
+        this.inspector.innerHTML = `
+            <div class="fb-ins-card">
+                <div class="fb-ins-title">Node</div>
+                <div class="fb-ins-row">
+                    <label>Ad</label>
+                    <input id="ins-node-label" type="text" value="${esc(node.label)}">
+                </div>
+                ${dynamicFields}
+                <button id="ins-node-delete" type="button" class="btn btn-danger btn-sm" style="width:100%"><i class="fas fa-trash"></i> Node Sil</button>
+            </div>
+            <div class="fb-ins-card">
+                <div class="fb-ins-title">Cikis Baglantilari</div>
+                ${outEdges.length ? outEdges.map((e) => {
+                    const target = this.nodeById(e.to);
+                    return `<div class="fb-edge-item"><span>${esc(e.label || 'next')} -> ${esc(target?.label || e.to)}</span><button class="btn btn-danger btn-sm edge-del" data-id="${esc(e.id)}">Sil</button></div>`;
+                }).join('') : '<div class="fb-empty" style="margin:0">Cikis baglantisi yok</div>'}
+            </div>
+        `;
+
+        document.getElementById('ins-node-label').addEventListener('change', (e) => {
+            node.label = e.target.value;
+            this.renderNodes();
+            this.renderInspector();
+        });
+
+        if (document.getElementById('ins-template-name')) {
+            document.getElementById('ins-template-name').addEventListener('change', (e) => {
+                node.config.template_name = e.target.value;
+            });
+        }
+
+        if (document.getElementById('ins-if-expression')) {
+            document.getElementById('ins-if-expression').addEventListener('change', (e) => {
+                node.config.expression = e.target.value;
+            });
+        }
+
+        if (document.getElementById('ins-py-path')) {
+            document.getElementById('ins-py-path').addEventListener('change', (e) => {
+                node.config.script_path = e.target.value;
+            });
+            document.getElementById('ins-py-args').addEventListener('change', (e) => {
+                node.config.args = String(e.target.value || '').split(' ').filter(Boolean);
+            });
+            document.getElementById('ins-py-timeout').addEventListener('change', (e) => {
+                node.config.timeout_sec = Number(e.target.value || 60);
+            });
+        }
+
+        if (document.getElementById('ins-loop-counter')) {
+            document.getElementById('ins-loop-counter').addEventListener('change', (e) => {
+                node.config.counter_key = e.target.value || 'loop_counter';
+            });
+        }
+
+        document.getElementById('ins-node-delete').addEventListener('click', () => this.deleteNode(node.id));
+        this.inspector.querySelectorAll('.edge-del').forEach((btn) => {
+            btn.addEventListener('click', () => this.deleteConnection(btn.dataset.id));
+        });
+    }
+
+    createNode(type, x, y) {
+        const meta = NODE_TYPES[type] || NODE_TYPES.sap_action;
+        this.nodes.push({
+            id: 'node-' + Date.now() + '-' + Math.round(Math.random() * 100000),
+            type,
+            label: meta.label,
+            x: Math.max(20, Math.min(3900, x)),
+            y: Math.max(20, Math.min(2400, y)),
+            order: this.nodes.length,
+            config: {},
+        });
+        this.renderAll();
+    }
+
+    startNodeDrag(e, nodeId) {
+        if (e.button !== 0) return;
+        const node = this.nodeById(nodeId);
+        if (!node) return;
+        e.preventDefault();
+        this.selectedNodeId = nodeId;
+        this.selectedConnectionId = null;
+        const start = this.screenToWorld(e.clientX, e.clientY);
+        this.dragNodeId = nodeId;
+        this.dragOffsetX = start.x - node.x;
+        this.dragOffsetY = start.y - node.y;
+
+        const onMove = (ev) => {
+            if (!this.dragNodeId) return;
+            const p = this.screenToWorld(ev.clientX, ev.clientY);
+            node.x = Math.max(20, Math.min(3920, p.x - this.dragOffsetX));
+            node.y = Math.max(20, Math.min(2460, p.y - this.dragOffsetY));
+            this.renderNodes();
+            this.renderEdges();
+        };
+
+        const onUp = () => {
+            this.dragNodeId = null;
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            this.renderInspector();
+        };
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }
+
+    startConnect(nodeId) {
+        this.connectFromNodeId = nodeId;
+        this.selectedConnectionId = null;
+        this.selectedNodeId = nodeId;
+        this.renderAll();
+    }
+
+    finishConnect(targetNodeId) {
+        const sourceId = this.connectFromNodeId;
+        this.connectFromNodeId = null;
+        this.clearDraftEdge();
+        if (!sourceId || sourceId === targetNodeId) {
+            this.renderAll();
+            return;
+        }
+        const exists = this.connections.some((c) => c.from === sourceId && c.to === targetNodeId);
+        if (exists) {
+            this.renderAll();
+            return;
+        }
+
+        let label = '';
+        const source = this.nodeById(sourceId);
+        if (source && source.type === 'if_else') {
+            const outCount = this.connections.filter((c) => c.from === sourceId).length;
+            label = outCount === 0 ? 'true' : (outCount === 1 ? 'false' : '');
+        }
+
+        this.connections.push({
+            id: 'edge-' + Date.now() + '-' + Math.round(Math.random() * 100000),
+            from: sourceId,
+            to: targetNodeId,
+            label,
+        });
+        this.renderAll();
+    }
+
+    deleteConnection(edgeId) {
+        this.connections = this.connections.filter((c) => c.id !== edgeId);
+        this.selectedConnectionId = null;
+        this.renderAll();
+    }
+
+    deleteNode(nodeId) {
+        this.nodes = this.nodes.filter((n) => n.id !== nodeId);
+        this.connections = this.connections.filter((c) => c.from !== nodeId && c.to !== nodeId);
+        this.selectedNodeId = null;
+        this.selectedConnectionId = null;
+        this.renderAll();
+    }
+
+    clearSelection() {
+        this.selectedNodeId = null;
+        this.selectedConnectionId = null;
+        this.connectFromNodeId = null;
+        this.clearDraftEdge();
+    }
+
+    renderDraftEdge(from, to) {
+        this.draftLayer.innerHTML = '';
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', this.cubicPath(from, to));
+        this.draftLayer.appendChild(path);
+    }
+
+    clearDraftEdge() {
+        this.draftLayer.innerHTML = '';
+    }
+
+    autoLayout() {
+        if (!this.nodes.length) return;
+        const incoming = {};
+        const children = {};
+        this.nodes.forEach((n) => {
+            incoming[n.id] = 0;
+            children[n.id] = [];
+        });
+        this.connections.forEach((c) => {
+            if (incoming[c.to] !== undefined) incoming[c.to] += 1;
+            if (children[c.from]) children[c.from].push(c.to);
+        });
+
+        const roots = this.nodes
+            .filter((n) => incoming[n.id] === 0)
+            .sort((a, b) => a.order - b.order);
+
+        const visited = new Set();
+        const layers = [];
+        const queue = roots.map((r) => ({ id: r.id, d: 0 }));
+        while (queue.length) {
+            const { id, d } = queue.shift();
+            if (visited.has(id)) continue;
+            visited.add(id);
+            if (!layers[d]) layers[d] = [];
+            layers[d].push(id);
+            (children[id] || []).forEach((ch) => queue.push({ id: ch, d: d + 1 }));
+        }
+
+        this.nodes.forEach((n) => {
+            if (!visited.has(n.id)) {
+                if (!layers[0]) layers[0] = [];
+                layers[0].push(n.id);
+            }
+        });
+
+        layers.forEach((layer, lx) => {
+            layer.forEach((id, ly) => {
+                const n = this.nodeById(id);
+                if (!n) return;
+                n.x = 120 + lx * 280;
+                n.y = 120 + ly * 150;
+            });
+        });
+    }
+
+    fitToView() {
+        if (!this.nodes.length) {
+            this.zoom = 1;
+            this.panX = 120;
+            this.panY = 120;
+            this.applyViewportTransform();
+            return;
+        }
+
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        this.nodes.forEach((n) => {
+            minX = Math.min(minX, n.x);
+            minY = Math.min(minY, n.y);
+            maxX = Math.max(maxX, n.x + 220);
+            maxY = Math.max(maxY, n.y + 90);
+        });
+
+        const rect = this.stage.getBoundingClientRect();
+        const w = Math.max(200, maxX - minX + 120);
+        const h = Math.max(200, maxY - minY + 120);
+        const zoomX = rect.width / w;
+        const zoomY = rect.height / h;
+        this.zoom = Math.max(0.35, Math.min(1.35, Math.min(zoomX, zoomY)));
+        this.panX = (rect.width - (w * this.zoom)) / 2 - (minX - 60) * this.zoom;
+        this.panY = (rect.height - (h * this.zoom)) / 2 - (minY - 60) * this.zoom;
+        this.applyViewportTransform();
+    }
+
+    nodeById(id) {
+        return this.nodes.find((n) => n.id === id);
+    }
+
+    getInPortPoint(node) {
+        return { x: node.x, y: node.y + 44 };
+    }
+
+    getOutPortPoint(node) {
+        return { x: node.x + 220, y: node.y + 44 };
+    }
+
+    cubicPath(p1, p2) {
+        const dx = Math.max(50, Math.abs(p2.x - p1.x) * 0.45);
+        return `M ${p1.x} ${p1.y} C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`;
+    }
+
+    screenToWorld(clientX, clientY) {
+        const r = this.stage.getBoundingClientRect();
+        return {
+            x: (clientX - r.left - this.panX) / this.zoom,
+            y: (clientY - r.top - this.panY) / this.zoom,
+        };
+    }
+
+    async save() {
+        this.nodes.forEach((n, i) => { n.order = i; });
+        const payload = {
+            flow_config: {
+                nodes: this.nodes,
+                connections: this.connections,
+            },
+        };
+
+        try {
+            const resp = await fetch(`/sap-process/${PROCESS_ID}/flow/save/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrf(),
+                },
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) {
+                alert(`Kayit hatasi: ${data.error || 'Bilinmeyen hata'}`);
+                return;
+            }
+            alert('Flow kaydedildi.');
+        } catch (err) {
+            alert(`Kayit hatasi: ${err}`);
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    new FlowBuilderPro();
+});
+</script>
+{% endblock %}

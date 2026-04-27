@@ -1,0 +1,192 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<section class="sap-page-head">
+    <div class="sap-head-chip">
+        <i class="fas fa-sitemap"></i>
+        SAP Süreç Tanımları
+    </div>
+    <p>Her süreç; robotun SAP'ta adım adım ne yapacağını tanımlar.</p>
+</section>
+
+<div class="spb-list-wrap">
+    <div class="spb-list-toolbar">
+        <button id="spl-create-btn" class="btn btn-primary" type="button">
+            <i class="fas fa-plus"></i> Yeni Süreç
+        </button>
+    </div>
+
+    <div id="spl-grid" class="spb-proc-grid">
+        <!-- JS render -->
+    </div>
+</div>
+
+<!-- Yeni Süreç Modalı -->
+<div id="spl-create-modal" class="contact-confirm-modal" role="dialog" aria-modal="true">
+    <div class="contact-confirm-card" style="width:min(500px,calc(100% - 24px))">
+        <div class="contact-confirm-head">Yeni SAP Süreci</div>
+        <div class="contact-confirm-body" style="padding-bottom:4px">
+            <label class="spb-field-label" for="spl-name-input">Süreç Adı *</label>
+            <input id="spl-name-input" type="text" class="spb-input" maxlength="200" placeholder="Örn: Fatura Kontrolü">
+            <label class="spb-field-label" for="spl-desc-input" style="margin-top:10px">Açıklama</label>
+            <textarea id="spl-desc-input" class="spb-input" rows="2" maxlength="500" placeholder="İsteğe bağlı kısa açıklama"></textarea>
+        </div>
+        <div class="contact-confirm-actions">
+            <button id="spl-create-cancel" type="button" class="btn">Vazgeç</button>
+            <button id="spl-create-ok" type="button" class="btn btn-primary">Oluştur</button>
+        </div>
+    </div>
+</div>
+
+<!-- Silme Onay Modalı -->
+<div id="spl-delete-modal" class="contact-confirm-modal" role="dialog" aria-modal="true">
+    <div class="contact-confirm-card">
+        <div class="contact-confirm-head">Süreci Sil</div>
+        <div class="contact-confirm-body" id="spl-delete-body">Bu süreci kalıcı olarak silmek istediğinize emin misiniz?</div>
+        <div class="contact-confirm-actions">
+            <button id="spl-delete-cancel" type="button" class="btn">Vazgeç</button>
+            <button id="spl-delete-ok" type="button" class="btn btn-danger">Sil</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+    const LIST_URL   = '{% url "sap_process_list" %}?fmt=json';
+    const CREATE_URL = '{% url "sap_process_list" %}';
+    const CSRF       = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+    let processes    = [];
+    let _pendingDeleteId = null;
+
+    function esc(s) {
+        return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function fmtDate(s) {
+        if (!s) return '—';
+        try { return new Date(s).toLocaleString('tr-TR', {dateStyle:'short', timeStyle:'short'}); } catch { return s; }
+    }
+
+    async function loadProcesses() {
+        const grid = document.getElementById('spl-grid');
+        try {
+            const resp = await fetch(LIST_URL);
+            const data = await resp.json();
+            processes = data.processes || [];
+            renderGrid();
+        } catch (e) {
+            if (grid) grid.innerHTML = '<div class="spb-empty"><i class="fas fa-exclamation-triangle"></i><br>Yüklenemedi: ' + e.message + '</div>';
+        }
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById('spl-grid');
+        if (!grid) return;
+        if (processes.length === 0) {
+            grid.innerHTML = '<div class="spb-empty"><i class="fas fa-sitemap"></i><br>Henüz süreç yok.<br>"Yeni Süreç" butonuyla başlayın.</div>';
+            return;
+        }
+        grid.innerHTML = processes.map(p => `
+        <div class="spb-proc-card">
+            <div class="spb-proc-card-body" style="cursor:pointer" onclick="window.location.href='/sap-process/${p.id}/'">
+                <div class="spb-proc-card-name">${esc(p.name)}</div>
+                <div class="spb-proc-card-desc">${esc(p.description || '—')}</div>
+                <div class="spb-proc-card-meta"><i class="fas fa-clock"></i> ${fmtDate(p.updated_at)}</div>
+            </div>
+            <div class="spb-proc-card-actions">
+                <button type="button" class="btn btn-danger spl-delete-btn" data-id="${p.id}" data-name="${esc(p.name)}" title="Sil">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>`).join('');
+
+        grid.querySelectorAll('.spl-delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _pendingDeleteId = +btn.dataset.id;
+                const name = btn.dataset.name;
+                const body = document.getElementById('spl-delete-body');
+                if (body) body.textContent = `"${name}" sürecini kalıcı olarak silmek istediğinize emin misiniz?`;
+                document.getElementById('spl-delete-modal')?.classList.add('open');
+            });
+        });
+    }
+
+    async function createProcess() {
+        const name = document.getElementById('spl-name-input')?.value.trim();
+        const desc = document.getElementById('spl-desc-input')?.value.trim();
+        if (!name) { if (typeof showToast==='function') showToast('Süreç adı boş olamaz.','info'); return; }
+        const fd = new FormData();
+        fd.append('name', name);
+        fd.append('description', desc);
+        fd.append('csrfmiddlewaretoken', CSRF);
+        try {
+            const resp = await fetch(CREATE_URL, {method:'POST', body: fd});
+            const data = await resp.json();
+            if (data.ok) {
+                document.getElementById('spl-create-modal')?.classList.remove('open');
+                if (typeof showToast==='function') showToast('Süreç oluşturuldu.','success');
+                window.location.href = `/sap-process/${data.id}/`;
+            } else {
+                if (typeof showToast==='function') showToast(data.error,'error');
+            }
+        } catch (e) {
+            if (typeof showToast==='function') showToast('Hata: '+e.message,'error');
+        }
+    }
+
+    async function deleteProcess() {
+        if (!_pendingDeleteId) return;
+        const id = _pendingDeleteId;
+        document.getElementById('spl-delete-modal')?.classList.remove('open');
+        _pendingDeleteId = null;
+        try {
+            const resp = await fetch(`/sap-process/${id}/delete/`, {
+                method:'POST',
+                headers:{'X-CSRFToken': CSRF},
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                if (typeof showToast==='function') showToast('Süreç silindi.','success');
+                await loadProcesses();
+            } else {
+                if (typeof showToast==='function') showToast(data.error || 'Silinemedi.','error');
+            }
+        } catch (e) {
+            if (typeof showToast==='function') showToast('Hata: '+e.message,'error');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadProcesses();
+
+        document.getElementById('spl-create-btn')?.addEventListener('click', () => {
+            document.getElementById('spl-name-input').value = '';
+            document.getElementById('spl-desc-input').value = '';
+            document.getElementById('spl-create-modal')?.classList.add('open');
+        });
+        document.getElementById('spl-create-ok')?.addEventListener('click', createProcess);
+        document.getElementById('spl-create-cancel')?.addEventListener('click', () =>
+            document.getElementById('spl-create-modal')?.classList.remove('open'));
+        document.getElementById('spl-create-modal')?.addEventListener('click', e => {
+            if (e.target === document.getElementById('spl-create-modal'))
+                document.getElementById('spl-create-modal')?.classList.remove('open');
+        });
+
+        document.getElementById('spl-delete-ok')?.addEventListener('click', deleteProcess);
+        document.getElementById('spl-delete-cancel')?.addEventListener('click', () => {
+            document.getElementById('spl-delete-modal')?.classList.remove('open');
+            _pendingDeleteId = null;
+        });
+        document.getElementById('spl-delete-modal')?.addEventListener('click', e => {
+            if (e.target === document.getElementById('spl-delete-modal')) {
+                document.getElementById('spl-delete-modal')?.classList.remove('open');
+                _pendingDeleteId = null;
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

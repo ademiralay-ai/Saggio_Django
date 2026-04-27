@@ -1,0 +1,752 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<section class="sap-page-head">
+    <div class="sap-head-chip">
+        <i class="fas fa-project-diagram"></i>
+        SAP Süreç Otomasyon Akışı
+    </div>
+    <p>Robotun adım adım ne yapacağını tanımla, kaydet.</p>
+</section>
+
+<div class="spb-wrap">
+    <!-- ── Başlık / Meta ──────────────────────────────────────── -->
+    <div class="spb-meta-card">
+        <div class="spb-meta-left">
+            <span id="spb-proc-name-display" class="spb-proc-name">{{ process.name }}</span>
+            {% if process.description %}
+            <span class="spb-proc-desc" id="spb-proc-desc-display">{{ process.description }}</span>
+            {% else %}
+            <span class="spb-proc-desc text-dim" id="spb-proc-desc-display">Açıklama yok</span>
+            {% endif %}
+        </div>
+        <div class="spb-meta-right">
+            <button id="spb-rename-btn" class="btn" type="button" title="Süreci yeniden adlandır"><i class="fas fa-pencil-alt"></i> Düzenle</button>
+            <button id="spb-run-btn" class="btn" type="button" title="Süreci çalıştır"><i class="fas fa-play"></i> Çalıştır</button>
+            <button id="spb-save-btn" class="btn btn-primary" type="button"><i class="fas fa-save"></i> Kaydet</button>
+            <a href="{% url 'sap_process_list' %}" id="spb-back-btn" class="btn" title="Süreç listesine dön"><i class="fas fa-arrow-left"></i></a>
+        </div>
+    </div>
+
+    <div class="spb-meta-card">
+        <div class="spb-meta-left" style="width:100%">
+            <span class="spb-proc-desc">Çalıştırmada bağlantı bilgileri seçilen şablonun kendi ayarlarından otomatik alınır.</span>
+        </div>
+    </div>
+
+    <!-- ── Adım Listesi ───────────────────────────────────────── -->
+    <div id="spb-step-list" class="spb-step-list">
+        <!-- JS tarafından render edilir -->
+    </div>
+
+    <!-- ── Adım Ekle ─────────────────────────────────────────── -->
+    <div class="spb-add-row">
+        <select id="spb-type-picker" class="spb-type-picker">
+            <option value="sap_fill">📋 SAP Ekranı Doldur (Şablon)</option>
+            <option value="sap_run">▶ F8 – Çalıştır</option>
+            <option value="sap_wait">⏳ Ekranı Bekle</option>
+            <option value="sap_scan">🔍 Derin Tarama</option>
+            <option value="sap_action">⚡ Aksiyon Yap</option>
+            <option value="ftp_list">📂 FTP Listele</option>
+            <option value="ftp_download">📥 FTP İndir</option>
+            <option value="ftp_upload">📤 FTP Yükle</option>
+            <option value="sap_close">✖ SAP Kapat</option>
+            <option value="loop_next">🔄 Döngü – Sonraki Kayıt</option>
+        </select>
+        <button id="spb-add-btn" class="btn btn-primary" type="button"><i class="fas fa-plus"></i> Adım Ekle</button>
+    </div>
+
+    <div id="spb-run-log" class="spb-run-log" style="display:none"></div>
+</div>
+
+<!-- ── Onay Modali ────────────────────────────────────────────── -->
+<div id="spb-confirm-modal" class="contact-confirm-modal" role="dialog" aria-modal="true">
+    <div class="contact-confirm-card">
+        <div class="contact-confirm-head">Adımı Sil</div>
+        <div class="contact-confirm-body">Bu adımı silmek istediğinize emin misiniz?</div>
+        <div class="contact-confirm-actions">
+            <button id="spb-confirm-cancel" type="button" class="btn">Vazgeç</button>
+            <button id="spb-confirm-ok" type="button" class="btn btn-danger">Sil</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Yeniden Adlandır Modalı ───────────────────────────────── -->
+<div id="spb-rename-modal" class="contact-confirm-modal" role="dialog" aria-modal="true">
+    <div class="contact-confirm-card" style="width:min(520px,calc(100% - 24px))">
+        <div class="contact-confirm-head">Süreci Düzenle</div>
+        <div class="contact-confirm-body" style="padding-bottom:4px">
+            <label class="spb-field-label" for="spb-rename-name">Süreç Adı</label>
+            <input id="spb-rename-name" type="text" class="spb-input" maxlength="200">
+            <label class="spb-field-label" for="spb-rename-desc" style="margin-top:10px">Açıklama</label>
+            <textarea id="spb-rename-desc" class="spb-input" rows="2" maxlength="500"></textarea>
+        </div>
+        <div class="contact-confirm-actions">
+            <button id="spb-rename-cancel" type="button" class="btn">Vazgeç</button>
+            <button id="spb-rename-ok" type="button" class="btn btn-primary">Kaydet</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+    // ── Veri ──────────────────────────────────────────────────────────────
+    const PROCESS_ID   = {{ process.id }};
+    const SAVE_URL     = '{% url "sap_process_step_save" process.id %}';
+    const RENAME_URL   = '{% url "sap_process_rename" process.id %}';
+    const RUN_URL      = '{% url "sap_process_run_preview" process.id %}';
+    const CSRF         = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+    const TEMPLATE_NAMES = {{ template_names|safe }};
+    const FTP_ACCOUNTS = {{ ftp_accounts_json|safe }};
+
+    let steps = {{ steps_json|safe }};   // [{id, order, step_type, label, config}]
+    let _pendingDeleteIdx = null;
+
+    // ── Step meta ─────────────────────────────────────────────────────────
+    const STEP_META = {
+        sap_fill:   { icon: 'fas fa-fill-drip',      label: 'SAP Ekranı Doldur (Şablon)',  color: '#00c4ff' },
+        sap_run:    { icon: 'fas fa-play',            label: 'F8 – Çalıştır',               color: '#00e576' },
+        sap_wait:   { icon: 'fas fa-hourglass-half',  label: 'Ekranı Bekle',                color: '#ffb347' },
+        sap_scan:   { icon: 'fas fa-satellite-dish',  label: 'Derin Tarama',                color: '#b088ff' },
+        sap_action: { icon: 'fas fa-bolt',            label: 'Aksiyon Yap',                 color: '#ff7f50' },
+        ftp_list:   { icon: 'fas fa-folder-open',     label: 'FTP Listele',                 color: '#5cc8ff' },
+        ftp_download:{ icon: 'fas fa-file-download',  label: 'FTP İndir',                   color: '#37d67a' },
+        ftp_upload: { icon: 'fas fa-file-upload',     label: 'FTP Yükle',                   color: '#ffb347' },
+        sap_close:  { icon: 'fas fa-times-circle',    label: 'SAP Kapat',                   color: '#ff4c6a' },
+        loop_next:  { icon: 'fas fa-redo',            label: 'Döngü – Sonraki Kayıt',       color: '#00f3ff' },
+    };
+
+    // ── Config alanları ───────────────────────────────────────────────────
+    /**
+     * Her step tipi için config editör HTML döndürür.
+     * data: mevcut config objesi
+     */
+    function renderConfigFields(stepType, data) {
+        data = data || {};
+        const ftpOptions = FTP_ACCOUNTS.map(a =>
+            `<option value="${a.id}" ${String(data.ftp_account_id || '') === String(a.id) ? 'selected' : ''}>${esc(a.name)} (${esc(String(a.protocol || '').toUpperCase())} ${esc(a.host)}:${esc(String(a.port))})</option>`
+        ).join('');
+        switch (stepType) {
+
+        case 'sap_fill': {
+            const opts = TEMPLATE_NAMES.map(n =>
+                `<option value="${esc(n)}" ${data.template_name === n ? 'selected' : ''}>${esc(n)}</option>`
+            ).join('');
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field">
+                    <label class="spb-field-label">Şablon</label>
+                    <select class="spb-input" data-key="template_name">
+                        <option value="">— Şablon Seçiniz —</option>${opts}
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">T-Kodu (override, boş bırakılabilir)</label>
+                    <input type="text" class="spb-input" data-key="t_code_override" value="${esc(data.t_code_override||'')}" maxlength="20">
+                </div>
+            </div>`;
+        }
+
+        case 'sap_run':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field">
+                    <label class="spb-field-label">Tuş</label>
+                    <select class="spb-input" data-key="key">
+                        ${['F8','F5','F6','F7','Enter'].map(k =>
+                            `<option ${(data.key||'F8')===k?'selected':''}>${k}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Sonraki adıma geçmeden önce bekleme (ms)</label>
+                    <input type="number" class="spb-input" data-key="delay_after_ms" value="${esc(data.delay_after_ms||'0')}" min="0" max="60000" step="100">
+                </div>
+            </div>`;
+
+        case 'sap_wait':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field">
+                    <label class="spb-field-label">Zaman aşımı (saniye)</label>
+                    <input type="number" class="spb-input" data-key="timeout_sec" value="${esc(data.timeout_sec||'60')}" min="1" max="600">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Kontrol aralığı (ms)</label>
+                    <input type="number" class="spb-input" data-key="poll_ms" value="${esc(data.poll_ms||'1000')}" min="200" max="10000" step="100">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Beklenen ekran başlığı (kısmi eşleşme, boş = herhangi)</label>
+                    <input type="text" class="spb-input" data-key="screen_title" value="${esc(data.screen_title||'')}" maxlength="200">
+                </div>
+            </div>`;
+
+        case 'sap_scan':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Tarama notu (isteğe bağlı açıklama)</label>
+                    <input type="text" class="spb-input" data-key="note" value="${esc(data.note||'')}" maxlength="300">
+                </div>
+            </div>`;
+
+        case 'sap_action': {
+            const actions = Array.isArray(data.actions) ? data.actions : [];
+            return `
+            <div class="spb-action-builder" data-key="actions">
+                <div class="spb-action-list" id="spb-action-list-${Math.random().toString(36).slice(2,7)}">
+                    ${actions.map((a, i) => renderActionRow(a, i)).join('')}
+                </div>
+                <button type="button" class="btn spb-add-action-btn" style="margin-top:8px">
+                    <i class="fas fa-plus"></i> Aksiyon Ekle
+                </button>
+            </div>`;
+        }
+
+        case 'ftp_list':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">FTP Hesabı</label>
+                    <select class="spb-input" data-key="ftp_account_id">
+                        <option value="">— FTP Hesabı Seçiniz —</option>${ftpOptions}
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Uzak Yol</label>
+                    <input type="text" class="spb-input" data-key="remote_path" value="${esc(data.remote_path||'')}" placeholder="/path/to/dir">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Dosya Filtre (glob)</label>
+                    <input type="text" class="spb-input" data-key="file_pattern" value="${esc(data.file_pattern||'*')}" placeholder="*.csv">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Hata olursa adımı logla ve akışa devam et
+                    </label>
+                </div>
+            </div>`;
+
+        case 'ftp_download':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">FTP Hesabı</label>
+                    <select class="spb-input" data-key="ftp_account_id">
+                        <option value="">— FTP Hesabı Seçiniz —</option>${ftpOptions}
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Uzak Yol</label>
+                    <input type="text" class="spb-input" data-key="remote_path" value="${esc(data.remote_path||'')}" placeholder="/path/to/dir">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Dosya Filtre (glob)</label>
+                    <input type="text" class="spb-input" data-key="file_pattern" value="${esc(data.file_pattern||'*')}" placeholder="*.csv">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Yerel Klasör</label>
+                    <input type="text" class="spb-input" data-key="local_path" value="${esc(data.local_path||'')}" placeholder="C:/SaggioRPA/downloads">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Maks. Dosya (0 = hepsi)</label>
+                    <input type="number" class="spb-input" data-key="limit" value="${esc(data.limit||'0')}" min="0" max="10000">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Hata olursa adımı logla ve akışa devam et
+                    </label>
+                </div>
+            </div>`;
+
+        case 'ftp_upload':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">FTP Hesabı</label>
+                    <select class="spb-input" data-key="ftp_account_id">
+                        <option value="">— FTP Hesabı Seçiniz —</option>${ftpOptions}
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Yerel Dosya</label>
+                    <input type="text" class="spb-input" data-key="local_file" value="${esc(data.local_file||'')}" placeholder="C:/SaggioRPA/output/report.csv">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Uzak Yol</label>
+                    <input type="text" class="spb-input" data-key="remote_path" value="${esc(data.remote_path||'')}" placeholder="/upload/path">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Hata olursa adımı logla ve akışa devam et
+                    </label>
+                </div>
+            </div>`;
+
+        case 'sap_close':
+            return `<div class="spb-config-note"><i class="fas fa-info-circle"></i> SAP oturumu kapatılır. Ek yapılandırma gerekmez.</div>`;
+
+        case 'loop_next':
+            return `<div class="spb-config-note"><i class="fas fa-info-circle"></i> Döngüdeki bir sonraki kayda geçilir. Ek yapılandırma gerekmez.</div>`;
+
+        default:
+            return '';
+        }
+    }
+
+    const ACTION_TYPES = {
+        click_button:   '🖱 Butona Tıkla',
+        select_variant: '📌 Varyant Seç',
+        key_press:      '⌨ Tuşa Bas',
+        export_file:    '📁 Dosya Dışa Aktar',
+        popup_close:    '✖ Popup Kapat (Enter/Esc)',
+        wait_ms:        '⏱ Bekle (ms)',
+        custom_note:    '📝 Not',
+    };
+
+    function renderActionRow(a, i) {
+        const typeOpts = Object.entries(ACTION_TYPES).map(([v, l]) =>
+            `<option value="${v}" ${a.type===v?'selected':''}>${l}</option>`).join('');
+        return `
+        <div class="spb-action-row" data-action-idx="${i}">
+            <select class="spb-input spb-action-type" data-akey="type">${typeOpts}</select>
+            <input type="text" class="spb-input spb-action-value" data-akey="value"
+                   placeholder="${actionPlaceholder(a.type)}" value="${esc(a.value||'')}">
+            <button type="button" class="btn btn-danger spb-remove-action-btn" title="Aksiyonu sil"><i class="fas fa-times"></i></button>
+        </div>`;
+    }
+
+    function actionPlaceholder(type) {
+        const m = {
+            click_button: 'Element ID (örn. btn_execute)',
+            select_variant: 'Varyant adı',
+            key_press: 'Tuş (F8, Enter, Escape…)',
+            export_file: 'Hedef dosya yolu',
+            popup_close: 'Enter veya Escape',
+            wait_ms: 'Süre (ms, örn. 2000)',
+            custom_note: 'Not metni',
+        };
+        return m[type] || 'Değer';
+    }
+
+    function esc(s) {
+        return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────
+    function renderSteps() {
+        const list = document.getElementById('spb-step-list');
+        if (!list) return;
+        if (steps.length === 0) {
+            list.innerHTML = '<div class="spb-empty"><i class="fas fa-layer-group"></i><br>Henüz adım eklenmedi.<br>Aşağıdaki seçiciden tip seçip "Adım Ekle" butonuna basın.</div>';
+            return;
+        }
+        list.innerHTML = steps.map((s, i) => renderStepCard(s, i)).join('');
+        bindStepEvents();
+    }
+
+    function renderStepCard(s, i) {
+        const m = STEP_META[s.step_type] || {icon:'fas fa-question', label: s.step_type, color:'#888'};
+        const configHtml = renderConfigFields(s.step_type, s.config);
+        return `
+        <div class="spb-step-card" data-idx="${i}" draggable="true">
+            <div class="spb-step-header">
+                <div class="spb-step-drag" title="Sürükleyerek yeniden sırala"><i class="fas fa-grip-vertical"></i></div>
+                <div class="spb-step-badge" style="--step-color:${m.color}">
+                    <i class="${m.icon}"></i>
+                    <span>${i + 1}</span>
+                </div>
+                <div class="spb-step-info">
+                    <div class="spb-step-type-label">${m.label}</div>
+                    <input type="text" class="spb-step-label-input" data-idx="${i}"
+                           placeholder="Adım açıklaması (isteğe bağlı)"
+                           value="${esc(s.label||'')}">
+                </div>
+                <div class="spb-step-actions">
+                    <button class="btn spb-step-run" data-idx="${i}" title="Bu adıma kadar çalıştır"><i class="fas fa-play"></i></button>
+                    <button class="btn spb-step-up" data-idx="${i}" title="Yukarı taşı" ${i===0?'disabled':''}><i class="fas fa-chevron-up"></i></button>
+                    <button class="btn spb-step-down" data-idx="${i}" title="Aşağı taşı" ${i===steps.length-1?'disabled':''}><i class="fas fa-chevron-down"></i></button>
+                    <button class="btn spb-step-collapse" data-idx="${i}" title="Daralt/Genişlet"><i class="fas fa-chevron-${s._collapsed?'down':'up'}"></i></button>
+                    <button class="btn btn-danger spb-step-delete" data-idx="${i}" title="Adımı sil"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+            <div class="spb-step-body ${s._collapsed?'spb-collapsed':''}">
+                ${configHtml}
+            </div>
+        </div>`;
+    }
+
+    // ── Olaylar ───────────────────────────────────────────────────────────
+    function bindStepEvents() {
+        const list = document.getElementById('spb-step-list');
+        if (!list) return;
+
+        // Yukarı / Aşağı
+        list.querySelectorAll('.spb-step-up').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const i = +btn.dataset.idx;
+                if (i <= 0) return;
+                syncConfigFromDOM(i);
+                syncConfigFromDOM(i - 1);
+                [steps[i], steps[i-1]] = [steps[i-1], steps[i]];
+                renderSteps();
+            });
+        });
+        list.querySelectorAll('.spb-step-down').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const i = +btn.dataset.idx;
+                if (i >= steps.length - 1) return;
+                syncConfigFromDOM(i);
+                syncConfigFromDOM(i + 1);
+                [steps[i], steps[i+1]] = [steps[i+1], steps[i]];
+                renderSteps();
+            });
+        });
+
+        // Daralt / Genişlet
+        list.querySelectorAll('.spb-step-collapse').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const i = +btn.dataset.idx;
+                syncConfigFromDOM(i);
+                steps[i]._collapsed = !steps[i]._collapsed;
+                renderSteps();
+            });
+        });
+
+        // Sil
+        list.querySelectorAll('.spb-step-delete').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _pendingDeleteIdx = +btn.dataset.idx;
+                document.getElementById('spb-confirm-modal')?.classList.add('open');
+            });
+        });
+
+        // Bu adıma kadar çalıştır
+        list.querySelectorAll('.spb-step-run').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await runProcessToStep(i, btn);
+            });
+        });
+
+        // Label input senkron
+        list.querySelectorAll('.spb-step-label-input').forEach(inp => {
+            inp.addEventListener('input', () => {
+                const i = +inp.dataset.idx;
+                if (steps[i]) steps[i].label = inp.value;
+            });
+        });
+
+        // Aksiyon ekle
+        list.querySelectorAll('.spb-add-action-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const card = btn.closest('.spb-step-card');
+                const idx = +card.dataset.idx;
+                const actionList = card.querySelector('.spb-action-list');
+                if (!actionList) return;
+                const newAction = {type: 'click_button', value: ''};
+                const i = actionList.querySelectorAll('.spb-action-row').length;
+                actionList.insertAdjacentHTML('beforeend', renderActionRow(newAction, i));
+                bindActionTypeListeners(actionList);
+            });
+        });
+
+        // Aksiyon sil
+        list.querySelectorAll('.spb-remove-action-btn').forEach(btn => {
+            btn.addEventListener('click', () => btn.closest('.spb-action-row').remove());
+        });
+
+        // Aksiyon type change → placeholder güncelle
+        list.querySelectorAll('.spb-action-list').forEach(al => bindActionTypeListeners(al));
+
+        // Drag & Drop
+        setupDragDrop();
+    }
+
+    function bindActionTypeListeners(al) {
+        al.querySelectorAll('.spb-action-type').forEach(sel => {
+            // listener tekrar eklenmemesi için flag
+            if (sel._spbBound) return;
+            sel._spbBound = true;
+            sel.addEventListener('change', () => {
+                const row = sel.closest('.spb-action-row');
+                const valInput = row?.querySelector('.spb-action-value');
+                if (valInput) valInput.placeholder = actionPlaceholder(sel.value);
+            });
+        });
+        al.querySelectorAll('.spb-remove-action-btn').forEach(btn => {
+            if (btn._spbBound) return;
+            btn._spbBound = true;
+            btn.addEventListener('click', () => btn.closest('.spb-action-row').remove());
+        });
+    }
+
+    // ── DOM → state senkronizasyonu ───────────────────────────────────────
+    function syncAllFromDOM() {
+        for (let i = 0; i < steps.length; i++) syncConfigFromDOM(i);
+    }
+
+    function syncConfigFromDOM(idx) {
+        const card = document.querySelector(`.spb-step-card[data-idx="${idx}"]`);
+        if (!card) return;
+        const stepType = steps[idx]?.step_type;
+
+        // Label
+        const labelInp = card.querySelector('.spb-step-label-input');
+        if (labelInp) steps[idx].label = labelInp.value;
+
+        if (stepType === 'sap_action') {
+            // Aksiyonları topla
+            const actions = [];
+            card.querySelectorAll('.spb-action-row').forEach(row => {
+                actions.push({
+                    type:  row.querySelector('[data-akey="type"]')?.value || '',
+                    value: row.querySelector('[data-akey="value"]')?.value || '',
+                });
+            });
+            steps[idx].config = {actions};
+        } else {
+            // Genel input/select → data-key
+            const cfg = {};
+            card.querySelectorAll('[data-key]').forEach(el => {
+                if (el.type === 'checkbox') cfg[el.dataset.key] = !!el.checked;
+                else cfg[el.dataset.key] = el.value;
+            });
+            steps[idx].config = cfg;
+        }
+    }
+
+    // ── Drag & Drop ───────────────────────────────────────────────────────
+    let _dragIdx = null;
+
+    function setupDragDrop() {
+        const cards = document.querySelectorAll('.spb-step-card');
+        cards.forEach(card => {
+            card.addEventListener('dragstart', e => {
+                _dragIdx = +card.dataset.idx;
+                card.classList.add('spb-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('spb-dragging');
+                _dragIdx = null;
+                document.querySelectorAll('.spb-step-card').forEach(c => c.classList.remove('spb-drag-over'));
+            });
+            card.addEventListener('dragover', e => {
+                e.preventDefault();
+                card.classList.add('spb-drag-over');
+            });
+            card.addEventListener('dragleave', () => card.classList.remove('spb-drag-over'));
+            card.addEventListener('drop', e => {
+                e.preventDefault();
+                card.classList.remove('spb-drag-over');
+                const targetIdx = +card.dataset.idx;
+                if (_dragIdx === null || _dragIdx === targetIdx) return;
+                syncAllFromDOM();
+                const moved = steps.splice(_dragIdx, 1)[0];
+                steps.splice(targetIdx, 0, moved);
+                renderSteps();
+            });
+        });
+    }
+
+    // ── Kaydet ────────────────────────────────────────────────────────────
+    async function saveSteps() {
+        syncAllFromDOM();
+        const btn = document.getElementById('spb-save-btn');
+        const orig = btn?.innerHTML;
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Kaydediliyor...'; }
+        try {
+            const resp = await fetch(SAVE_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({steps: steps.map((s, i) => ({
+                    step_type: s.step_type,
+                    order: i,
+                    label: s.label || '',
+                    config: s.config || {},
+                }))}),
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                // Kaydedilen DB id'lerini steps'e yaz
+                data.steps.forEach((ds, i) => { if (steps[i]) steps[i].id = ds.id; });
+                if (typeof showToast === 'function') showToast(`${data.saved} adım kaydedildi.`, 'success');
+            } else {
+                if (typeof showToast === 'function') showToast('Kayıt hatası: ' + data.error, 'error');
+            }
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+        }
+    }
+
+    function renderRunLog(data) {
+        const box = document.getElementById('spb-run-log');
+        if (!box) return;
+        const logs = Array.isArray(data?.logs) ? data.logs : [];
+        if (logs.length === 0) {
+            box.style.display = 'none';
+            box.innerHTML = '';
+            return;
+        }
+        box.style.display = '';
+        box.innerHTML = `
+            <div class="spb-run-log-head"><i class="fas fa-terminal"></i> Çalıştırma Logu</div>
+            <div class="spb-run-log-items">
+                ${logs.map(l => `
+                    <div class="spb-run-log-item ${l.ok ? 'ok' : 'err'}">
+                        <span class="idx">${l.step}.</span>
+                        <span class="msg">${esc(l.label || l.type)}: ${esc(l.msg || '')}</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    async function runProcessToStep(uptoIndex = null, sourceBtn = null) {
+        syncAllFromDOM();
+        const hasTemplate = steps.some(s => s.step_type === 'sap_fill' && String((s.config || {}).template_name || '').trim());
+        if (!hasTemplate) {
+            if (typeof showToast === 'function') showToast('Çalıştırma için en az bir Şablon adımı gerekli.', 'info');
+            return;
+        }
+
+        const isFullRun = (uptoIndex === null || uptoIndex === undefined);
+        const targetIndex = isFullRun ? (steps.length - 1) : uptoIndex;
+        if (targetIndex < 0) {
+            if (typeof showToast === 'function') showToast('Çalıştırılacak adım yok.', 'info');
+            return;
+        }
+
+        const btn = sourceBtn || document.getElementById('spb-run-btn');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Çalışıyor...';
+        }
+        try {
+            const payload = {
+                upto_index: targetIndex,
+                steps: steps.map((s, i) => ({
+                    step_type: s.step_type,
+                    order: i,
+                    label: s.label || '',
+                    config: s.config || {},
+                })),
+            };
+            const resp = await fetch(RUN_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json();
+            renderRunLog(data);
+            if (data.ok) {
+                if (typeof showToast === 'function') {
+                    const tplInfo = data.connection_template ? ` (${data.connection_template})` : '';
+                    showToast(
+                        (isFullRun ? 'Süreç adımları çalıştırıldı' : `${targetIndex + 1}. adıma kadar çalıştırıldı`) + tplInfo + '.',
+                        'success'
+                    );
+                }
+            } else {
+                if (typeof showToast === 'function') showToast('Çalıştırma hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+            }
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        renderSteps();
+
+        document.getElementById('spb-add-btn')?.addEventListener('click', () => {
+            const picker = document.getElementById('spb-type-picker');
+            const type = picker?.value || 'sap_fill';
+            syncAllFromDOM();
+            steps.push({id: null, step_type: type, order: steps.length, label: '', config: {}});
+            renderSteps();
+            // Son karta kaydır
+            const cards = document.querySelectorAll('.spb-step-card');
+            cards[cards.length-1]?.scrollIntoView({behavior:'smooth', block:'nearest'});
+        });
+
+        document.getElementById('spb-save-btn')?.addEventListener('click', saveSteps);
+        document.getElementById('spb-run-btn')?.addEventListener('click', async () => {
+            await runProcessToStep(null, document.getElementById('spb-run-btn'));
+        });
+
+        // Onay modali
+        document.getElementById('spb-confirm-ok')?.addEventListener('click', () => {
+            document.getElementById('spb-confirm-modal')?.classList.remove('open');
+            if (_pendingDeleteIdx === null) return;
+            syncAllFromDOM();
+            steps.splice(_pendingDeleteIdx, 1);
+            _pendingDeleteIdx = null;
+            renderSteps();
+        });
+        document.getElementById('spb-confirm-cancel')?.addEventListener('click', () => {
+            document.getElementById('spb-confirm-modal')?.classList.remove('open');
+            _pendingDeleteIdx = null;
+        });
+        document.getElementById('spb-confirm-modal')?.addEventListener('click', e => {
+            if (e.target === document.getElementById('spb-confirm-modal')) {
+                document.getElementById('spb-confirm-modal')?.classList.remove('open');
+                _pendingDeleteIdx = null;
+            }
+        });
+
+        // Rename modali
+        document.getElementById('spb-rename-btn')?.addEventListener('click', () => {
+            document.getElementById('spb-rename-name').value = document.getElementById('spb-proc-name-display').textContent.trim();
+            document.getElementById('spb-rename-desc').value = '{{ process.description|escapejs }}';
+            document.getElementById('spb-rename-modal')?.classList.add('open');
+        });
+        document.getElementById('spb-rename-cancel')?.addEventListener('click', () => {
+            document.getElementById('spb-rename-modal')?.classList.remove('open');
+        });
+        document.getElementById('spb-rename-modal')?.addEventListener('click', e => {
+            if (e.target === document.getElementById('spb-rename-modal'))
+                document.getElementById('spb-rename-modal')?.classList.remove('open');
+        });
+        document.getElementById('spb-rename-ok')?.addEventListener('click', async () => {
+            const name = document.getElementById('spb-rename-name').value.trim();
+            const desc = document.getElementById('spb-rename-desc').value.trim();
+            if (!name) { if (typeof showToast==='function') showToast('Ad boş olamaz.','info'); return; }
+            try {
+                const resp = await fetch(RENAME_URL, {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+                    body: JSON.stringify({name, description: desc}),
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    document.getElementById('spb-proc-name-display').textContent = data.name;
+                    document.getElementById('spb-proc-desc-display').textContent = desc || 'Açıklama yok';
+                    document.getElementById('spb-rename-modal')?.classList.remove('open');
+                    if (typeof showToast==='function') showToast('Süreç güncellendi.','success');
+                } else {
+                    if (typeof showToast==='function') showToast(data.error,'error');
+                }
+            } catch (e) {
+                if (typeof showToast==='function') showToast('Hata: '+e.message,'error');
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

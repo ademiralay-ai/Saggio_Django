@@ -1,0 +1,1238 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<section class="sap-page-head">
+    <div class="sap-head-chip">
+        <i class="fas fa-satellite-dish"></i>
+        Canlı SAP Bağlantısı
+    </div>
+    <p>Bağlantı bilgilerini gir, hedef ekranı aç ve teknik ID listesini tek seferde al.</p>
+</section>
+
+<div id="sap-scan-loading" class="sap-loading-overlay" aria-hidden="true">
+    <div class="sap-loading-card">
+        <i class="fas fa-spinner fa-spin"></i>
+        <div class="sap-loading-title">SAP ekranı taranıyor</div>
+        <div class="sap-loading-sub">Lütfen bekleyin, sonuçlar hazırlanıyor...</div>
+    </div>
+</div>
+
+<div class="sap-split-layout">
+    <aside class="sap-left-pane">
+        <div class="pipeline-card sap-form-card sap-sticky-card">
+            <h2 class="section-title sap-pane-title"><i class="fas fa-sliders"></i>Bağlantı Formu</h2>
+            <form method="post" class="sap-form">
+                {% csrf_token %}
+                <div class="sap-form-grid sap-grid-2">
+                    <div class="sap-field">
+                        <label for="sys_id">Sistem ID</label>
+                        <select id="sys_id" name="sys_id" required>
+                            {% if sys_options %}
+                                {% for sys in sys_options %}
+                                <option value="{{ sys }}" {% if form_data.sys_id == sys %}selected{% endif %}>{{ sys }}</option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="{{ form_data.sys_id }}" selected>{{ form_data.sys_id }}</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="sap-field">
+                        <label for="client">Client</label>
+                        <input id="client" name="client" value="{{ form_data.client }}" required />
+                    </div>
+                    
+                    <div class="sap-field">
+                        <label for="user">Kullanıcı</label>
+                        <input id="user" name="user" value="{{ form_data.user }}" required />
+                    </div>
+                    <div class="sap-field">
+                        <label for="pwd">Şifre</label>
+                        <div class="sap-pwd-wrapper">
+                            <input id="pwd" name="pwd" type="password" value="{{ form_data.pwd }}" required />
+                            <button type="button" id="pwd-eye-btn" class="sap-eye-btn" tabindex="-1" title="Şifreyi göster/gizle">
+                                <i class="fas fa-eye" id="pwd-eye-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="sap-field">
+                        <label for="lang">Dil</label>
+                        <input id="lang" name="lang" value="{{ form_data.lang|default:'TR' }}" required />
+                    </div>
+                </div>
+
+                <div class="sap-form-grid sap-grid-1">
+                    <div class="sap-field">
+                        <label for="t_code">T-Code</label>
+                        <input id="t_code" name="t_code" value="{{ form_data.t_code }}" />
+                    </div>
+                    <div class="sap-field">
+                        <div class="sap-slider-head">
+                            <label for="extra_wait">İlave Bekleme (sn)</label>
+                            <strong id="extra_wait_value">{{ form_data.extra_wait|default:'0' }}</strong>
+                        </div>
+                        <input
+                            id="extra_wait"
+                            name="extra_wait"
+                            type="range"
+                            min="0"
+                            max="5"
+                            step="0.5"
+                            value="{{ form_data.extra_wait|default:'0' }}"
+                        />
+                    </div>
+
+                    <div class="sap-field">
+                        <label for="loop_values">Döngü Değerleri</label>
+                        <textarea
+                            id="loop_values"
+                            name="loop_values"
+                            rows="3"
+                            placeholder="Örnek: 1100,1101,1102"
+                        >{{ form_data.loop_values }}</textarea>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary sap-submit" type="submit">
+                    <i class="fas fa-search"></i>
+                    Taramayı Başlat
+                </button>
+
+                <div class="sap-template-box">
+                    <label for="tpl_name">Şablon Adı</label>
+                    <input id="tpl_name" type="text" placeholder="Örnek: Şube Faturalama" />
+
+                    <div class="sap-template-row">
+                        <button id="tpl_save_btn" class="btn tpl-btn-save" type="button"><i class="fas fa-save"></i> Kaydet</button>
+                        <button id="tpl_update_btn" class="btn tpl-btn-update" type="button"><i class="fas fa-pen"></i> Güncelle</button>
+                    </div>
+
+                    <label for="tpl_select">Şablon Seç</label>
+                    <div class="sap-template-row">
+                        <select id="tpl_select"></select>
+                        <button id="tpl_load_btn" class="btn tpl-btn-load" type="button"><i class="fas fa-upload"></i> Yükle</button>
+                        <button id="tpl_delete_btn" class="btn btn-danger" type="button"><i class="fas fa-trash"></i> Sil</button>
+                    </div>
+                </div>
+
+                <div class="sap-template-box">
+                    <label for="notify_telegram_bot">Telegram Bot</label>
+                    <select id="notify_telegram_bot">
+                        <option value="">— Bot Seçiniz —</option>
+                        {% for bot in telegram_bots %}
+                        <option value="{{ bot.id }}">{{ bot.name }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="notify_telegram_group">Telegram Grup</label>
+                    <select id="notify_telegram_group">
+                        <option value="">— Grup Seçiniz —</option>
+                        {% for grp in telegram_groups %}
+                        <option value="{{ grp.id }}">{{ grp.name }} ({{ grp.chat_id }})</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="notify_mail_account">Mail Hesabı</label>
+                    <select id="notify_mail_account">
+                        <option value="">— Mail Hesabı Seçiniz —</option>
+                        {% for mail in mail_accounts %}
+                        <option value="{{ mail.id }}">{{ mail.name }} ({{ mail.email }})</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="notify_tg_start_msg">Telegram Başlangıç Mesajı (opsiyonel)</label>
+                    <input id="notify_tg_start_msg" type="text" placeholder="Süreç başladı..." />
+
+                    <label for="notify_tg_end_msg">Telegram Bitiş Mesajı (opsiyonel)</label>
+                    <input id="notify_tg_end_msg" type="text" placeholder="Süreç tamamlandı..." />
+
+                    <label for="notify_mail_to">Mail Alıcı (opsiyonel)</label>
+                    <input id="notify_mail_to" type="email" placeholder="ornek@firma.com" />
+
+                    <label for="notify_mail_subject">Mail Konu (opsiyonel)</label>
+                    <input id="notify_mail_subject" type="text" placeholder="SAP Süreç Bildirimi" />
+
+                    <label for="notify_mail_start_msg">Mail Başlangıç Mesajı (opsiyonel)</label>
+                    <input id="notify_mail_start_msg" type="text" placeholder="Süreç başladı..." />
+
+                    <label for="notify_mail_end_msg">Mail Bitiş Mesajı (opsiyonel)</label>
+                    <input id="notify_mail_end_msg" type="text" placeholder="Süreç tamamlandı..." />
+                </div>
+            </form>
+        </div>
+    </aside>
+
+    <section class="sap-right-pane">
+        {% if error %}
+        <div class="pipeline-card sap-error-card">
+            <strong>Hata:</strong>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        {% if results %}
+        <div class="activity-section sap-filter-card">
+            <div class="activity-header">
+                <h2 class="section-title sap-table-title">
+                    <i class="fas fa-filter"></i>
+                    Canlı Filtre
+                </h2>
+                <div class="sap-filter-actions">
+                    <button id="sap-selected-only-btn" class="btn btn-sm sap-selected-only-btn" type="button">
+                        <i class="fas fa-check-square"></i>
+                        Seçtiklerimi Göster
+                    </button>
+                    <span id="sap-filter-count" class="sap-filter-count">{{ total_count }} kayıt</span>
+                </div>
+            </div>
+            <div class="sap-filter-body">
+                <input id="sap-filter-input" type="text" placeholder="Teknik ID veya Type ile anlik ara..." autocomplete="off" />
+            </div>
+        </div>
+
+        <div class="stats-grid sap-stats">
+            <div class="stat-card cyan">
+                <div class="stat-header"><div><div class="stat-value">{{ total_count }}</div><div class="stat-label">Toplam Element</div></div></div>
+            </div>
+            <div class="stat-card lime">
+                <div class="stat-header"><div><div class="stat-value">{{ with_id_count }}</div><div class="stat-label">Teknik ID Olan</div></div></div>
+            </div>
+            <div id="editable-stat-card" class="stat-card amber" title="Sadece değiştirilebilenleri göster/hepsini göster">
+                <div class="stat-header"><div><div class="stat-value">{{ editable_count }}</div><div class="stat-label">Değiştirilebilir <i class="fas fa-filter" style="font-size:11px;margin-left:4px;"></i></div></div></div>
+            </div>
+        </div>
+
+        <div class="activity-section">
+            <div class="activity-header">
+                <h2 class="section-title sap-table-title">
+                    <i class="fas fa-list"></i>
+                    Tarama Sonuçları
+                </h2>
+            </div>
+            <div class="table-container">
+                <table class="sap-results-table">
+                    <thead>
+                        <tr>
+                            <th class="sap-chk-col" data-col-key="chk"><input type="checkbox" id="select-all-chk" title="Tümünü seç/kaldır"></th>
+                            <th data-col-key="level">Seviye</th>
+                            <th data-col-key="type">Tip</th>
+                            <th data-col-key="name">Name</th>
+                            <th data-col-key="text">Text</th>
+                            <th data-col-key="changeable">Değiştirilebilir</th>
+                            <th class="sap-veri-tipi-col" data-col-key="vtip">Veri Tipi</th>
+                            <th class="sap-deger-col" data-col-key="deger">Deger</th>
+                            <th data-col-key="id">Teknik ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in results %}
+                        <tr data-changeable="{% if row.changeable %}1{% else %}0{% endif %}"
+                            data-sap-type="{{ row.type }}"
+                            class="sap-data-row">
+                            <td class="sap-chk-col"><input type="checkbox" class="sap-row-chk"></td>
+                            <td>{{ row.level }}</td>
+                            <td class="sap-type-col"><span class="sap-type-chip">{{ row.type }}</span></td>
+                            <td>{{ row.name }}</td>
+                            <td class="sap-text-col" title="{{ row.text }}">{{ row.text }}</td>
+                            <td>
+                                {% if row.changeable %}
+                                <span class="sap-badge sap-badge-ok">Evet</span>
+                                {% else %}
+                                <span class="sap-badge sap-badge-no">Hayir</span>
+                                {% endif %}
+                            </td>
+                            <td class="sap-veri-tipi-col">
+                                <select class="sap-type-sel">
+                                    <option value="">—</option>
+                                    <option value="sabit">Sabit Değer</option>
+                                    <option value="dinamik">Dinamik Tarih</option>
+                                    <option value="dongu">Döngü Değer</option>
+                                    <option value="radio">Radyo</option>
+                                    <option value="chk">Checkbox</option>
+                                    <option value="secilecek">Seçilecek</option>
+                                    {% if row.type == 'GuiComboBox' or row.entries %}
+                                    <option value="selectbox">SelectBox</option>
+                                    {% endif %}
+                                </select>
+                            </td>
+                            <td class="sap-deger-col">
+                                <div class="sap-val-cell">
+                                    <input type="text" class="sap-val-input" placeholder="Değer girin..." style="display:none">
+                                    <select class="sap-date-sel" style="display:none"></select>
+                                    <select class="sap-entries-sel" style="display:none">
+                                        {% if row.entries %}
+                                        <option value="" disabled selected>— Seçiniz —</option>
+                                        {% for e in row.entries %}
+                                        <option value="{{ e.key }}">{% if e.value %}{{ e.key }} - {{ e.value }}{% else %}{{ e.key }}{% endif %}</option>
+                                        {% endfor %}
+                                        {% else %}
+                                        <option value="" disabled selected>Seçenek okunamadı</option>
+                                        {% endif %}
+                                    </select>
+                                    <span class="sap-val-label" style="display:none"></span>
+                                    <span class="sap-val-preview"></span>
+                                </div>
+                            </td>
+                            <td class="sap-id-col">{{ row.id }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+            <div class="sap-fab-actions">
+                <button id="sap-run-btn" class="btn btn-primary sap-apply-btn" type="button">
+                    <i class="fas fa-hourglass-start"></i>
+                    Çalıştır (F8)
+                </button>
+                <button id="sap-apply-btn" class="btn btn-primary sap-apply-btn" type="button">
+                    <i class="fas fa-play"></i>
+                    Ekrana Bas
+                </button>
+            </div>
+        {% else %}
+        <div class="activity-section sap-empty-state">
+            <div class="activity-item">
+                <div class="activity-icon warning"><i class="fas fa-info"></i></div>
+                <div class="activity-content">
+                    <div class="activity-title">Henuz tarama sonucu yok</div>
+                    <div class="activity-time">Soldaki formu doldurup Taramayı Başlat butonunu kullan.</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </section>
+</div>
+
+<div id="tpl-confirm-modal" class="contact-confirm-modal" role="dialog" aria-modal="true" aria-label="Şablon silme onayı">
+    <div class="contact-confirm-card">
+        <div class="contact-confirm-head">Şablonu Sil</div>
+        <div class="contact-confirm-body" id="tpl-confirm-body">Bu şablonu kalıcı olarak silmek istediğinize emin misiniz?</div>
+        <div class="contact-confirm-actions">
+            <button id="tpl-confirm-cancel" type="button" class="btn">Vazgeç</button>
+            <button id="tpl-confirm-ok" type="button" class="btn btn-danger">Sil</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{% static 'core/js/date_utils.js' %}"></script>
+<script>
+    window.initSapScanPage = async function () {
+        const COL_ORDER_KEY = 'sap-scan-column-order-v1';
+        const COL_WIDTH_KEY = 'sap-scan-column-width-v1';
+
+        // Slider sync
+        const waitInput = document.getElementById('extra_wait');
+        const waitValue = document.getElementById('extra_wait_value');
+        if (waitInput && waitValue) {
+            const sync = () => { waitValue.textContent = waitInput.value; };
+            waitInput.addEventListener('input', sync);
+            sync();
+        }
+
+        const filterInput = document.getElementById('sap-filter-input');
+        const countNode  = document.getElementById('sap-filter-count');
+        const pwdInput = document.getElementById('pwd');
+        const pwdEyeBtn = document.getElementById('pwd-eye-btn');
+        const pwdEyeIcon = document.getElementById('pwd-eye-icon');
+        const selectedOnlyBtn = document.getElementById('sap-selected-only-btn');
+        const editableCard = document.getElementById('editable-stat-card');
+        const selectAllChk = document.getElementById('select-all-chk');
+        const table = document.querySelector('.sap-results-table');
+        const headerRow = table?.querySelector('thead tr');
+        const rows = Array.from(document.querySelectorAll('.sap-results-table tbody tr'));
+
+        pwdEyeBtn?.addEventListener('click', () => {
+            if (!pwdInput || !pwdEyeIcon) return;
+            const show = pwdInput.type === 'password';
+            pwdInput.type = show ? 'text' : 'password';
+            pwdEyeIcon.classList.toggle('fa-eye', !show);
+            pwdEyeIcon.classList.toggle('fa-eye-slash', show);
+        });
+
+        const moveColumn = (fromIndex, toIndex) => {
+            if (!headerRow || fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+            const headCells = Array.from(headerRow.children);
+            const movingHead = headCells[fromIndex];
+            const targetHead = headCells[toIndex];
+            if (!movingHead || !targetHead) return;
+            if (fromIndex < toIndex) {
+                headerRow.insertBefore(movingHead, targetHead.nextSibling);
+            } else {
+                headerRow.insertBefore(movingHead, targetHead);
+            }
+
+            rows.forEach((r) => {
+                const cells = Array.from(r.children);
+                const moving = cells[fromIndex];
+                const target = cells[toIndex];
+                if (!moving || !target) return;
+                if (fromIndex < toIndex) {
+                    r.insertBefore(moving, target.nextSibling);
+                } else {
+                    r.insertBefore(moving, target);
+                }
+            });
+        };
+
+        const saveColumnOrder = () => {
+            if (!headerRow) return;
+            const keys = Array.from(headerRow.children).map((th) => th.dataset.colKey || '');
+            localStorage.setItem(COL_ORDER_KEY, JSON.stringify(keys));
+        };
+
+        const restoreColumnOrder = () => {
+            if (!headerRow) return;
+            let keys = [];
+            try {
+                keys = JSON.parse(localStorage.getItem(COL_ORDER_KEY) || '[]');
+            } catch (_) {
+                keys = [];
+            }
+            if (!Array.isArray(keys) || keys.length === 0) return;
+
+            keys.forEach((key, targetIndex) => {
+                const headCells = Array.from(headerRow.children);
+                const fromIndex = headCells.findIndex((th) => (th.dataset.colKey || '') === key);
+                if (fromIndex >= 0 && fromIndex !== targetIndex) {
+                    moveColumn(fromIndex, targetIndex);
+                }
+            });
+        };
+
+        const initColumnDnD = () => {
+            if (!headerRow) return;
+            let dragIndex = -1;
+            Array.from(headerRow.children).forEach((th) => {
+                th.draggable = true;
+                th.addEventListener('dragstart', () => {
+                    dragIndex = Array.from(headerRow.children).indexOf(th);
+                });
+                th.addEventListener('dragover', (e) => e.preventDefault());
+                th.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const toIndex = Array.from(headerRow.children).indexOf(th);
+                    moveColumn(dragIndex, toIndex);
+                    saveColumnOrder();
+                });
+            });
+        };
+
+        const saveColumnWidths = () => {
+            if (!headerRow) return;
+            const payload = {};
+            Array.from(headerRow.children).forEach((th) => {
+                const key = th.dataset.colKey || '';
+                if (!key) return;
+                const width = parseInt(th.style.width || '0', 10);
+                if (width > 0) payload[key] = width;
+            });
+            localStorage.setItem(COL_WIDTH_KEY, JSON.stringify(payload));
+        };
+
+        const restoreColumnWidths = () => {
+            if (!headerRow) return;
+            let payload = {};
+            try {
+                payload = JSON.parse(localStorage.getItem(COL_WIDTH_KEY) || '{}');
+            } catch (_) {
+                payload = {};
+            }
+            Array.from(headerRow.children).forEach((th) => {
+                const key = th.dataset.colKey || '';
+                const w = payload[key];
+                if (typeof w === 'number' && w > 20) th.style.width = `${w}px`;
+            });
+        };
+
+        const initColumnResize = () => {
+            if (!headerRow) return;
+            const heads = Array.from(headerRow.children);
+            heads.forEach((th) => {
+                const key = th.dataset.colKey || '';
+                if (!key) return;
+
+                const handle = document.createElement('span');
+                handle.className = 'sap-col-resizer';
+                th.appendChild(handle);
+
+                let startX = 0;
+                let startWidth = 0;
+
+                const onMove = (e) => {
+                    const delta = e.clientX - startX;
+                    const next = Math.max(48, startWidth + delta);
+                    th.style.width = `${next}px`;
+                };
+
+                const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    saveColumnWidths();
+                };
+
+                handle.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startX = e.clientX;
+                    startWidth = th.getBoundingClientRect().width;
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
+
+                handle.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            });
+        };
+
+        const initSort = () => {
+            if (!headerRow) return;
+            const sortState = {};
+            Array.from(headerRow.children).forEach((th) => {
+                const key = th.dataset.colKey || '';
+                if (!key || key === 'chk' || key === 'vtip' || key === 'deger') return;
+                th.classList.add('sap-sortable-th');
+                th.addEventListener('click', () => {
+                    const index = Array.from(headerRow.children).indexOf(th);
+                    const dir = sortState[key] === 'asc' ? 'desc' : 'asc';
+                    sortState[key] = dir;
+
+                    const sorted = rows.slice().sort((a, b) => {
+                        const aText = (a.children[index]?.textContent || '').trim().toLowerCase();
+                        const bText = (b.children[index]?.textContent || '').trim().toLowerCase();
+                        const cmp = aText.localeCompare(bText, 'tr', { numeric: true });
+                        return dir === 'asc' ? cmp : -cmp;
+                    });
+
+                    const tbody = table.querySelector('tbody');
+                    sorted.forEach((r) => tbody.appendChild(r));
+
+                    Array.from(headerRow.children).forEach((x) => x.classList.remove('sap-sort-asc', 'sap-sort-desc'));
+                    th.classList.add(dir === 'asc' ? 'sap-sort-asc' : 'sap-sort-desc');
+                });
+            });
+        };
+
+        restoreColumnOrder();
+        restoreColumnWidths();
+        initColumnDnD();
+        initColumnResize();
+        initSort();
+
+        let onlyChangeable = false;
+        let onlySelected = false;
+
+        const updateSelectAll = () => {
+            if (!selectAllChk) return;
+            const visible = rows.filter(r => r.style.display !== 'none');
+            const checked = visible.filter(r => r.querySelector('.sap-row-chk')?.checked);
+            selectAllChk.indeterminate = checked.length > 0 && checked.length < visible.length;
+            selectAllChk.checked = visible.length > 0 && checked.length === visible.length;
+        };
+
+        const syncRowHighlight = (row) => {
+            const chk = row.querySelector('.sap-row-chk');
+            row.classList.toggle('row-selected', !!(chk?.checked));
+        };
+
+        const runFilter = () => {
+            const q = filterInput ? filterInput.value.trim().toLowerCase() : '';
+            let visible = 0;
+            rows.forEach((row) => {
+                const idText   = (row.querySelector('.sap-id-col')?.textContent   || '').toLowerCase();
+                const typeText = (row.querySelector('.sap-type-col')?.textContent || '').toLowerCase();
+                const isChangeable = row.dataset.changeable === '1';
+                const isSelected = !!row.querySelector('.sap-row-chk')?.checked;
+                const textMatch       = q === '' || idText.includes(q) || typeText.includes(q);
+                const changeableMatch = !onlyChangeable || isChangeable;
+                const selectedMatch = !onlySelected || isSelected;
+                const show = textMatch && changeableMatch && selectedMatch;
+                row.style.display = show ? '' : 'none';
+                if (show) visible += 1;
+            });
+            if (countNode) countNode.textContent = `${visible} kayıt`;
+            updateSelectAll();
+        };
+
+        // Degistirilebilir kart tiklama
+        if (editableCard) {
+            editableCard.addEventListener('click', () => {
+                onlyChangeable = !onlyChangeable;
+                editableCard.classList.toggle('sap-stat-active', onlyChangeable);
+                runFilter();
+            });
+        }
+
+        // Metin filtresi
+        if (filterInput) filterInput.addEventListener('input', runFilter);
+
+        if (selectedOnlyBtn) {
+            selectedOnlyBtn.addEventListener('click', () => {
+                onlySelected = !onlySelected;
+                selectedOnlyBtn.classList.toggle('active', onlySelected);
+                runFilter();
+            });
+        }
+
+        // Tumunu sec
+        if (selectAllChk) {
+            selectAllChk.addEventListener('change', () => {
+                const visible = rows.filter(r => r.style.display !== 'none');
+                visible.forEach(r => {
+                    const chk = r.querySelector('.sap-row-chk');
+                    if (chk) chk.checked = selectAllChk.checked;
+                    syncRowHighlight(r);
+                });
+                if (onlySelected) runFilter();
+            });
+        }
+
+        // Bireysel checkbox degisimi
+        rows.forEach(row => {
+            const chk = row.querySelector('.sap-row-chk');
+            if (chk) chk.addEventListener('change', () => {
+                syncRowHighlight(row);
+                if (onlySelected) runFilter();
+                else updateSelectAll();
+            });
+
+            // Satira tiklayinca checkbox toggle (input/select/button haric)
+            row.addEventListener('click', (e) => {
+                if (e.target.closest('input, select, button, a')) return;
+                const rowChk = row.querySelector('.sap-row-chk');
+                if (rowChk) {
+                    rowChk.checked = !rowChk.checked;
+                    syncRowHighlight(row);
+                    if (onlySelected) runFilter();
+                    else updateSelectAll();
+                }
+            });
+
+            // Veri tipi secimi
+            const typeSel     = row.querySelector('.sap-type-sel');
+            const valInput    = row.querySelector('.sap-val-input');
+            const dateSel     = row.querySelector('.sap-date-sel');
+            const entriesSel  = row.querySelector('.sap-entries-sel');
+            const valLabel    = row.querySelector('.sap-val-label');
+            const preview     = row.querySelector('.sap-val-preview');
+
+            if (typeSel) {
+                // Tarih seceneklerini doldur
+                if (dateSel && typeof SAP_DATE_OPTIONS !== 'undefined') {
+                    SAP_DATE_OPTIONS.forEach(opt => {
+                        const o = document.createElement('option');
+                        o.value = opt.value;
+                        o.textContent = opt.label;
+                        if (opt.disabled) o.disabled = true;
+                        dateSel.appendChild(o);
+                    });
+                }
+
+                const hideAll = () => {
+                    valInput.style.display   = 'none';
+                    dateSel.style.display    = 'none';
+                    entriesSel.style.display = 'none';
+                    valLabel.style.display   = 'none';
+                    preview.textContent      = '';
+                };
+
+                const LABEL_MAP = {
+                    dongu:     '\u27f3 Dongu kutusundaki degerler sirayla kullanilacak',
+                    radio:     '\u25ce Radyo butona tıklanacak',
+                    chk:       '\u2611 Checkbox toggle edilecek',
+                    secilecek: '\u2714 Öğe seçilecek',
+                };
+
+                typeSel.addEventListener('change', () => {
+                    hideAll();
+                    const v = typeSel.value;
+                    if (v === 'sabit')     { valInput.style.display   = ''; valInput.value = ''; }
+                    else if (v === 'dinamik')  { dateSel.style.display    = ''; }
+                    else if (v === 'selectbox') { entriesSel.style.display = ''; }
+                    else if (LABEL_MAP[v]) { valLabel.style.display = ''; valLabel.textContent = LABEL_MAP[v]; }
+                });
+
+                dateSel.addEventListener('change', () => {
+                    if (typeof calcDynamicDate !== 'undefined') {
+                        preview.textContent = calcDynamicDate(dateSel.value);
+                    }
+                });
+            }
+        });
+
+        runFilter();
+
+        // ---- Template Kaydet / Yukle / Guncelle ----
+        const TPL_LIST_URL = '{% url "sap_template_list" %}';
+        const TPL_GET_URL = '{% url "sap_template_get" %}';
+        const TPL_SAVE_URL = '{% url "sap_template_save" %}';
+        const TPL_DELETE_URL = '{% url "sap_template_delete" %}';
+        const tplNameInput = document.getElementById('tpl_name');
+        const tplSelect = document.getElementById('tpl_select');
+        const tplSaveBtn = document.getElementById('tpl_save_btn');
+        const tplUpdateBtn = document.getElementById('tpl_update_btn');
+        const tplLoadBtn = document.getElementById('tpl_load_btn');
+        const tplDeleteBtn = document.getElementById('tpl_delete_btn');
+
+        const fetchTemplateNames = async () => {
+            const resp = await fetch(TPL_LIST_URL);
+            const data = await resp.json();
+            return data.ok ? (data.names || []) : [];
+        };
+
+        const fetchTemplateState = async (name) => {
+            const resp = await fetch(`${TPL_GET_URL}?name=${encodeURIComponent(name)}`);
+            const data = await resp.json();
+            if (!data.ok) throw new Error(data.error || 'Şablon okunamadı');
+            return data.state || {};
+        };
+
+        const saveTemplateState = async (name, state) => {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+            const resp = await fetch(TPL_SAVE_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ name, state }),
+            });
+            const data = await resp.json();
+            if (!data.ok) throw new Error(data.error || 'Şablon kaydedilemedi');
+            return data;
+        };
+
+        const deleteTemplateState = async (name) => {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+            const resp = await fetch(TPL_DELETE_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ name }),
+            });
+            const data = await resp.json();
+            if (!data.ok) throw new Error(data.error || 'Şablon silinemedi');
+            return data;
+        };
+
+        const parseLoopValues = () => {
+            const raw = (document.getElementById('loop_values')?.value || '').trim();
+            if (!raw) return [];
+            return raw
+                .split(/[\n,;]+/)
+                .map((x) => x.trim())
+                .filter(Boolean);
+        };
+
+        // Satır state'ini daima canlı DOM'dan okur (closure rows'a bağlı değil).
+        const _liveRows = () => Array.from(document.querySelectorAll('.sap-results-table tbody tr'));
+
+        const captureTemplateState = () => {
+            const state = {
+                form: {
+                    sys_id: document.getElementById('sys_id')?.value || '',
+                    client: document.getElementById('client')?.value || '',
+                    user: document.getElementById('user')?.value || '',
+                    pwd: document.getElementById('pwd')?.value || '',
+                    lang: document.getElementById('lang')?.value || 'TR',
+                    t_code: document.getElementById('t_code')?.value || '',
+                    extra_wait: document.getElementById('extra_wait')?.value || '0',
+                    loop_values: document.getElementById('loop_values')?.value || '',
+                },
+                notification: {
+                    telegram_bot_id: document.getElementById('notify_telegram_bot')?.value || '',
+                    telegram_group_id: document.getElementById('notify_telegram_group')?.value || '',
+                    mail_account_id: document.getElementById('notify_mail_account')?.value || '',
+                    telegram_start_message: document.getElementById('notify_tg_start_msg')?.value || '',
+                    telegram_end_message: document.getElementById('notify_tg_end_msg')?.value || '',
+                    mail_to: document.getElementById('notify_mail_to')?.value || '',
+                    mail_subject: document.getElementById('notify_mail_subject')?.value || '',
+                    mail_start_message: document.getElementById('notify_mail_start_msg')?.value || '',
+                    mail_end_message: document.getElementById('notify_mail_end_msg')?.value || '',
+                },
+                rows: {},
+            };
+
+            _liveRows().forEach((row) => {
+                const id = row.querySelector('.sap-id-col')?.textContent?.trim();
+                if (!id) return;
+                const typeSel = row.querySelector('.sap-type-sel');
+                const valInput = row.querySelector('.sap-val-input');
+                const dateSel = row.querySelector('.sap-date-sel');
+                const entriesSel = row.querySelector('.sap-entries-sel');
+                const chk = row.querySelector('.sap-row-chk');
+                state.rows[id] = {
+                    checked: !!chk?.checked,
+                    action_type: typeSel?.value || '',
+                    value_text: valInput?.value || '',
+                    value_date: dateSel?.value || '',
+                    value_select: entriesSel?.value || '',
+                };
+            });
+            return state;
+        };
+
+        const applyTemplateState = (state, rowsOnly = false) => {
+            if (!state) return;
+
+            if (!rowsOnly) {
+                const form = state.form || {};
+                const setVal = (id, value) => {
+                    const el = document.getElementById(id);
+                    if (!el || value === undefined || value === null) return;
+                    el.value = value;
+                    if (id === 'extra_wait' && waitValue) waitValue.textContent = value;
+                };
+
+                setVal('sys_id', form.sys_id);
+                setVal('client', form.client);
+                setVal('user', form.user);
+                setVal('pwd', form.pwd);
+                setVal('lang', form.lang);
+                setVal('t_code', form.t_code);
+                setVal('extra_wait', form.extra_wait);
+                setVal('loop_values', form.loop_values);
+
+                const notification = state.notification || {};
+                setVal('notify_telegram_bot', notification.telegram_bot_id);
+                setVal('notify_telegram_group', notification.telegram_group_id);
+                setVal('notify_mail_account', notification.mail_account_id);
+                setVal('notify_tg_start_msg', notification.telegram_start_message);
+                setVal('notify_tg_end_msg', notification.telegram_end_message);
+                setVal('notify_mail_to', notification.mail_to);
+                setVal('notify_mail_subject', notification.mail_subject);
+                setVal('notify_mail_start_msg', notification.mail_start_message);
+                setVal('notify_mail_end_msg', notification.mail_end_message);
+            }
+
+            // Her zaman canlı DOM sorgusu yap; closure rows stale olabilir.
+            const currentRows = _liveRows();
+            let applied = 0;
+            currentRows.forEach((row) => {
+                const id = row.querySelector('.sap-id-col')?.textContent?.trim();
+                const rs = id ? state.rows?.[id] : null;
+                if (!rs) return;
+
+                const chk = row.querySelector('.sap-row-chk');
+                const typeSel = row.querySelector('.sap-type-sel');
+                const valInput = row.querySelector('.sap-val-input');
+                const dateSel = row.querySelector('.sap-date-sel');
+                const entriesSel = row.querySelector('.sap-entries-sel');
+
+                if (chk) chk.checked = !!rs.checked;
+                syncRowHighlight(row);
+
+                if (typeSel) {
+                    typeSel.value = rs.action_type || '';
+                    typeSel.dispatchEvent(new Event('change'));
+                }
+                // dispatchEvent change handler 'sabit' için valInput.value = '' yapar;
+                // bu yüzden value'yu event'ten SONRA set ediyoruz.
+                if (valInput) valInput.value = rs.value_text || '';
+                if (dateSel) {
+                    dateSel.value = rs.value_date || '';
+                    dateSel.dispatchEvent(new Event('change'));
+                }
+                if (entriesSel) entriesSel.value = rs.value_select || '';
+                if (rs.checked || rs.action_type) applied++;
+            });
+
+            // Satır yoksa (tarama henüz yapılmamış) sonraki tarama sonrası yeniden uygula.
+            if (currentRows.length === 0 || applied === 0) {
+                window.__sapPendingTemplateState = state;
+            } else {
+                window.__sapPendingTemplateState = null;
+            }
+
+            updateSelectAll();
+        };
+
+        const refreshTemplateSelect = async () => {
+            if (!tplSelect) return;
+            const names = await fetchTemplateNames();
+            tplSelect.innerHTML = '<option value="">— Şablon Seçiniz —</option>';
+            names.forEach((name) => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                tplSelect.appendChild(opt);
+            });
+        };
+
+        tplSaveBtn?.addEventListener('click', async () => {
+            const name = (tplNameInput?.value || '').trim();
+            if (!name) {
+                if (typeof showToast !== 'undefined') showToast('Şablon adı giriniz.', 'info');
+                return;
+            }
+            try {
+                const result = await saveTemplateState(name, captureTemplateState());
+                await refreshTemplateSelect();
+                if (typeof showToast !== 'undefined') {
+                    if (result.storage === 'firebase') showToast('Şablon Firebase\'e kaydedildi.', 'success');
+                    else {
+                        showToast('Şablon yerel yedeğe kaydedildi (Firebase erişilemedi).', 'info');
+                        if (result.reason) showToast('Detay: ' + result.reason, 'error');
+                    }
+                }
+            } catch (e) {
+                if (typeof showToast !== 'undefined') showToast('Şablon kaydetme hatası: ' + e.message, 'error');
+                return;
+            }
+            tplSelect.value = name;
+        });
+
+        tplUpdateBtn?.addEventListener('click', async () => {
+            const name = (tplSelect?.value || tplNameInput?.value || '').trim();
+            if (!name) {
+                if (typeof showToast !== 'undefined') showToast('Güncellemek için şablon seçiniz.', 'info');
+                return;
+            }
+            try {
+                const result = await saveTemplateState(name, captureTemplateState());
+                await refreshTemplateSelect();
+                if (typeof showToast !== 'undefined') {
+                    if (result.storage === 'firebase') showToast('Şablon Firebase\'de güncellendi.', 'success');
+                    else {
+                        showToast('Şablon yerel yedekte güncellendi (Firebase erişilemedi).', 'info');
+                        if (result.reason) showToast('Detay: ' + result.reason, 'error');
+                    }
+                }
+            } catch (e) {
+                if (typeof showToast !== 'undefined') showToast('Şablon güncelleme hatası: ' + e.message, 'error');
+                return;
+            }
+            tplSelect.value = name;
+        });
+
+        tplLoadBtn?.addEventListener('click', async () => {
+            const name = (tplSelect?.value || '').trim();
+            if (!name) {
+                if (typeof showToast !== 'undefined') showToast('Yüklemek için şablon seçiniz.', 'info');
+                return;
+            }
+            try {
+                const state = await fetchTemplateState(name);
+                // Önceki bekleyen state'i sıfırla, yenisini yükle.
+                window.__sapPendingTemplateState = null;
+                applyTemplateState(state);
+            } catch (e) {
+                if (typeof showToast !== 'undefined') showToast('Şablon yükleme hatası: ' + e.message, 'error');
+                return;
+            }
+            if (tplNameInput) tplNameInput.value = name;
+            if (typeof showToast !== 'undefined') {
+                const hasRows = _liveRows().length > 0;
+                showToast(
+                    hasRows
+                        ? 'Şablon yüklendi (form + satır ayarları).'
+                        : 'Şablon yüklendi. Satır ayarları tarama sonrası uygulanacak.',
+                    'success'
+                );
+            }
+        });
+
+        // ---- Şablon silme onay modalı ----
+        const tplConfirmModal = document.getElementById('tpl-confirm-modal');
+        const tplConfirmOk    = document.getElementById('tpl-confirm-ok');
+        const tplConfirmCancel = document.getElementById('tpl-confirm-cancel');
+        const tplConfirmBody  = document.getElementById('tpl-confirm-body');
+        let _pendingDeleteName = null;
+
+        const openTplConfirm = (name) => {
+            _pendingDeleteName = name;
+            if (tplConfirmBody) tplConfirmBody.textContent = `"${name}" şablonu kalıcı olarak silinecek. Emin misiniz?`;
+            tplConfirmModal?.classList.add('open');
+        };
+        const closeTplConfirm = () => {
+            tplConfirmModal?.classList.remove('open');
+            _pendingDeleteName = null;
+        };
+
+        tplConfirmOk?.addEventListener('click', async () => {
+            const name = _pendingDeleteName;
+            closeTplConfirm();
+            if (!name) return;
+            try {
+                const result = await deleteTemplateState(name);
+                await refreshTemplateSelect();
+                if (tplNameInput) tplNameInput.value = '';
+                if (tplSelect) tplSelect.value = '';
+                if (typeof showToast !== 'undefined') {
+                    if (result.storage === 'firebase') showToast('Şablon Firebase\'den silindi.', 'success');
+                    else {
+                        showToast('Şablon yerel yedekten silindi.', 'info');
+                        if (result.reason) showToast('Detay: ' + result.reason, 'error');
+                    }
+                }
+            } catch (e) {
+                if (typeof showToast !== 'undefined') showToast('Şablon silme hatası: ' + e.message, 'error');
+            }
+        });
+        tplConfirmCancel?.addEventListener('click', closeTplConfirm);
+        tplConfirmModal?.addEventListener('click', (e) => { if (e.target === tplConfirmModal) closeTplConfirm(); });
+
+        tplDeleteBtn?.addEventListener('click', () => {
+            const name = (tplSelect?.value || tplNameInput?.value || '').trim();
+            if (!name) {
+                if (typeof showToast !== 'undefined') showToast('Silmek için şablon seçiniz.', 'info');
+                return;
+            }
+            openTplConfirm(name);
+        });
+
+        await refreshTemplateSelect();
+
+        // Tarama öncesinde yüklenen şablon varsa satır ayarlarını şimdi uygula.
+        if (window.__sapPendingTemplateState && _liveRows().length > 0) {
+            applyTemplateState(window.__sapPendingTemplateState, true);
+            if (typeof showToast !== 'undefined') showToast('Şablon satır ayarları uygulandı.', 'success');
+            window.__sapPendingTemplateState = null;
+        }
+    };
+
+    const collectPayload = (loopValue = null) => {
+        const rows = Array.from(document.querySelectorAll('.sap-results-table tbody tr'));
+        const actions = [];
+
+        rows.forEach(row => {
+            const chk      = row.querySelector('.sap-row-chk');
+            if (!chk?.checked) return;
+
+            const typeSel    = row.querySelector('.sap-type-sel');
+            const valInput   = row.querySelector('.sap-val-input');
+            const dateSel    = row.querySelector('.sap-date-sel');
+            const entriesSel = row.querySelector('.sap-entries-sel');
+            const elementId  = row.querySelector('.sap-id-col')?.textContent?.trim();
+
+            if (!elementId || !typeSel?.value) return;
+
+            const actionType = typeSel.value;
+            let value = '';
+
+            if (actionType === 'sabit')     value = valInput?.value || '';
+            else if (actionType === 'dinamik')  value = typeof calcDynamicDate !== 'undefined' ? calcDynamicDate(dateSel?.value || '') : '';
+            else if (actionType === 'selectbox') value = entriesSel?.value || '';
+            else if (actionType === 'dongu') value = loopValue !== null ? String(loopValue) : '';
+
+            actions.push({ element_id: elementId, action_type: actionType, value });
+        });
+
+        const form = document.querySelector('.sap-form');
+        const conn = {
+            sys_id:     form?.querySelector('[name=sys_id]')?.value    || '',
+            client:     form?.querySelector('[name=client]')?.value    || '',
+            user:       form?.querySelector('[name=user]')?.value      || '',
+            pwd:        form?.querySelector('[name=pwd]')?.value       || '',
+            lang:       form?.querySelector('[name=lang]')?.value      || 'TR',
+            t_code:     form?.querySelector('[name=t_code]')?.value    || '',
+            root_id:    form?.querySelector('[name=root_id]')?.value   || 'wnd[0]',
+            extra_wait: parseFloat(form?.querySelector('[name=extra_wait]')?.value || '0'),
+        };
+
+        const notification = {
+            telegram_bot_id: document.getElementById('notify_telegram_bot')?.value || '',
+            telegram_group_id: document.getElementById('notify_telegram_group')?.value || '',
+            mail_account_id: document.getElementById('notify_mail_account')?.value || '',
+            telegram_start_message: document.getElementById('notify_tg_start_msg')?.value || '',
+            telegram_end_message: document.getElementById('notify_tg_end_msg')?.value || '',
+            mail_to: document.getElementById('notify_mail_to')?.value || '',
+            mail_subject: document.getElementById('notify_mail_subject')?.value || '',
+            mail_start_message: document.getElementById('notify_mail_start_msg')?.value || '',
+            mail_end_message: document.getElementById('notify_mail_end_msg')?.value || '',
+        };
+
+        return { connection: conn, actions, notification };
+    };
+
+    const parseLoopValues = () => {
+        const raw = (document.getElementById('loop_values')?.value || '').trim();
+        if (!raw) return [];
+        return raw.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean);
+    };
+
+    const postAction = async (urlName, btnId, defaultHtml, loadingHtml, withLoop = false) => {
+        const initial = collectPayload();
+            if (initial.actions.length === 0) {
+            if (typeof showToast !== 'undefined') showToast('Önce satırları seç ve veri tipini ayarla.', 'info');
+            return;
+        }
+
+        const hasLoopAction = initial.actions.some((a) => a.action_type === 'dongu');
+        const loopValues = parseLoopValues();
+
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.disabled = true;
+        btn.innerHTML = loadingHtml;
+
+        try {
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+            if (hasLoopAction && loopValues.length === 0) {
+                if (typeof showToast !== 'undefined') showToast('Döngü veri tipi seçili ama Döngü Değerleri kutusu boş.', 'error');
+                return;
+            }
+
+            // Dongu kosulu: sadece Calistir (F8) ve dongu tipli alan + dolu dongu listesi
+            if (withLoop && hasLoopAction && loopValues.length > 0) {
+                let cycleOk = 0;
+                let cycleErr = 0;
+                for (let i = 0; i < loopValues.length; i += 1) {
+                    const lv = loopValues[i];
+                    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Çalıştırılıyor ${i + 1}/${loopValues.length}`;
+                    const payload = collectPayload(lv);
+
+                    const resp = await fetch(urlName, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                        body: JSON.stringify(payload),
+                    });
+                    const data = await resp.json();
+
+                    if (data.ok) {
+                        cycleOk += 1;
+                        const runInfo = data.results.find((r) => r.id === 'wnd[0]' && (r.msg || '').toLowerCase().includes('calistirildi'));
+                        if (runInfo && typeof showToast !== 'undefined') showToast(`[${lv}] ${runInfo.msg}`, runInfo.ok ? 'info' : 'error');
+                    } else {
+                        cycleErr += 1;
+                        if (typeof showToast !== 'undefined') showToast(`[${lv}] Hata: ${data.error}`, 'error');
+                    }
+                }
+                if (typeof showToast !== 'undefined') {
+                    showToast(`Döngü tamamlandı. Başarılı: ${cycleOk}, Hatalı: ${cycleErr}`, cycleErr ? 'error' : 'success');
+                }
+            } else {
+                const singlePayload = hasLoopAction && loopValues.length > 0 ? collectPayload(loopValues[0]) : initial;
+                const resp = await fetch(urlName, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify(singlePayload),
+                });
+                const data = await resp.json();
+
+                if (data.ok) {
+                    const ok  = data.results.filter(r => r.ok).length;
+                    const err = data.results.filter(r => !r.ok).length;
+                    const msg = `${ok} aksiyon başarılı${err ? ', ' + err + ' hatalı' : ''}.`;
+                    if (typeof showToast !== 'undefined') showToast(msg, err ? 'error' : 'success');
+
+                    const notes = data.notifications || {};
+                    const allNotes = [...(notes.start || []), ...(notes.end || [])];
+                    allNotes.forEach((n) => {
+                        if (typeof showToast === 'undefined') return;
+                        showToast(`[${n.channel}] ${n.msg}`, n.ok ? 'info' : 'error');
+                    });
+
+                    const runInfo = data.results.find(r => r.id === 'wnd[0]' && (r.msg || '').toLowerCase().includes('calistirildi'));
+                    if (runInfo && typeof showToast !== 'undefined') {
+                        showToast(runInfo.msg, runInfo.ok ? 'info' : 'error');
+                    }
+                    console.table(data.results);
+                } else {
+                    if (typeof showToast !== 'undefined') showToast('Hata: ' + data.error, 'error');
+                }
+            }
+        } catch (e) {
+            if (typeof showToast !== 'undefined') showToast('Ağ hatası: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = defaultHtml;
+        }
+    };
+
+    if (!window.__sapScanGlobalBound) {
+        window.__sapScanGlobalBound = true;
+
+        document.addEventListener('click', async (e) => {
+            const applyBtn = e.target.closest('#sap-apply-btn');
+            if (applyBtn) {
+                e.preventDefault();
+                if (applyBtn.disabled) return;
+                await postAction(
+                    '{% url "sap_apply" %}',
+                    'sap-apply-btn',
+                    '<i class="fas fa-play"></i> Ekrana Bas',
+                    '<i class="fas fa-spinner fa-spin"></i> Uygulaniyor...'
+                );
+                return;
+            }
+
+            const runBtn = e.target.closest('#sap-run-btn');
+            if (runBtn) {
+                e.preventDefault();
+                if (runBtn.disabled) return;
+                await postAction(
+                    '{% url "sap_run" %}',
+                    'sap-run-btn',
+                    '<i class="fas fa-hourglass-start"></i> Çalıştır (F8)',
+                    '<i class="fas fa-spinner fa-spin"></i> Çalıştırılıyor...',
+                    true
+                );
+            }
+        });
+
+        document.addEventListener('submit', async (e) => {
+            const form = e.target.closest('.sap-form');
+            if (!form) return;
+            e.preventDefault();
+
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const defaultHtml = submitBtn?.innerHTML || '';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taranıyor...';
+            }
+
+            const loadingMask = document.getElementById('sap-scan-loading');
+            loadingMask?.classList.add('open');
+
+            try {
+                const endpoint = form.getAttribute('action') || window.location.href;
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+
+                const html = await resp.text();
+                const parsed = new DOMParser().parseFromString(html, 'text/html');
+                const nextContainer = parsed.querySelector('.container');
+                const currentContainer = document.querySelector('.container');
+
+                if (!nextContainer || !currentContainer) {
+                    window.location.href = resp.url || window.location.href;
+                    return;
+                }
+
+                currentContainer.innerHTML = nextContainer.innerHTML;
+                history.replaceState({}, '', resp.url || window.location.href);
+                await window.initSapScanPage();
+
+                if (typeof showToast !== 'undefined') {
+                    showToast('Tarama sonucu güncellendi.', 'success');
+                }
+            } catch (err) {
+                if (typeof showToast !== 'undefined') {
+                    showToast('Tarama isteği sırasında hata oluştu.', 'error');
+                }
+            } finally {
+                loadingMask?.classList.remove('open');
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = defaultHtml;
+                }
+            }
+        });
+    }
+
+    window.initSapScanPage();
+</script>
+{% endblock %}

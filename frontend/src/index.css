@@ -1,0 +1,50 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #0d1117; /* Koyu Arka Plan */
+  overflow: hidden; /* Scrollbar çıkmasın */
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* --- REACT FLOW KARANLIK MOD AYARLARI --- */
+
+/* 1. Zoom Butonlarının Kutusu */
+.react-flow__controls {
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  border-radius: 5px !important;
+  overflow: hidden; /* Kenarları yuvarlat */
+}
+
+/* 2. Butonların Kendisi (Arka Plan) */
+.react-flow__controls-button {
+  background-color: #21262d !important; /* Koyu Gri */
+  border-bottom: 1px solid #30363d !important; /* Çizgi Rengi */
+  width: 30px !important;
+  height: 30px !important;
+}
+
+/* 3. Butonların İçindeki İkonlar (+ - simgeleri) */
+.react-flow__controls-button svg {
+  fill: #c9d1d9 !important; /* Açık Gri/Beyaz */
+  max-width: 14px !important;
+  max-height: 14px !important;
+}
+
+/* 4. Mouse ile üzerine gelince */
+.react-flow__controls-button:hover {
+  background-color: #30363d !important;
+  cursor: pointer;
+}
+
+/* 5. Alt kısımdaki "React Flow" yazısını gizle (Opsiyonel) */
+.react-flow__attribution {
+  display: none !important;
+}

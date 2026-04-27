@@ -1,0 +1,325 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="activity-section contact-manage-card">
+    <div class="activity-header">
+        <h2 class="section-title" style="margin: 0;">
+            <i class="fas fa-plus-circle"></i>
+            Yeni {{ entity_name }}
+        </h2>
+    </div>
+    <div class="contact-form-wrap">
+        {% if status_message %}
+        <div class="contact-alert success">{{ status_message }}</div>
+        {% endif %}
+        {% if error_message %}
+        <div class="contact-alert error">{{ error_message }}</div>
+        {% endif %}
+
+        <form method="post" class="contact-manage-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="{% if edit_instance %}update{% else %}create{% endif %}">
+            {% if edit_instance %}
+            <input type="hidden" name="object_id" value="{{ edit_instance.pk }}">
+            {% endif %}
+
+            <div class="contact-form-grid">
+                {% with active_form=edit_form|default:create_form %}
+                {% for field in active_form %}
+                <div class="contact-field {% if field.field.widget.input_type == 'textarea' %}full{% endif %}">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                    {% for err in field.errors %}<small class="field-error">{{ err }}</small>{% endfor %}
+                </div>
+                {% endfor %}
+                {% endwith %}
+            </div>
+
+            <div class="contact-form-actions">
+                <button class="btn btn-primary" type="submit">
+                    <i class="fas fa-save"></i>
+                    {% if edit_instance %}Güncelle{% else %}Oluştur{% endif %}
+                </button>
+                {% if edit_instance %}
+                <a class="btn" href="{{ request.path }}">
+                    <i class="fas fa-xmark"></i>
+                    Iptal
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="activity-section contact-manage-card">
+    <div class="activity-header">
+        <h2 class="section-title" style="margin: 0;">
+            <i class="fas fa-database"></i>
+            Kayıtlı {{ entity_name }} listesi
+        </h2>
+        <span class="sap-filter-count">{{ items|length }} kayıt</span>
+    </div>
+
+    <div class="table-container">
+        <table class="contact-table">
+            <thead>
+                <tr>
+                    {% if entity_type == 'telegrambot' %}
+                    <th>Ad</th>
+                    <th>Username</th>
+                    <th>Token</th>
+                    <th>Parse Mode</th>
+                    <th>Aktif</th>
+                    {% elif entity_type == 'telegramgroup' %}
+                    <th>Ad</th>
+                    <th>Chat ID</th>
+                    <th>Varsayilan Bot</th>
+                    <th>Sahipler</th>
+                    <th>Aktif</th>
+                    {% elif entity_type == 'mailaccount' %}
+                    <th>Ad</th>
+                    <th>Email</th>
+                    <th>Şifre</th>
+                    <th>SMTP Host</th>
+                    <th>Port</th>
+                    <th>TLS/SSL</th>
+                    <th>Aktif</th>
+                    {% elif entity_type == 'ftpaccount' %}
+                    <th>Ad</th>
+                    <th>Protokol</th>
+                    <th>Host</th>
+                    <th>Port</th>
+                    <th>Kullanıcı</th>
+                    <th>Şifre</th>
+                    <th>Uzak Yol</th>
+                    <th>Aktif</th>
+                    {% endif %}
+                    <th>Islemler</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    {% if entity_type == 'telegrambot' %}
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.bot_username|default:'-' }}</td>
+                    <td>{{ item.bot_token_masked }}</td>
+                    <td>{{ item.default_parse_mode|default:'-' }}</td>
+                    <td>{% if item.is_active %}Evet{% else %}Hayir{% endif %}</td>
+                    {% elif entity_type == 'telegramgroup' %}
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.chat_id }}</td>
+                    <td>{% if item.default_bot %}{{ item.default_bot.name }}{% else %}-{% endif %}</td>
+                    <td>{{ item.owners|default:'-' }}</td>
+                    <td>{% if item.is_active %}Evet{% else %}Hayir{% endif %}</td>
+                    {% elif entity_type == 'mailaccount' %}
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.email }}</td>
+                    <td>{{ item.smtp_password_masked }}</td>
+                    <td>{{ item.smtp_host }}</td>
+                    <td>{{ item.smtp_port }}</td>
+                    <td>
+                        {% if item.use_tls %}TLS{% endif %}
+                        {% if item.use_tls and item.use_ssl %} / {% endif %}
+                        {% if item.use_ssl %}SSL{% endif %}
+                        {% if not item.use_tls and not item.use_ssl %}-{% endif %}
+                    </td>
+                    <td>{% if item.is_active %}Evet{% else %}Hayir{% endif %}</td>
+                    {% elif entity_type == 'ftpaccount' %}
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.protocol|upper }}</td>
+                    <td>{{ item.host }}</td>
+                    <td>{{ item.port }}</td>
+                    <td>{{ item.username }}</td>
+                    <td>{{ item.password_masked }}</td>
+                    <td>{{ item.remote_base_path|default:'-' }}</td>
+                    <td>{% if item.is_active %}Evet{% else %}Hayir{% endif %}</td>
+                    {% endif %}
+
+                    <td>
+                        <div class="action-btns">
+                            <a class="icon-btn js-edit-link" href="{{ request.path }}?edit={{ item.pk }}" title="Duzenle">
+                                <i class="fas fa-pen"></i>
+                            </a>
+                            {% if entity_type == 'telegramgroup' or entity_type == 'mailaccount' or entity_type == 'ftpaccount' %}
+                            <form method="post" class="inline-form js-ajax-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="test">
+                                <input type="hidden" name="object_id" value="{{ item.pk }}">
+                                {% if entity_type == 'telegramgroup' %}
+                                <input class="contact-test-input" type="text" name="test_message" placeholder="Test mesaji (opsiyonel)">
+                                {% elif entity_type == 'mailaccount' %}
+                                <input class="contact-test-input" type="email" name="test_to" placeholder="Hedef e-posta (opsiyonel)">
+                                <input class="contact-test-input" type="text" name="test_subject" placeholder="Konu (opsiyonel)">
+                                <input class="contact-test-input" type="text" name="test_body" placeholder="Mesaj (opsiyonel)">
+                                {% elif entity_type == 'ftpaccount' %}
+                                <input class="contact-test-input" type="text" name="test_path" placeholder="Test yolu (opsiyonel)">
+                                {% endif %}
+                                <button class="icon-btn" type="submit" title="Test gonderimi">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form method="post" class="inline-form js-delete-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="object_id" value="{{ item.pk }}">
+                                <button class="icon-btn delete" type="submit" title="Sil">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" class="empty-cell">Kayıt bulunamadı.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="contact-confirm-modal" class="contact-confirm-modal" role="dialog" aria-modal="true" aria-label="Kayıt silme onayı">
+    <div class="contact-confirm-card">
+        <div class="contact-confirm-head">Kaydı Sil</div>
+        <div class="contact-confirm-body">Bu kaydı kalıcı olarak silmek istediğinize emin misiniz?</div>
+        <div class="contact-confirm-actions">
+            <button id="contact-confirm-cancel" type="button" class="btn">Vazgec</button>
+            <button id="contact-confirm-ok" type="button" class="btn btn-danger">Sil</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    (function () {
+        const containerSelector = '.container';
+        let pendingDeleteForm = null;
+
+        const bindCrudAjax = () => {
+            const pageContainer = document.querySelector(containerSelector);
+            if (!pageContainer) return;
+
+            const createOrUpdateForm = pageContainer.querySelector('.contact-manage-form');
+            if (createOrUpdateForm) {
+                createOrUpdateForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    submitFormAjax(createOrUpdateForm);
+                });
+            }
+
+            pageContainer.querySelectorAll('.js-ajax-form').forEach((form) => {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    submitFormAjax(form);
+                });
+            });
+
+            pageContainer.querySelectorAll('.js-delete-form').forEach((form) => {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    openConfirm(form);
+                });
+            });
+
+            pageContainer.querySelectorAll('.js-edit-link').forEach((link) => {
+                link.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    await loadPageIntoContainer(link.href, true);
+                });
+            });
+
+            const modal = pageContainer.querySelector('#contact-confirm-modal');
+            const okBtn = pageContainer.querySelector('#contact-confirm-ok');
+            const cancelBtn = pageContainer.querySelector('#contact-confirm-cancel');
+
+            okBtn?.addEventListener('click', () => {
+                if (!pendingDeleteForm) return;
+                closeConfirm();
+                submitFormAjax(pendingDeleteForm);
+                pendingDeleteForm = null;
+            });
+
+            cancelBtn?.addEventListener('click', () => {
+                closeConfirm();
+                pendingDeleteForm = null;
+            });
+
+            modal?.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeConfirm();
+                    pendingDeleteForm = null;
+                }
+            });
+        };
+
+        const openConfirm = (form) => {
+            pendingDeleteForm = form;
+            const modal = document.querySelector('#contact-confirm-modal');
+            modal?.classList.add('open');
+        };
+
+        const closeConfirm = () => {
+            const modal = document.querySelector('#contact-confirm-modal');
+            modal?.classList.remove('open');
+        };
+
+        const submitFormAjax = async (form) => {
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+            try {
+                const attrAction = form.getAttribute('action');
+                const endpoint = (typeof attrAction === 'string' && attrAction.trim())
+                    ? attrAction
+                    : window.location.href;
+                const resp = await fetch(endpoint, {
+                    method: form.method || 'POST',
+                    body: new FormData(form),
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                await swapContainerWithResponse(resp);
+            } catch (err) {
+                if (typeof showToast !== 'undefined') showToast('İşlem sırasında ağ hatası oluştu.', 'error');
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        };
+
+        const loadPageIntoContainer = async (url, pushHistory = false) => {
+            try {
+                const resp = await fetch(url, { credentials: 'same-origin' });
+                await swapContainerWithResponse(resp, pushHistory);
+            } catch (_) {
+                if (typeof showToast !== 'undefined') showToast('Sayfa içeriği yüklenemedi.', 'error');
+            }
+        };
+
+        const swapContainerWithResponse = async (resp, pushHistory = false) => {
+            const html = await resp.text();
+            const parsed = new DOMParser().parseFromString(html, 'text/html');
+            const nextContainer = parsed.querySelector(containerSelector);
+            const currentContainer = document.querySelector(containerSelector);
+            if (!nextContainer || !currentContainer) {
+                window.location.href = resp.url;
+                return;
+            }
+            currentContainer.innerHTML = nextContainer.innerHTML;
+            const finalUrl = resp.url || window.location.href;
+            if (pushHistory) history.pushState({}, '', finalUrl);
+            else history.replaceState({}, '', finalUrl);
+            bindCrudAjax();
+        };
+
+        window.addEventListener('popstate', () => {
+            loadPageIntoContainer(window.location.href, false);
+        });
+
+        bindCrudAjax();
+    })();
+</script>
+{% endblock %}

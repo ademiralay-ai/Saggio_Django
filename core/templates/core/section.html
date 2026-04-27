@@ -1,0 +1,218 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card cyan">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value">312</div>
+                <div class="stat-label">Bugün Tamamlanan</div>
+            </div>
+            <div class="stat-icon">
+                <i class="fas fa-check-double"></i>
+            </div>
+        </div>
+        <div class="stat-change">
+            <i class="fas fa-arrow-up"></i>
+            <span>+9.4% dune gore</span>
+        </div>
+    </div>
+    <div class="stat-card magenta">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value">02:14</div>
+                <div class="stat-label">Ortalama Sure</div>
+            </div>
+            <div class="stat-icon">
+                <i class="fas fa-hourglass-end"></i>
+            </div>
+        </div>
+        <div class="stat-change">
+            <i class="fas fa-arrow-down"></i>
+            <span>-3% suratlanma</span>
+        </div>
+    </div>
+    <div class="stat-card lime">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value">43</div>
+                <div class="stat-label">Bekleyen Kayıt</div>
+            </div>
+            <div class="stat-icon">
+                <i class="fas fa-inbox"></i>
+            </div>
+        </div>
+        <div class="stat-change">
+            <i class="fas fa-alert-circle"></i>
+            <span>7 yuksek oncelik</span>
+        </div>
+    </div>
+    <div class="stat-card amber">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value">%1.8</div>
+                <div class="stat-label">Hata Oranı</div>
+            </div>
+            <div class="stat-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+        </div>
+        <div class="stat-change" style="background: rgba(50, 205, 50, 0.1); color: var(--neon-lime);">
+            <i class="fas fa-check"></i>
+            <span>Normal seviyede</span>
+        </div>
+    </div>
+</div>
+
+<!-- Process Grid -->
+<h2 class="section-title">
+    <i class="fas fa-stream"></i>
+    Pipeline Durumu
+</h2>
+<div class="pipeline-grid">
+    <div class="pipeline-card">
+        <div class="pipeline-header">
+            <h3>Pipeline A</h3>
+            <span class="badge badge-active"><span class="status-dot"></span>Aktif</span>
+        </div>
+        <div class="pipeline-progress">
+            <div class="progress-bar">
+                <div class="progress-fill progress-cyan" style="width: 78%"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+                <span>1,247 / 1,600</span>
+                <span>%78</span>
+            </div>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+            Son güncelleme: 2 dakika önce
+        </div>
+    </div>
+
+    <div class="pipeline-card">
+        <div class="pipeline-header">
+            <h3>Pipeline B</h3>
+            <span class="badge badge-active"><span class="status-dot"></span>Aktif</span>
+        </div>
+        <div class="pipeline-progress">
+            <div class="progress-bar">
+                <div class="progress-fill progress-magenta" style="width: 52%"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+                <span>832 / 1,600</span>
+                <span>%52</span>
+            </div>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+            Son güncelleme: 45 saniye önce
+        </div>
+    </div>
+
+    <div class="pipeline-card">
+        <div class="pipeline-header">
+            <h3>Pipeline C</h3>
+            <span class="badge badge-active"><span class="status-dot"></span>Aktif</span>
+        </div>
+        <div class="pipeline-progress">
+            <div class="progress-bar">
+                <div class="progress-fill progress-lime" style="width: 89%"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+                <span>1,425 / 1,600</span>
+                <span>%89</span>
+            </div>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+            Son güncelleme: 12 saniye önce
+        </div>
+    </div>
+
+    <div class="pipeline-card">
+        <div class="pipeline-header">
+            <h3>Pipeline D</h3>
+            <span class="badge badge-paused"><span class="status-dot"></span>Durduruldu</span>
+        </div>
+        <div class="pipeline-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 34%; background: rgba(255, 0, 0, 0.3);"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+                <span>544 / 1,600</span>
+                <span>%34</span>
+            </div>
+        </div>
+        <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+            Son güncelleme: 5 dakika önce
+        </div>
+    </div>
+</div>
+
+<!-- Activity Table -->
+<div class="activity-section">
+    <div class="activity-header">
+        <h2 class="section-title" style="margin: 0;">
+            <i class="fas fa-history"></i>
+            Son Aktiviteler
+        </h2>
+        <button class="btn btn-sm" onclick="showToast('Aktiviteler yenilendi', 'success')">
+            <i class="fas fa-sync-alt"></i>
+            Yenile
+        </button>
+    </div>
+    <div class="activity-list">
+        <div class="activity-item">
+            <div class="activity-icon success">
+                <i class="fas fa-check"></i>
+            </div>
+            <div class="activity-content">
+                <div class="activity-title">{{ page_title }} modülü başarıyla tamamlandı</div>
+                <div class="activity-time">1 dakika önce</div>
+            </div>
+            <button class="icon-btn" onclick="showToast('Detay gösterildi', 'info')" title="Detay">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+
+        <div class="activity-item">
+            <div class="activity-icon warning">
+                <i class="fas fa-exclamation"></i>
+            </div>
+            <div class="activity-content">
+                <div class="activity-title">2 iş kalemi yeniden deneme kuyruğuna alındı</div>
+                <div class="activity-time">8 dakika önce</div>
+            </div>
+            <button class="icon-btn" onclick="showToast('Detay gösterildi', 'info')" title="Detay">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+
+        <div class="activity-item">
+            <div class="activity-icon error">
+                <i class="fas fa-times"></i>
+            </div>
+            <div class="activity-content">
+                <div class="activity-title">Dış servis bağlantısında gecikme tespit edildi</div>
+                <div class="activity-time">22 dakika önce</div>
+            </div>
+            <button class="icon-btn" onclick="showToast('Detay gösterildi', 'info')" title="Detay">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+
+        <div class="activity-item">
+            <div class="activity-icon success">
+                <i class="fas fa-check"></i>
+            </div>
+            <div class="activity-content">
+                <div class="activity-title">{{ page_title }} modülü için yeni ayarlar kaydedildi</div>
+                <div class="activity-time">35 dakika önce</div>
+            </div>
+            <button class="icon-btn" onclick="showToast('Detay gösterildi', 'info')" title="Detay">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}

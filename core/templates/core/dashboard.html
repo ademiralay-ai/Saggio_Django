@@ -1,0 +1,284 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card cyan">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value">5</div>
+                <div class="stat-label">Aktif Robot</div>
+            </div>
+            <div class="stat-icon">
+                <i class="fas fa-robot"></i>
+            </div>
+        </div>
+        <div class="stat-change">
+            <i class="fas fa-arrow-up"></i>
+            <span>Hepsi cevrimi ci</span>
+        </div>
+    </div>
+    <div class="stat-card magenta">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value">12</div>
+                <div class="stat-label">Toplam Süreç</div>
+            </div>
+            <div class="stat-icon">
+                <i class="fas fa-tasks"></i>
+            </div>
+        </div>
+        <div class="stat-change">
+            <i class="fas fa-check"></i>
+            <span>8 tamamlandi bugun</span>
+        </div>
+    </div>
+    <div class="stat-card lime">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value">98.2%</div>
+                <div class="stat-label">Basari Orani</div>
+            </div>
+            <div class="stat-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+        </div>
+        <div class="stat-change">
+            <i class="fas fa-arrow-up"></i>
+            <span>+2.1% bu hafta</span>
+        </div>
+    </div>
+    <div class="stat-card amber">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value">3</div>
+                <div class="stat-label">Bekleyen Is</div>
+            </div>
+            <div class="stat-icon">
+                <i class="fas fa-clock"></i>
+            </div>
+        </div>
+        <div class="stat-change" style="background: rgba(255, 158, 0, 0.1); color: var(--neon-amber);">
+            <i class="fas fa-hourglass-half"></i>
+            <span>Siradaki: 14:30</span>
+        </div>
+    </div>
+</div>
+
+<!-- Robot Status Section -->
+<h2 class="section-title">
+    <i class="fas fa-robot"></i>
+    Robot Durumlari
+</h2>
+<div class="robots-grid">
+    <!-- Robot 1 -->
+    <div class="robot-card">
+        <div class="robot-header">
+            <div class="robot-info">
+                <h3>Alpha-Bot</h3>
+                <span class="robot-id">ID: RPA-001-TR</span>
+            </div>
+            <span class="robot-status status-running">
+                <span class="status-dot"></span>
+                Calisior
+            </span>
+        </div>
+        <div class="robot-stats">
+            <div class="robot-stat">
+                <div class="robot-stat-label">Son Calisma</div>
+                <div class="robot-stat-value">14:22</div>
+            </div>
+            <div class="robot-stat">
+                <div class="robot-stat-label">Sonraki</div>
+                <div class="robot-stat-value">15:00</div>
+            </div>
+            <div class="robot-stat">
+                <div class="robot-stat-label">Tamamlanan</div>
+                <div class="robot-stat-value">1,247</div>
+            </div>
+            <div class="robot-stat">
+                <div class="robot-stat-label">Calisma Suresi</div>
+                <div class="robot-stat-value">4s 32dk</div>
+            </div>
+        </div>
+        <div class="robot-actions">
+            <button class="btn btn-sm btn-stop" onclick="showToast('Alpha-Bot durduruldu', 'error')">
+                <i class="fas fa-stop"></i> Durdur
+            </button>
+            <button class="btn btn-sm btn-run" onclick="showToast('Alpha-Bot takvimi acildi', 'info')">
+                <i class="fas fa-calendar"></i> Takvim
+            </button>
+        </div>
+    </div>
+
+    <!-- Robot 2 -->
+    <div class="robot-card">
+        <div class="robot-header">
+            <div class="robot-info">
+                <h3>Beta-Bot</h3>
+                <span class="robot-id">ID: RPA-002-TR</span>
+            </div>
+            <span class="robot-status status-idle">
+                <span class="status-dot"></span>
+                Beklemede
+            </span>
+        </div>
+        <div class="robot-stats">
+            <div class="robot-stat">
+                <div class="robot-stat-label">Son Calisma</div>
+                <div class="robot-stat-value">13:45</div>
+            </div>
+            <div class="robot-stat">
+                <div class="robot-stat-label">Sonraki</div>
+                <div class="robot-stat-value">16:00</div>
+            </div>
+            <div class="robot-stat">
+                <div class="robot-stat-label">Tamamlanan</div>
+                <div class="robot-stat-value">892</div>
+            </div>
+            <div class="robot-stat">
+                <div class="robot-stat-label">Calisma Suresi</div>
+                <div class="robot-stat-value">2s 15dk</div>
+            </div>
+        </div>
+        <div class="robot-actions">
+            <button class="btn btn-sm btn-run" onclick="showToast('Beta-Bot başlatıldı', 'success')">
+                <i class="fas fa-play"></i> Başlat
+            </button>
+            <button class="btn btn-sm btn-run" onclick="showToast('Beta-Bot takvimi acildi', 'info')">
+                <i class="fas fa-calendar"></i> Takvim
+            </button>
+        </div>
+    </div>
+
+    <!-- Robot 3 -->
+    <div class="robot-card">
+        <div class="robot-header">
+            <div class="robot-info">
+                <h3>Gamma-Bot</h3>
+                <span class="robot-id">ID: RPA-003-TR</span>
+            </div>
+            <span class="robot-status status-running">
+                <span class="status-dot"></span>
+                Calisior
+            </span>
+        </div>
+        <div class="robot-stats">
+            <div class="robot-stat">
+                <div class="robot-stat-label">Son Calisma</div>
+                <div class="robot-stat-value">14:15</div>
+            </div>
+            <div class="robot-stat">
+                <div class="robot-stat-label">Sonraki</div>
+                <div class="robot-stat-value">14:45</div>
+            </div>
+            <div class="robot-stat">
+                <div class="robot-stat-label">Tamamlanan</div>
+                <div class="robot-stat-value">2,156</div>
+            </div>
+            <div class="robot-stat">
+                <div class="robot-stat-label">Calisma Suresi</div>
+                <div class="robot-stat-value">6s 48dk</div>
+            </div>
+        </div>
+        <div class="robot-actions">
+            <button class="btn btn-sm btn-stop" onclick="showToast('Gamma-Bot durduruldu', 'error')">
+                <i class="fas fa-stop"></i> Durdur
+            </button>
+            <button class="btn btn-sm btn-run" onclick="showToast('Gamma-Bot takvimi acildi', 'info')">
+                <i class="fas fa-calendar"></i> Takvim
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Process Table -->
+<div class="process-section">
+    <div class="process-header">
+        <h2 class="section-title" style="margin: 0;">
+            <i class="fas fa-tasks"></i>
+            Süreç Listesi
+        </h2>
+        <button class="btn" onclick="showToast('Tüm süreçler yenilendi', 'success')">
+            <i class="fas fa-sync-alt"></i>
+            Yenile
+        </button>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Süreç Adı</th>
+                    <th>Robot</th>
+                    <th>Tetikleme</th>
+                    <th>Durum</th>
+                    <th>Ilerleme</th>
+                    <th>Sonraki Calisma</th>
+                    <th>Islemler</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="process-name">
+                            <div class="process-icon" style="background: rgba(0, 243, 255, 0.1); color: var(--neon-cyan);">
+                                <i class="fas fa-file-invoice"></i>
+                            </div>
+                            <span>Fatura Isleme</span>
+                        </div>
+                    </td>
+                    <td>Alpha-Bot</td>
+                    <td><span class="process-badge badge-recurring"><i class="fas fa-redo"></i> Periyodik</span></td>
+                    <td><span class="robot-status status-running" style="font-size: 11px;"><span class="status-dot"></span> Calisior</span></td>
+                    <td style="width: 150px;">
+                        <div style="font-size: 12px; font-weight: 700; color: var(--neon-cyan);">%75</div>
+                        <div class="progress-bar"><div class="progress-fill progress-cyan" style="width: 75%"></div></div>
+                    </td>
+                    <td>15:00</td>
+                    <td>
+                        <div class="action-btns">
+                            <button class="icon-btn" onclick="showToast('Detaylar acildi', 'info')" title="Detay"><i class="fas fa-eye"></i></button>
+                            <button class="icon-btn" onclick="showToast('Duzenle', 'info')" title="Duzenle"><i class="fas fa-edit"></i></button>
+                            <button class="icon-btn" onclick="showToast('Manuel olarak tetiklendi', 'success')" title="Tetikle"><i class="fas fa-play"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="process-name">
+                            <div class="process-icon" style="background: rgba(255, 0, 255, 0.1); color: var(--neon-magenta);">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <span>Musteri Veri Senk.</span>
+                        </div>
+                    </td>
+                    <td>Beta-Bot</td>
+                    <td><span class="process-badge badge-manual"><i class="fas fa-hand-pointer"></i> Manuel</span></td>
+                    <td><span class="robot-status status-idle" style="font-size: 11px;"><span class="status-dot"></span> Beklemede</span></td>
+                    <td style="width: 150px;">
+                        <div style="font-size: 12px; font-weight: 700; color: var(--text-muted);">-</div>
+                        <div class="progress-bar"><div class="progress-fill" style="width: 0%; background: var(--text-muted);"></div></div>
+                    </td>
+                    <td>Manuel</td>
+                    <td>
+                        <div class="action-btns">
+                            <button class="icon-btn" onclick="showToast('Detaylar acildi', 'info')" title="Detay"><i class="fas fa-eye"></i></button>
+                            <button class="icon-btn" onclick="showToast('Duzenle', 'info')" title="Duzenle"><i class="fas fa-edit"></i></button>
+                            <button class="icon-btn" onclick="showToast('Manuel tetikleme', 'success')" title="Tetikle"><i class="fas fa-play"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block vendor_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{% static 'core/js/dashboard.js' %}"></script>
+{% endblock %}

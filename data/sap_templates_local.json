@@ -1,0 +1,1355 @@
+{
+  "ZSD0029 İade Şablonu": {
+    "name": "ZSD0029 İade Şablonu",
+    "state": {
+      "form": {
+        "sys_id": "00-A-Robot-app02",
+        "client": "300",
+        "user": "ademiralay",
+        "pwd": "aa118755",
+        "lang": "TR",
+        "t_code": "ZSD0029",
+        "extra_wait": "0",
+        "loop_values": "1100,1101"
+      },
+      "notification": {
+        "telegram_bot_id": "",
+        "telegram_group_id": "",
+        "mail_account_id": "",
+        "telegram_start_message": "",
+        "telegram_end_message": "",
+        "mail_to": "",
+        "mail_subject": "",
+        "mail_start_message": "",
+        "mail_end_message": ""
+      },
+      "rows": {
+        "/app/con[0]/ses[0]/wnd[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/sbar": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/box%B001000_BLOCK_1000": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/box%B002004_BLOCK_1000": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/box%B003013_BLOCK_1000": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[11]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[12]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[15]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[418]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[419]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[423]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[446]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[71]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[80]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[81]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[82]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[83]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[84]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/btn[86]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[1]/btn[17]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[1]/btn[8]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/btn%_S_ECZANE_%_APP_%-VALU_PUSH": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/btn%_S_ERDAT_%_APP_%-VALU_PUSH": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/btn%_S_MATNR_%_APP_%-VALU_PUSH": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/btn%_S_VBELN_%_APP_%-VALU_PUSH": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtP_SPART": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtP_VKORG": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtP_VTWEG": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtS_ECZANE-HIGH": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtS_ECZANE-LOW": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtS_ERDAT-HIGH": {
+          "checked": true,
+          "action_type": "dinamik",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtS_ERDAT-LOW": {
+          "checked": true,
+          "action_type": "dinamik",
+          "value_text": "",
+          "value_date": "days_15",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtS_MATNR-HIGH": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtS_MATNR-LOW": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtS_VBELN-HIGH": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtS_VBELN-LOW": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/ctxtS_WERKS-LOW": {
+          "checked": true,
+          "action_type": "dongu",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/chkP_INC": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/chkP_JOB": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/tbar[0]/okcd": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/sbar/pane[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/sbar/pane[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/sbar/pane[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/sbar/pane[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/sbar/pane[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/sbar/pane[5]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/sbar/pane[6]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_P_SPART_%_APP_%-TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_P_VKORG_%_APP_%-TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_P_VTWEG_%_APP_%-TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_S_ECZANE_%_APP_%-TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_S_ECZANE_%_APP_%-TO_TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_S_ERDAT_%_APP_%-TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_S_ERDAT_%_APP_%-TO_TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_S_MATNR_%_APP_%-TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_S_MATNR_%_APP_%-TO_TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_S_VBELN_%_APP_%-TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_S_VBELN_%_APP_%-TO_TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/usr/txt%_S_WERKS_%_APP_%-TEXT": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[0]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[0]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[0]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[0]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[0]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[10]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[5]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[6]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[7]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[8]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[1]/menu[9]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[5]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[6]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[10]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[11]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[12]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[5]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[6]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[7]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[8]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[9]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[10]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[11]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[12]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[13]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[5]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[6]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[7]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[8]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[4]/menu[9]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[0]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[0]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[0]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[2]/menu[0]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[2]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[2]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[2]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[2]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[2]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[5]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[6]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[7]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[8]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[9]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[5]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[6]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[7]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[8]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[9]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[5]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[5]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[5]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[5]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[5]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[7]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[7]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[3]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[3]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[10]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[11]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[12]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[13]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[5]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[6]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[7]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[8]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[4]/menu[9]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[5]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[5]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[5]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[5]/menu[3]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[5]/menu[4]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[5]/menu[5]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[7]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[3]/menu[7]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[7]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[7]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[7]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[9]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[4]/menu[9]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[5]/menu[2]/menu[0]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[5]/menu[2]/menu[1]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        },
+        "/app/con[0]/ses[0]/wnd[0]/mbar/menu[3]/menu[5]/menu[2]/menu[2]": {
+          "checked": false,
+          "action_type": "",
+          "value_text": "",
+          "value_date": "today",
+          "value_select": ""
+        }
+      }
+    },
+    "updated_at": "2026-04-24T21:12:50.545353",
+    "storage": "local_fallback"
+  }
+}

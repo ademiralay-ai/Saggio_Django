@@ -1,0 +1,135 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="tr" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saggio RPA Dashboard</title>
+    <link rel="stylesheet" href="{% static 'core/css/style.css' %}">
+</head>
+<body>
+    <div class="bg-shape bg-shape-1"></div>
+    <div class="bg-shape bg-shape-2"></div>
+    <div class="bg-grid"></div>
+
+    <div class="app-shell">
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-brand">
+                <strong>Saggio RPA</strong>
+                <small>Control Center</small>
+            </div>
+
+            <nav class="menu">
+                <a class="menu-item active" href="#">Dashboard</a>
+                <a class="menu-item" href="#">Robotlar</a>
+                <a class="menu-item" href="#">Süreçler</a>
+                <a class="menu-item" href="#">Kuyruk Yönetimi</a>
+                <a class="menu-item" href="#">Scheduler</a>
+                <a class="menu-item" href="#">Raporlar</a>
+                <a class="menu-item" href="#">Ayarlar</a>
+            </nav>
+        </aside>
+        <button id="sidebar-overlay" class="sidebar-overlay" type="button" aria-label="Menüyü kapat"></button>
+
+        <div class="content-area">
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button id="sidebar-toggle" class="icon-btn" type="button" aria-label="Menüyü aç/kapat">
+                        ☰
+                    </button>
+                    <div>
+                        <h1>Dashboard</h1>
+                        <p class="topbar-subtitle">Robot operasyon merkezi</p>
+                    </div>
+                </div>
+
+                <div class="topbar-actions">
+                    <a class="btn btn-ghost" href="/admin/">Admin</a>
+                    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Temayı değiştir">
+                        <span class="toggle-label">Tema</span>
+                        <span id="theme-icon" class="toggle-icon">☀</span>
+                    </button>
+                </div>
+            </header>
+
+            <main class="container">
+                <section class="kpi-grid">
+                    <article class="card kpi-card">
+                        <h3>Toplam Robot</h3>
+                        <p class="kpi-value">24</p>
+                        <span class="kpi-note">18 online, 6 offline</span>
+                    </article>
+                    <article class="card kpi-card">
+                        <h3>Aktif Süreç</h3>
+                        <p class="kpi-value">39</p>
+                        <span class="kpi-note">8 kritik iş akışı</span>
+                    </article>
+                    <article class="card kpi-card">
+                        <h3>Kuyrukta İş</h3>
+                        <p class="kpi-value">127</p>
+                        <span class="kpi-note">Son 1 saatte +12</span>
+                    </article>
+                    <article class="card kpi-card">
+                        <h3>Başarı Oranı</h3>
+                        <p class="kpi-value">%96.2</p>
+                        <span class="kpi-note">Bugün tamamlanan işlere göre</span>
+                    </article>
+                </section>
+
+                <section class="dashboard-grid">
+                    <article class="card chart-card">
+                        <div class="section-head">
+                            <h2>Robot Online / Offline</h2>
+                            <span>Anlık durum</span>
+                        </div>
+                        <div class="chart-wrap">
+                            <canvas id="robotsChart"></canvas>
+                        </div>
+                    </article>
+
+                    <article class="card chart-card">
+                        <div class="section-head">
+                            <h2>Süreç Yükü</h2>
+                            <span>Son 7 gün</span>
+                        </div>
+                        <div class="chart-wrap">
+                            <canvas id="processChart"></canvas>
+                        </div>
+                    </article>
+                </section>
+
+                <section class="dashboard-grid">
+                    <article class="card">
+                        <div class="section-head">
+                            <h2>Çalışan Süreçler</h2>
+                            <span>Şu anda</span>
+                        </div>
+                        <ul class="process-list">
+                            <li><strong>Fatura Botu</strong><span>Robot-04 • 12 dk</span></li>
+                            <li><strong>Stok Senkron</strong><span>Robot-11 • 7 dk</span></li>
+                            <li><strong>E-Posta Sınıflama</strong><span>Robot-02 • 19 dk</span></li>
+                            <li><strong>CRM Güncelleme</strong><span>Robot-15 • 4 dk</span></li>
+                        </ul>
+                    </article>
+
+                    <article class="card">
+                        <div class="section-head">
+                            <h2>Sistem Uyarıları</h2>
+                            <span>Özet</span>
+                        </div>
+                        <ul class="alerts-list">
+                            <li><span class="dot warning"></span>Kuyruk #A3 gecikme eğiliminde.</li>
+                            <li><span class="dot ok"></span>Robot-07 yeniden online oldu.</li>
+                            <li><span class="dot danger"></span>HR rapor akışı 2 kez retry aldı.</li>
+                        </ul>
+                    </article>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="{% static 'core/js/theme.js' %}"></script>
+    <script src="{% static 'core/js/dashboard.js' %}"></script>
+</body>
+</html>

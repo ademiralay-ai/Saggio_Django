@@ -1,0 +1,320 @@
+import React, { useState } from 'react';
+import { 
+  Paper, Typography, TextField, Box, Divider, FormControl, 
+  InputLabel, Select, MenuItem, Button, IconButton, Alert,
+  Checkbox, FormControlLabel 
+} from '@mui/material';
+import SettingsIcon from '@mui/icons-material/Settings';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
+import DeleteIcon from '@mui/icons-material/Delete';
+import axios from 'axios';
+
+const PropertiesPanel = ({ selectedNode, onChange }) => {
+  const [scanning, setScanning] = useState(false);
+  const [sapFields, setSapFields] = useState([]);
+
+  if (!selectedNode) {
+    return (
+      <Paper sx={{ width: '300px', p: 2, bgcolor: '#161b22', borderRight: '1px solid #30363d', height: '100%', color: '#8b949e' }}>
+        <Typography variant="body2" align="center">Bir araç seçin...</Typography>
+      </Paper>
+    );
+  }
+
+  const actualType = selectedNode.data?.actionType || selectedNode.type;
+
+  const handleChange = (field, value) => {
+    onChange(selectedNode.id, { ...selectedNode.data, [field]: value });
+  };
+
+  const addRule = () => {
+    const rules = selectedNode.data.rules || [];
+    handleChange('rules', [...rules, { word: '', action: 'YES' }]);
+  };
+
+  const removeRule = (idx) => {
+    const rules = (selectedNode.data.rules || []).filter((_, i) => i !== idx);
+    handleChange('rules', rules);
+  };
+
+  const handleSapScan = async () => {
+    setScanning(true);
+    try {
+      const res = await axios.get('http://127.0.0.1:8000/api/sap-scan/');
+      setSapFields(res.data.fields || []);
+    } catch { alert("SAP oturumu açık olmalı!"); }
+    setScanning(false);
+  };
+
+  const inputStyles = { 
+    mb: 2, bgcolor: '#0d1117', borderRadius: 1,
+    '& .MuiInputBase-input': { color: '#ffffff !important' }, 
+    '& .MuiInputLabel-root': { color: '#8b949e !important' },
+    '& .MuiFilledInput-root': { bgcolor: '#0d1117' },
+    '& .MuiSelect-icon': { color: 'white' }
+  };
+
+  return (
+    <Paper sx={{ width: '300px', p: 2, bgcolor: '#161b22', color: 'white', borderRight: '1px solid #30363d', height: '100%', overflowY: 'auto' }}>
+      
+      <Box display="flex" alignItems="center" gap={1} mb={2}>
+        <SettingsIcon sx={{ color: '#58a6ff' }} />
+        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', fontSize: '14px' }}>
+          {selectedNode.data.label || actualType.toUpperCase()}
+        </Typography>
+      </Box>
+      <Divider sx={{ bgcolor: '#30363d', mb: 2 }} />
+
+      <TextField label="Adım İsmi" fullWidth size="small" variant="filled" value={selectedNode.data.label || ''} onChange={(e) => handleChange('label', e.target.value)} sx={inputStyles} />
+
+      {/* --- EXCEL ARAÇLARI --- */}
+      {actualType === 'excel_convert_sap' && (
+        <>
+           <Alert severity="info" sx={{bgcolor: '#0d1117', color: '#58a6ff', fontSize: '11px', mb:1}}>
+               SAP'den inen bozuk Excel'i onarır ve gerçek .xlsx yapar.
+           </Alert>
+           <TextField label="Dosya Yolu" fullWidth variant="filled" value={selectedNode.data.file_path || '{current_item}_Rapor_{time}.XLS'} onChange={(e) => handleChange('file_path', e.target.value)} sx={inputStyles} helperText="Örn: C:\Raporlar\{current_item}.XLS" />
+           <FormControlLabel 
+            control={<Checkbox checked={selectedNode.data.delete_original === 'true'} onChange={(e) => handleChange('delete_original', e.target.checked ? 'true' : 'false')} sx={{ color: '#58a6ff' }} />}
+            label={<Typography variant="body2">Eski dosyayı sil</Typography>}
+            sx={{ mt: 1, color: '#8b949e' }}
+          />
+        </>
+      )}
+
+      {actualType === 'excel_delete' && (
+        <>
+           <TextField label="Dosya Yolu (Boşsa son dosya)" fullWidth variant="filled" value={selectedNode.data.file_path || ''} onChange={(e) => handleChange('file_path', e.target.value)} sx={inputStyles} />
+           <TextField label="Silinecek Sütunlar" fullWidth variant="filled" value={selectedNode.data.columns || ''} onChange={(e) => handleChange('columns', e.target.value)} sx={inputStyles} placeholder="Örn: A, C, F veya Malzeme, Tutar" />
+           <TextField label="Silinecek Satırlar (Index)" fullWidth variant="filled" value={selectedNode.data.rows || ''} onChange={(e) => handleChange('rows', e.target.value)} sx={inputStyles} placeholder="Örn: 0, 1, 2" />
+        </>
+      )}
+
+      {actualType === 'excel_pivot' && (
+        <>
+           <TextField label="Dosya Yolu (Boşsa son dosya)" fullWidth variant="filled" value={selectedNode.data.file_path || ''} onChange={(e) => handleChange('file_path', e.target.value)} sx={inputStyles} />
+           <TextField label="Satır Alanı (Group By)" fullWidth variant="filled" value={selectedNode.data.pivot_index || ''} onChange={(e) => handleChange('pivot_index', e.target.value)} sx={inputStyles} placeholder="Örn: MalzemeNo" />
+           <TextField label="Değer Alanı (Sum)" fullWidth variant="filled" value={selectedNode.data.pivot_value || ''} onChange={(e) => handleChange('pivot_value', e.target.value)} sx={inputStyles} placeholder="Örn: Tutar" />
+           <TextField label="Hedef Sayfa Adı" fullWidth variant="filled" value={selectedNode.data.sheet_name || 'Ozet'} onChange={(e) => handleChange('sheet_name', e.target.value)} sx={inputStyles} />
+        </>
+      )}
+
+      {/* --- SİSTEM ARAÇLARI --- */}
+      {actualType === 'sys_kill_process' && (
+         <TextField label="Process Adı" fullWidth variant="filled" value={selectedNode.data.process_name || 'saplogon.exe'} onChange={(e) => handleChange('process_name', e.target.value)} sx={inputStyles} />
+      )}
+
+      {/* --- MEVCUT ARAÇLAR --- */}
+      {actualType === 'logic_set_var' && (
+        <>
+            <TextField label="Değişken Adı" placeholder="Örn: current_row_index" fullWidth variant="filled" value={selectedNode.data.var_name || ''} onChange={(e) => handleChange('var_name', e.target.value)} sx={inputStyles} />
+            <TextField label="Atanacak Değer" placeholder="Örn: 0" fullWidth variant="filled" value={selectedNode.data.value || ''} onChange={(e) => handleChange('value', e.target.value)} sx={inputStyles} />
+        </>
+      )}
+
+      {(actualType === 'logic_add_blacklist' || actualType === 'logic_add_processed') && (
+        <>
+            <TextField label="Eklenecek Değişken" placeholder="Örn: current_offer_id" fullWidth variant="filled" value={selectedNode.data.var_name || ''} onChange={(e) => handleChange('var_name', e.target.value)} sx={inputStyles} />
+            <Alert severity="info" sx={{bgcolor: '#0d1117', color: '#58a6ff', fontSize: '11px', mb:1}}>
+               Bu değişkendeki değer listeye eklenir.
+            </Alert>
+        </>
+      )}
+
+      {actualType === 'logic_set_list' && (
+        <>
+            <Alert severity="info" sx={{bgcolor: '#0d1117', color: '#58a6ff', fontSize: '11px', mb:2}}>
+               Döngü için bir liste oluşturun. Örn: 1100, 1101, 1118
+            </Alert>
+            <TextField label="Liste Değişken Adı" placeholder="sube_listesi" fullWidth variant="filled" value={selectedNode.data.var_name || 'sube_listesi'} onChange={(e) => handleChange('var_name', e.target.value)} sx={inputStyles} />
+            <TextField label="Değerler (Virgülle Ayır)" fullWidth multiline rows={4} variant="filled" value={selectedNode.data.value || ''} onChange={(e) => handleChange('value', e.target.value)} sx={inputStyles} placeholder="1100, 1101, 1118" />
+        </>
+      )}
+
+      {actualType === 'logic_loop_list' && (
+        <>
+            <TextField label="Hangi Liste?" fullWidth variant="filled" value={selectedNode.data.list_name || 'sube_listesi'} onChange={(e) => handleChange('list_name', e.target.value)} sx={inputStyles} />
+            <TextField label="Çıktı Değişkeni (Item)" fullWidth variant="filled" value={selectedNode.data.output_var || 'aktif_sube'} onChange={(e) => handleChange('output_var', e.target.value)} sx={inputStyles} />
+        </>
+      )}
+
+      {actualType === 'sap_open' && (
+         <TextField label="SAP Yolu (.exe)" fullWidth multiline rows={3} variant="filled" value={selectedNode.data.app_path || 'C:\\Program Files (x86)\\SAP\\FrontEnd\\SapGui\\saplogon.exe'} onChange={(e) => handleChange('app_path', e.target.value)} sx={inputStyles} />
+      )}
+
+      {actualType === 'sap_login' && (
+        <>
+          <TextField label="System ID" size="small" variant="filled" value={selectedNode.data.sys_id || ''} onChange={(e)=>handleChange('sys_id', e.target.value)} sx={inputStyles}/>
+          <TextField label="Client" size="small" variant="filled" value={selectedNode.data.client || ''} onChange={(e)=>handleChange('client', e.target.value)} sx={inputStyles}/>
+          <TextField label="User" size="small" variant="filled" value={selectedNode.data.user || ''} onChange={(e)=>handleChange('user', e.target.value)} sx={inputStyles}/>
+          <TextField label="Password" type="password" size="small" variant="filled" value={selectedNode.data.pwd || ''} onChange={(e)=>handleChange('pwd', e.target.value)} sx={inputStyles}/>
+          
+          <FormControlLabel 
+            control={
+              <Checkbox 
+                checked={selectedNode.data.keep_sessions !== false} 
+                onChange={(e) => handleChange('keep_sessions', e.target.checked)} 
+                sx={{ color: '#58a6ff', '&.Mui-checked': { color: '#58a6ff' } }} 
+              />
+            }
+            label={<Typography variant="body2" sx={{ fontSize: '12px' }}>Oturumları Kapatmadan Devam Et</Typography>}
+            sx={{ mt: 1, color: '#8b949e', marginLeft: 0 }}
+          />
+        </>
+      )}
+
+      {actualType === 'sap_fill' && (
+        <>
+          <Button variant="contained" fullWidth onClick={handleSapScan} disabled={scanning} sx={{ mb: 2, bgcolor: '#ff8c00', fontSize:'11px' }}>{scanning ? 'Taranıyor...' : '🖥️ SAP Tara'}</Button>
+          <TextField label="Field ID" fullWidth variant="filled" multiline rows={2} value={selectedNode.data.field_id || ''} onChange={(e) => handleChange('field_id', e.target.value)} sx={inputStyles} placeholder="wnd[0]/usr/..." />
+          <FormControl fullWidth size="small" variant="filled" sx={inputStyles}>
+            <InputLabel>Yöntem</InputLabel>
+            <Select value={selectedNode.data.fill_method || 'fixed'} onChange={(e) => handleChange('fill_method', e.target.value)}>
+              <MenuItem value="fixed">Sabit / Değişken</MenuItem>
+              <MenuItem value="dynamic_date">Tarih</MenuItem>
+            </Select>
+          </FormControl>
+          
+          {selectedNode.data.fill_method === 'dynamic_date' ? (
+              <FormControl fullWidth size="small" variant="filled" sx={inputStyles}>
+              <InputLabel>Seçim</InputLabel>
+              <Select value={selectedNode.data.date_key || 'Bugün'} onChange={(e) => handleChange('date_key', e.target.value)}>
+                  <MenuItem value="Bugün">Bugün</MenuItem>
+                  <MenuItem value="Dün">Dün</MenuItem>
+                  <Divider sx={{ my: 0.5 }} />
+                  <MenuItem value="5 Gün Önce">5 Gün Önce</MenuItem>
+                  <MenuItem value="10 Gün Önce">10 Gün Önce</MenuItem>
+                  <MenuItem value="15 Gün Önce">15 Gün Önce</MenuItem>
+                  <MenuItem value="30 Gün Önce">30 Gün Önce</MenuItem>
+                  <MenuItem value="60 Gün Önce">60 Gün Önce</MenuItem>
+                  <Divider sx={{ my: 0.5 }} />
+                  <MenuItem value="Bu Ayın Başı">Bu Ayın Başı</MenuItem>
+                  <MenuItem value="Bu Ayın 5. Günü">Bu Ayın 5. Günü</MenuItem>
+                  <MenuItem value="Bu Ayın Sonu">Bu Ayın Sonu</MenuItem>
+                  <Divider sx={{ my: 0.5 }} />
+                  <MenuItem value="Önceki Ayın Başı">Önceki Ayın Başı</MenuItem>
+                  <MenuItem value="Önceki Ayın Sonu">Önceki Ayın Sonu</MenuItem>
+                  <MenuItem value="2 Önceki Ayın Başı">2 Önceki Ayın Başı</MenuItem>
+                  <Divider sx={{ my: 0.5 }} />
+                  <MenuItem value="Yıl Başı">Yıl Başı</MenuItem>
+                  <MenuItem value="Geçen Yılın Başı">Geçen Yılın Başı</MenuItem>
+                  <Divider sx={{ my: 0.5 }} />
+                  <MenuItem value="İlk Gün">İlk Gün (06.06.2011)</MenuItem>
+                  <MenuItem value="Sonsuz">Sonsuz (31.12.9999)</MenuItem>
+              </Select>
+              </FormControl>
+          ) : (
+            <TextField label="Değer" fullWidth size="small" variant="filled" value={selectedNode.data.value || ''} onChange={(e) => handleChange('value', e.target.value)} sx={inputStyles} />
+          )}
+          
+          <TextField label="Bekleme (Sn) - Opsiyonel" type="number" fullWidth variant="filled" value={selectedNode.data.timeout || ''} onChange={(e) => handleChange('timeout', e.target.value)} sx={inputStyles} placeholder="Varsayılan: 10" />
+        </>
+      )}
+
+      {(actualType === 'sap_click' || actualType === 'sap_click_toolbar' || actualType === 'sap_select_menu' || actualType === 'sap_select_radio') && (
+        <>
+          <TextField label={actualType === 'sap_click' ? "Button ID" : "Nesne ID"} fullWidth variant="filled" value={selectedNode.data.field_id || ''} onChange={(e) => handleChange('field_id', e.target.value)} sx={inputStyles} />
+          
+          {(actualType === 'sap_click_toolbar' || actualType === 'sap_select_menu') && (
+             <TextField label="Komut Kodu" fullWidth variant="filled" value={selectedNode.data.value || ''} onChange={(e) => handleChange('value', e.target.value)} sx={inputStyles} helperText="Örn: &MB_EXPORT veya &PC" />
+          )}
+          
+          <TextField label="Bekleme (Sn) - Opsiyonel" type="number" fullWidth variant="filled" value={selectedNode.data.timeout || ''} onChange={(e) => handleChange('timeout', e.target.value)} sx={inputStyles} placeholder="Varsayılan: 10" />
+        </>
+      )}
+      
+      {actualType === 'press_key' && (
+        <FormControl fullWidth size="small" variant="filled" sx={inputStyles}>
+          <InputLabel>Tuş</InputLabel>
+          <Select value={selectedNode.data.key || 'ENTER'} onChange={(e) => handleChange('key', e.target.value)}>
+            <MenuItem value="ENTER">Enter</MenuItem><MenuItem value="F8">F8</MenuItem><MenuItem value="F11">F11</MenuItem><MenuItem value="F3">F3</MenuItem>
+          </Select>
+        </FormControl>
+      )}
+
+      {actualType === 'native_key' && (
+        <FormControl fullWidth size="small" variant="filled" sx={inputStyles}>
+          <InputLabel>Windows Tuş</InputLabel>
+          <Select value={selectedNode.data.key || 'SPACE'} onChange={(e) => handleChange('key', e.target.value)}>
+            <MenuItem value="SPACE">SPACE (Boşluk)</MenuItem>
+            <MenuItem value="TAB">TAB</MenuItem>
+            <MenuItem value="ENTER">ENTER</MenuItem>
+            <MenuItem value="ALT+I">ALT+I (İzin Ver)</MenuItem>
+            <MenuItem value="ALT+A">ALT+A (Allow)</MenuItem>
+            <MenuItem value="ALT+K">ALT+K (Kararımı Hatırla)</MenuItem>
+          </Select>
+        </FormControl>
+      )}
+
+      {actualType === 'logic_if' && (
+        <>
+          <TextField label="Değişken Adı" fullWidth variant="filled" value={selectedNode.data.variable_name || ''} onChange={(e) => handleChange('variable_name', e.target.value)} sx={inputStyles} />
+          <FormControl fullWidth variant="filled" sx={inputStyles}>
+             <InputLabel>Operatör</InputLabel>
+             <Select value={selectedNode.data.operator || '=='} onChange={(e) => handleChange('operator', e.target.value)}>
+               <MenuItem value="==">Eşittir</MenuItem><MenuItem value=">">Büyüktür</MenuItem><MenuItem value="<">Küçüktür</MenuItem>
+             </Select>
+          </FormControl>
+          <TextField label="Değer" fullWidth variant="filled" value={selectedNode.data.compare_value || ''} onChange={(e) => handleChange('compare_value', e.target.value)} sx={inputStyles} />
+        </>
+      )}
+
+      {actualType === 'logic_math' && (
+        <>
+            <TextField label="Değişken" fullWidth variant="filled" value={selectedNode.data.var_name || ''} onChange={(e) => handleChange('var_name', e.target.value)} sx={inputStyles} />
+            <TextField label="Eklenecek Miktar" type="number" fullWidth variant="filled" value={selectedNode.data.add_value || '1'} onChange={(e) => handleChange('add_value', e.target.value)} sx={inputStyles} />
+        </>
+      )}
+
+      {(actualType === 'sap_read_grid' || actualType === 'sap_read_cell') && (
+        <>
+          <TextField label="ID" fullWidth variant="filled" value={selectedNode.data.field_id || ''} onChange={(e) => handleChange('field_id', e.target.value)} sx={inputStyles} />
+          <TextField label="Değişken Adı" fullWidth variant="filled" value={selectedNode.data.output_var || ''} onChange={(e) => handleChange('output_var', e.target.value)} sx={inputStyles} />
+          <Alert severity="warning" sx={{bgcolor: '#0d1117', color: '#d2a8ff', fontSize: '11px', mb:1}}>
+             Gridler geç yüklenebilir. Süreyi uzun tutun.
+          </Alert>
+          <TextField label="Max Bekleme (Sn)" type="number" fullWidth variant="filled" value={selectedNode.data.timeout || 60} onChange={(e) => handleChange('timeout', e.target.value)} sx={inputStyles} />
+        </>
+      )}
+
+      {actualType === 'sap_table_select_row' && (
+        <>
+          <TextField label="Grid ID" fullWidth variant="filled" value={selectedNode.data.field_id || ''} onChange={(e) => handleChange('field_id', e.target.value)} sx={inputStyles} />
+          <TextField label="Satır Index" fullWidth variant="filled" value={selectedNode.data.row_index || 0} onChange={(e) => handleChange('row_index', e.target.value)} sx={inputStyles} />
+          <FormControlLabel 
+            control={<Checkbox checked={selectedNode.data.check_blacklist === 'true'} onChange={(e) => handleChange('check_blacklist', e.target.checked ? 'true' : 'false')} sx={{ color: '#58a6ff' }} />}
+            label={<Typography variant="body2">Kara Liste Kontrolü Yap</Typography>}
+            sx={{ mt: 1, color: '#8b949e' }}
+          />
+          <TextField label="Bekleme (Sn)" type="number" fullWidth variant="filled" value={selectedNode.data.timeout || 30} onChange={(e) => handleChange('timeout', e.target.value)} sx={inputStyles} />
+        </>
+      )}
+
+      {actualType === 'sap_popup_handle' && (
+        <>
+           {(selectedNode.data.rules || []).map((rule, idx) => (
+            <Box key={idx} sx={{ p: 1, mb: 1, bgcolor: '#21262d', borderRadius: 1 }}>
+               <TextField label="Metin" fullWidth size="small" variant="standard" value={rule.word} onChange={(e)=>{ const r = [...selectedNode.data.rules]; r[idx].word = e.target.value; handleChange('rules', r); }} sx={{input:{color:'white'}}} />
+               <Box display="flex" justifyContent="space-between" mt={1}>
+                 <Select size="small" value={rule.action} onChange={(e)=>{ const r = [...selectedNode.data.rules]; r[idx].action = e.target.value; handleChange('rules', r); }} sx={{color:'white', fontSize:'11px', width:'70%'}}>
+                    <MenuItem value="YES">Evet</MenuItem><MenuItem value="NO">Hayır</MenuItem><MenuItem value="CLOSE">Kapat</MenuItem>
+                 </Select>
+                 <IconButton size="small" onClick={() => removeRule(idx)}><DeleteIcon sx={{ color: '#f85149' }} /></IconButton>
+               </Box>
+            </Box>
+           ))}
+           <Button startIcon={<AddCircleIcon />} fullWidth size="small" onClick={addRule} sx={{ color: '#58a6ff' }}>Kural Ekle</Button>
+        </>
+      )}
+
+      {actualType === 'sap_tcode' && <TextField label="T-Code" fullWidth variant="filled" value={selectedNode.data.t_code || ''} onChange={(e) => handleChange('t_code', e.target.value)} sx={inputStyles} />}
+
+      {actualType === 'wait_window' && (
+        <TextField label="Saniye" type="number" fullWidth variant="filled" value={selectedNode.data.timeout || 1} onChange={(e) => handleChange('timeout', e.target.value)} sx={inputStyles} />
+      )}
+
+    </Paper>
+  );
+};
+
+export default PropertiesPanel;
