@@ -1722,21 +1722,12 @@ class _GhostOverlayWindow:
 			screen_w = self.root.winfo_screenwidth()
 			x = max(20, screen_w - 500)
 			self.root.geometry(f'470x220+{x}+40')
-			self.label = tk.Label(
-				self.root,
-				text='',
-				font=('Consolas', 10, 'bold'),
-				fg='#58a6ff',
-				bg='black',
-				justify='left',
-				anchor='nw',
-				padx=10,
-				pady=10,
-			)
-			self.label.pack(expand=True, fill='both')
+			self.root.minsize(470, 220)
+			self.root.maxsize(470, 220)
+			self.root.resizable(False, False)
 
 			btn_wrap = tk.Frame(self.root, bg='black')
-			btn_wrap.pack(fill='x', padx=10, pady=(0, 10))
+			btn_wrap.pack(fill='x', padx=10, pady=(10, 6))
 			self.pause_btn = tk.Button(
 				btn_wrap,
 				text='Duraklat',
@@ -1761,6 +1752,19 @@ class _GhostOverlayWindow:
 				command=self.request_stop,
 			)
 			self.stop_btn.pack(side='left', fill='x', expand=True)
+
+			self.label = tk.Label(
+				self.root,
+				text='',
+				font=('Consolas', 10, 'bold'),
+				fg='#58a6ff',
+				bg='black',
+				justify='left',
+				anchor='nw',
+				padx=10,
+				pady=10,
+			)
+			self.label.pack(expand=True, fill='both')
 			self._render()
 		except Exception:
 			self.enabled = False
