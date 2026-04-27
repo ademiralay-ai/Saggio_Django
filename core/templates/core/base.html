@@ -446,6 +446,7 @@
             const dark  = isDark();
             const eR    = dark ? '0,243,255'  : '0,80,180';
             const sR    = dark ? '155,0,255'  : '90,0,200';
+            const tNow  = performance.now() * 0.001;
 
             /* -- düğümleri hareket ettir -- */
             for (const n of nodes) {
@@ -465,9 +466,17 @@
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist < MAX_DIST) {
                         const a = (1 - dist / MAX_DIST) * (dark ? 0.18 : 0.10);
+                        const mx = (nodes[i].x + nodes[j].x) * 0.5;
+                        const my = (nodes[i].y + nodes[j].y) * 0.5;
+                        const nx = dist > 0.001 ? (-dy / dist) : 0;
+                        const ny = dist > 0.001 ? (dx / dist) : 0;
+                        const wave = Math.sin((i * 0.73) + (j * 0.51) + tNow * 0.9);
+                        const curveAmp = Math.min(20, dist * 0.18) * wave;
+                        const cx = mx + nx * curveAmp;
+                        const cy = my + ny * curveAmp;
                         ctx.beginPath();
                         ctx.moveTo(nodes[i].x, nodes[i].y);
-                        ctx.lineTo(nodes[j].x, nodes[j].y);
+                        ctx.quadraticCurveTo(cx, cy, nodes[j].x, nodes[j].y);
                         ctx.strokeStyle = `rgba(${eR},${a.toFixed(3)})`;
                         ctx.lineWidth   = 0.8;
                         ctx.stroke();
@@ -495,8 +504,18 @@
                 s.t += SIGNAL_SPD / dist;
                 if (s.t >= 1) continue;
 
-                const sx = fn.x + dx * s.t;
-                const sy = fn.y + dy * s.t;
+                const mx = (fn.x + tn.x) * 0.5;
+                const my = (fn.y + tn.y) * 0.5;
+                const nx = dist > 0.001 ? (-dy / dist) : 0;
+                const ny = dist > 0.001 ? (dx / dist) : 0;
+                const wave = Math.sin((s.from * 0.73) + (s.to * 0.51) + tNow * 0.9);
+                const curveAmp = Math.min(20, dist * 0.18) * wave;
+                const cx = mx + nx * curveAmp;
+                const cy = my + ny * curveAmp;
+                const tt = s.t;
+                const omt = 1 - tt;
+                const sx = (omt * omt * fn.x) + (2 * omt * tt * cx) + (tt * tt * tn.x);
+                const sy = (omt * omt * fn.y) + (2 * omt * tt * cy) + (tt * tt * tn.y);
 
                 /* parıltı (glow) */
                 const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 7);

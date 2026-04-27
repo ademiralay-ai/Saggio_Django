@@ -96,6 +96,7 @@
             <option value="sap_wait">⏳ Ekranı Bekle</option>
             <option value="sap_scan">🔍 Derin Tarama</option>
             <option value="sap_action">⚡ Aksiyon Yap</option>
+            <option value="sap_popup_decide">🧠 Popup Karar Ver</option>
             <option value="sap_press_button">🖱 SAP Butonuna Bas</option>
             <option value="sap_select_row">☑ SAP Grid – Satır Seç</option>
             <option value="ftp_list">📂 FTP Listele</option>
@@ -175,6 +176,7 @@
         sap_wait:   { icon: 'fas fa-hourglass-half',  label: 'Ekranı Bekle',                color: '#ffb347' },
         sap_scan:   { icon: 'fas fa-satellite-dish',  label: 'Derin Tarama',                color: '#b088ff' },
         sap_action: { icon: 'fas fa-bolt',            label: 'Aksiyon Yap',                 color: '#ff7f50' },
+        sap_popup_decide: { icon: 'fas fa-window-restore', label: 'Popup Karar Ver',        color: '#ff9f43' },
         sap_press_button: { icon: 'fas fa-hand-pointer', label: 'SAP Butonuna Bas',         color: '#3ed0b8' },
         sap_select_row:   { icon: 'fas fa-table',         label: 'Grid – Satır Seç',          color: '#a78bfa' },
         ftp_list:   { icon: 'fas fa-folder-open',     label: 'FTP Listele',                 color: '#5cc8ff' },
@@ -293,6 +295,64 @@
                 </button>
             </div>`;
         }
+
+        case 'sap_popup_decide':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Popup başlığı içersin (boş = önemseme)</label>
+                    <input type="text" class="spb-input" data-key="popup_title_contains" value="${esc(data.popup_title_contains||'')}" maxlength="200" placeholder="Örn: Program ADEMIRALAY kullanıcısı tarafından bloke ed">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Popup metni içersin (boş = önemseme)</label>
+                    <input type="text" class="spb-input" data-key="popup_text_contains" value="${esc(data.popup_text_contains||'')}" maxlength="300" placeholder="Örn: bloke ed">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Popup aksiyonu</label>
+                    <select class="spb-input spb-popup-action" data-key="popup_action">
+                        <option value="close_enter" ${(data.popup_action||'close_enter')==='close_enter'?'selected':''}>Enter ile kapat</option>
+                        <option value="close_escape" ${(data.popup_action||'close_enter')==='close_escape'?'selected':''}>ESC ile kapat</option>
+                        <option value="press_yes" ${(data.popup_action||'close_enter')==='press_yes'?'selected':''}>Evet/Yes butonuna bas</option>
+                        <option value="press_no" ${(data.popup_action||'close_enter')==='press_no'?'selected':''}>Hayır/No butonuna bas</option>
+                        <option value="press_cancel" ${(data.popup_action||'close_enter')==='press_cancel'?'selected':''}>İptal/Cancel butonuna bas</option>
+                        <option value="press_button_id" ${(data.popup_action||'close_enter')==='press_button_id'?'selected':''}>Belirli buton ID'sine bas</option>
+                    </select>
+                </div>
+                <div class="spb-field spb-popup-buttonid-wrap">
+                    <label class="spb-field-label">Popup buton ID</label>
+                    <input type="text" class="spb-input" data-key="popup_button_id" value="${esc(data.popup_button_id||'')}" placeholder="wnd[1]/usr/btnSPOP-OPTION1">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Popup bulunma timeout (sn)</label>
+                    <input type="number" class="spb-input" data-key="timeout_sec" value="${esc(data.timeout_sec||'8')}" min="1" max="60">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Popup işlendiğinde</label>
+                    <select class="spb-input spb-popup-match-action" data-key="on_match_action">
+                        <option value="next_step" ${(data.on_match_action||'next_step')==='next_step'?'selected':''}>Sonraki adıma geç</option>
+                        <option value="goto_step" ${(data.on_match_action||'next_step')==='goto_step'?'selected':''}>Belirli adıma git</option>
+                        <option value="loop_next" ${(data.on_match_action||'next_step')==='loop_next'?'selected':''}>Döngüde sonraki kayda geç</option>
+                        <option value="stop" ${(data.on_match_action||'next_step')==='stop'?'selected':''}>Süreci başarıyla durdur</option>
+                        <option value="fail" ${(data.on_match_action||'next_step')==='fail'?'selected':''}>Hata ver ve dur</option>
+                    </select>
+                </div>
+                <div class="spb-field spb-popup-target-wrap">
+                    <label class="spb-field-label">Gidilecek adım no</label>
+                    <input type="number" class="spb-input" data-key="popup_target_step" value="${esc(data.popup_target_step||'1')}" min="1" max="999">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="fail_if_not_found" ${data.fail_if_not_found ? 'checked' : ''}>
+                        Popup bulunamazsa hata ver
+                    </label>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="fail_if_not_match" ${data.fail_if_not_match ? 'checked' : ''}>
+                        Popup metni/başlığı eşleşmezse hata ver
+                    </label>
+                </div>
+            </div>`;
 
         case 'sap_press_button':
             return `
@@ -664,8 +724,11 @@
             });
         });
 
-        // Timeout aksiyonu görünürlüğü
-        list.querySelectorAll('.spb-step-card').forEach(card => bindWaitTimeoutMode(card));
+        // Timeout / popup aksiyonu görünürlüğü
+        list.querySelectorAll('.spb-step-card').forEach(card => {
+            bindWaitTimeoutMode(card);
+            bindPopupMode(card);
+        });
 
         // Drag & Drop
         setupDragDrop();
@@ -687,6 +750,25 @@
             btn._spbBound = true;
             btn.addEventListener('click', () => btn.closest('.spb-action-row').remove());
         });
+    }
+
+    function bindPopupMode(card) {
+        if (!card) return;
+        const popupAction = card.querySelector('.spb-popup-action');
+        const popupBtnWrap = card.querySelector('.spb-popup-buttonid-wrap');
+        const popupMatchAction = card.querySelector('.spb-popup-match-action');
+        const popupTargetWrap = card.querySelector('.spb-popup-target-wrap');
+
+        const refreshPopupUI = () => {
+            const actionVal = String(popupAction?.value || '');
+            if (popupBtnWrap) popupBtnWrap.style.display = actionVal === 'press_button_id' ? '' : 'none';
+            const matchVal = String(popupMatchAction?.value || 'next_step');
+            if (popupTargetWrap) popupTargetWrap.style.display = matchVal === 'goto_step' ? '' : 'none';
+        };
+
+        popupAction?.addEventListener('change', refreshPopupUI);
+        popupMatchAction?.addEventListener('change', refreshPopupUI);
+        refreshPopupUI();
     }
 
     // ── DOM → state senkronizasyonu ───────────────────────────────────────
@@ -775,7 +857,14 @@
                     config: s.config || {},
                 }))}),
             });
-            const data = await resp.json();
+            const raw = await resp.text();
+            let data = null;
+            try {
+                data = JSON.parse(raw);
+            } catch (parseErr) {
+                const short = String(raw || '').slice(0, 180).replace(/\s+/g, ' ').trim();
+                throw new Error(`Sunucu JSON yerine yanıt döndürdü (HTTP ${resp.status}). ${short}`);
+            }
             if (data.ok) {
                 // Kaydedilen DB id'lerini steps'e yaz
                 data.steps.forEach((ds, i) => { if (steps[i]) steps[i].id = ds.id; });

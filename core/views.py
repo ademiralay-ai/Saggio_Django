@@ -840,33 +840,36 @@ def sap_process_delete(request, process_id):
 @require_POST
 def sap_process_step_save(request, process_id):
 	"""Adımları toplu kaydet (tam liste — mevcut adımları sil, yenileri ekle)."""
-	proc = get_object_or_404(SapProcess, pk=process_id)
 	try:
-		body = json.loads(request.body)
-	except (json.JSONDecodeError, TypeError):
-		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+		proc = get_object_or_404(SapProcess, pk=process_id)
+		try:
+			body = json.loads(request.body)
+		except (json.JSONDecodeError, TypeError):
+			return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
 
-	steps_data = body.get('steps', [])
-	if not isinstance(steps_data, list):
-		return JsonResponse({'ok': False, 'error': 'steps bir liste olmalı.'}, status=400)
+		steps_data = body.get('steps', [])
+		if not isinstance(steps_data, list):
+			return JsonResponse({'ok': False, 'error': 'steps bir liste olmalı.'}, status=400)
 
-	valid_types = {c[0] for c in SapProcessStep.STEP_TYPE_CHOICES}
-	proc.steps.all().delete()
-	saved = []
-	for i, s in enumerate(steps_data):
-		step_type = str(s.get('step_type', '') or '').strip()
-		if step_type not in valid_types:
-			continue
-		step = SapProcessStep.objects.create(
-			process=proc,
-			order=i,
-			step_type=step_type,
-			label=str(s.get('label', '') or '').strip()[:300],
-			config=s.get('config', {}) if isinstance(s.get('config'), dict) else {},
-		)
-		saved.append({'id': step.pk, 'order': step.order, 'step_type': step.step_type})
+		valid_types = {c[0] for c in SapProcessStep.STEP_TYPE_CHOICES}
+		proc.steps.all().delete()
+		saved = []
+		for i, s in enumerate(steps_data):
+			step_type = str(s.get('step_type', '') or '').strip()
+			if step_type not in valid_types:
+				continue
+			step = SapProcessStep.objects.create(
+				process=proc,
+				order=i,
+				step_type=step_type,
+				label=str(s.get('label', '') or '').strip()[:300],
+				config=s.get('config', {}) if isinstance(s.get('config'), dict) else {},
+			)
+			saved.append({'id': step.pk, 'order': step.order, 'step_type': step.step_type})
 
-	return JsonResponse({'ok': True, 'saved': len(saved), 'steps': saved})
+		return JsonResponse({'ok': True, 'saved': len(saved), 'steps': saved})
+	except Exception as ex:
+		return JsonResponse({'ok': False, 'error': f'Adımlar kaydedilemedi: {ex}'}, status=500)
 
 
 @require_POST
@@ -1638,6 +1641,32 @@ def _collect_node_text(node, limit=40):
 	return ' | '.join(parts)
 
 
+def _press_popup_button_by_text(popup, keyword_list):
+	"""Popup içinde metnine göre uygun butonu bulup basar."""
+	keywords = [str(k or '').strip().casefold() for k in (keyword_list or []) if str(k or '').strip()]
+	if not keywords:
+		return False, 'anahtar kelime listesi boş.'
+
+	stack = [popup] if popup is not None else []
+	while stack:
+		node = stack.pop(0)
+		try:
+			node_type = str(getattr(node, 'Type', '') or '').casefold()
+			node_id = str(getattr(node, 'Id', '') or '').strip()
+			if 'button' in node_type:
+				text = str(getattr(node, 'Text', '') or '').strip()
+				name = str(getattr(node, 'Name', '') or '').strip()
+				tip = str(getattr(node, 'Tooltip', '') or '').strip()
+				haystack = f'{text} {name} {tip}'.casefold()
+				if any(k in haystack for k in keywords):
+					node.press()
+					return True, node_id or text or name
+		except Exception:
+			pass
+		stack.extend(_iter_children(node))
+	return False, 'metne uyan popup butonu bulunamadı.'
+
+
 def _safe_send_popup_mail(cfg, mail_enabled=True):
 	if not mail_enabled:
 		return 'Mail gönderimi süreç ayarında kapalı.'
@@ -2163,6 +2192,18 @@ def sap_process_run_preview(request, process_id):
 					popup.sendVKey(12)
 				elif action == 'close_enter':
 					popup.sendVKey(0)
+				elif action == 'press_yes':
+					ok_btn, btn_msg = _press_popup_button_by_text(popup, ['evet', 'yes', 'ok', 'tamam'])
+					if not ok_btn:
+						return JsonResponse({'ok': False, 'error': f'Popup evet butonu bulunamadı: {btn_msg}', 'logs': logs, 'failed_at': i}, status=404)
+				elif action == 'press_no':
+					ok_btn, btn_msg = _press_popup_button_by_text(popup, ['hayır', 'hayir', 'no'])
+					if not ok_btn:
+						return JsonResponse({'ok': False, 'error': f'Popup hayır/no butonu bulunamadı: {btn_msg}', 'logs': logs, 'failed_at': i}, status=404)
+				elif action == 'press_cancel':
+					ok_btn, btn_msg = _press_popup_button_by_text(popup, ['iptal', 'cancel', 'vazgeç', 'vazgec'])
+					if not ok_btn:
+						return JsonResponse({'ok': False, 'error': f'Popup iptal butonu bulunamadı: {btn_msg}', 'logs': logs, 'failed_at': i}, status=404)
 				elif action == 'press_button_id':
 					button_id = _normalize_session_element_id(cfg.get('popup_button_id', ''))
 					button = service._wait_for_element(service.session, button_id, timeout_sec=5)
@@ -2175,6 +2216,29 @@ def sap_process_run_preview(request, process_id):
 				if mail_msg:
 					log_msg = f'{log_msg} | {mail_msg}'
 				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': log_msg})
+				on_match_action = str(cfg.get('on_match_action', 'next_step') or 'next_step').strip().casefold()
+				if on_match_action == 'goto_step':
+					try:
+						target_step_no = int(cfg.get('popup_target_step') or 1)
+					except (TypeError, ValueError):
+						target_step_no = 1
+					target_step_no = max(1, min(target_step_no, len(steps)))
+					next_i = target_step_no - 1
+				elif on_match_action == 'loop_next':
+					loop_idx = None
+					for k in range(i + 1, len(steps)):
+						st = str(steps[k].get('step_type', '') or '').strip()
+						if st == SapProcessStep.TYPE_LOOP_NEXT:
+							loop_idx = k
+							break
+					if loop_idx is not None:
+						next_i = loop_idx
+				elif on_match_action == 'stop':
+					overlay.push_log('Popup adımı sonrası süreç durduruldu')
+					overlay.close()
+					return JsonResponse({'ok': True, 'logs': logs, 'ran_until': i, 'connection_template': conn.get('template_name', '')})
+				elif on_match_action == 'fail':
+					return JsonResponse({'ok': False, 'error': f'Popup eşleşti ve hata aksiyonu tetiklendi. Başlık: {title}', 'logs': logs, 'failed_at': i}, status=400)
 
 			elif step_type == SapProcessStep.TYPE_SAP_WAIT:
 				ok, payload = _ensure_session_ready()
