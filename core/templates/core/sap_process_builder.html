@@ -122,6 +122,7 @@
             <option value="ftp_download">📥 FTP İndir</option>
             <option value="ftp_upload">📤 FTP Yükle</option>
             <option value="sap_close">✖ SAP Kapat</option>
+            <option value="run_process">🧩 Süreç Çalıştır (Alt Süreç)</option>
             <option value="loop_next">🔄 Döngü – Sonraki Kayıt</option>
         </select>
         <button id="spb-add-btn" class="btn btn-primary" type="button"><i class="fas fa-plus"></i> Adım Ekle</button>
@@ -187,6 +188,7 @@
     const CSRF         = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
     const TEMPLATE_NAMES = {{ template_names|safe }};
     const FTP_ACCOUNTS = {{ ftp_accounts_json|safe }};
+    const PROCESS_OPTIONS = {{ processes_json|safe }};
 
     let steps = {{ steps_json|safe }};   // [{id, order, step_type, label, config}]
     let _pendingDeleteIdx = null;
@@ -206,6 +208,7 @@
         ftp_download:{ icon: 'fas fa-file-download',  label: 'FTP İndir',                   color: '#37d67a' },
         ftp_upload: { icon: 'fas fa-file-upload',     label: 'FTP Yükle',                   color: '#ffb347' },
         sap_close:  { icon: 'fas fa-times-circle',    label: 'SAP Kapat',                   color: '#ff4c6a' },
+        run_process:{ icon: 'fas fa-diagram-project', label: 'Süreç Çalıştır (Alt Süreç)', color: '#5b8def' },
         loop_next:  { icon: 'fas fa-redo',            label: 'Döngü – Sonraki Kayıt',       color: '#00f3ff' },
     };
 
@@ -218,6 +221,9 @@
         data = data || {};
         const ftpOptions = FTP_ACCOUNTS.map(a =>
             `<option value="${a.id}" ${String(data.ftp_account_id || '') === String(a.id) ? 'selected' : ''}>${esc(a.name)} (${esc(String(a.protocol || '').toUpperCase())} ${esc(a.host)}:${esc(String(a.port))})</option>`
+        ).join('');
+        const processOptions = PROCESS_OPTIONS.map(p =>
+            `<option value="${p.id}" ${String(data.target_process_id || '') === String(p.id) ? 'selected' : ''}>${esc(p.name)}</option>`
         ).join('');
         switch (stepType) {
 
@@ -467,6 +473,23 @@
                     <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
                         <input type="checkbox" data-key="copy_row_to_memory" ${data.copy_row_to_memory ? 'checked' : ''}>
                         Seçili satırı hafızaya kopyala (sutun_1, sutun_2, ...)
+                    </label>
+                </div>
+            </div>`;
+
+        case 'run_process':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Çalıştırılacak Süreç</label>
+                    <select class="spb-input" data-key="target_process_id">
+                        <option value="">— Süreç Seçiniz —</option>${processOptions}
+                    </select>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Alt süreç hata verirse adımı logla ve ana akışa devam et
                     </label>
                 </div>
             </div>`;

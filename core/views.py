@@ -13,7 +13,7 @@ import uuid
 import threading
 from email.mime.text import MIMEText
 from datetime import datetime
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpRequest
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -1166,6 +1166,7 @@ def sap_process_builder(request, process_id):
 	steps = list(proc.steps.values('id', 'order', 'step_type', 'label', 'config').order_by('order'))
 	template_names = SAPTemplateService.list_template_names()
 	ftp_accounts = list(FTPAccount.objects.filter(is_active=True).values('id', 'name', 'protocol', 'host', 'port').order_by('name'))
+	other_processes = list(SapProcess.objects.exclude(pk=proc.pk).values('id', 'name').order_by('name'))
 	return render(request, 'core/sap_process_builder.html', {
 		'current': 'sap_process',
 		'page_title': f'Süreç: {proc.name}',
@@ -1174,6 +1175,7 @@ def sap_process_builder(request, process_id):
 		'steps_json': json.dumps(steps, default=str),
 		'template_names': template_names,
 		'ftp_accounts_json': json.dumps(ftp_accounts, default=str),
+		'processes_json': json.dumps(other_processes, default=str),
 	})
 
 
@@ -2606,6 +2608,18 @@ def sap_process_run_preview(request, process_id):
 		_runtime_finish(process_id)
 		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
 
+	# Alt süreç zincirinde döngüsel çağrıları engelle (A -> B -> A)
+	process_chain = []
+	for raw_pid in (body.get('_process_chain', []) if isinstance(body.get('_process_chain', []), list) else []):
+		try:
+			process_chain.append(int(raw_pid))
+		except Exception:
+			continue
+	if int(process_id) in process_chain:
+		overlay.close()
+		_runtime_finish(process_id)
+		return JsonResponse({'ok': False, 'error': 'Döngüsel alt süreç çağrısı engellendi.'}, status=400)
+
 	steps = _extract_runtime_steps(body, proc)
 	if not steps:
 		overlay.close()
@@ -3330,6 +3344,63 @@ def sap_process_run_preview(request, process_id):
 				
 				except Exception as scan_err:
 					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Scan hatası: {scan_err}'})
+
+			elif step_type == SapProcessStep.TYPE_RUN_PROCESS:
+				try:
+					target_process_id = int(cfg.get('target_process_id') or 0)
+				except (TypeError, ValueError):
+					target_process_id = 0
+				if target_process_id <= 0:
+					msg = 'Çalıştırılacak alt süreç seçilmedi.'
+					if continue_on_error:
+						logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Hata (devam): {msg}'})
+					else:
+						return JsonResponse({'ok': False, 'error': msg, 'logs': logs, 'failed_at': i}, status=400)
+					continue
+				if target_process_id == int(process_id):
+					msg = 'Bir süreç kendisini alt süreç olarak çağıramaz.'
+					if continue_on_error:
+						logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Hata (devam): {msg}'})
+					else:
+						return JsonResponse({'ok': False, 'error': msg, 'logs': logs, 'failed_at': i}, status=400)
+					continue
+
+				target_proc = SapProcess.objects.filter(pk=target_process_id).first()
+				if not target_proc:
+					msg = f'Alt süreç bulunamadı (id={target_process_id}).'
+					if continue_on_error:
+						logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Hata (devam): {msg}'})
+					else:
+						return JsonResponse({'ok': False, 'error': msg, 'logs': logs, 'failed_at': i}, status=404)
+					continue
+
+				child_req = HttpRequest()
+				child_req.method = 'POST'
+				child_req.META = getattr(request, 'META', {}).copy()
+				if hasattr(request, 'user'):
+					child_req.user = request.user
+				child_body = {
+					'_process_chain': process_chain + [int(process_id)],
+				}
+				child_req._body = json.dumps(child_body).encode('utf-8')
+
+				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Alt süreç başlatıldı: {target_proc.name}'})
+				child_resp = sap_process_run_preview(child_req, target_process_id)
+				child_status = int(getattr(child_resp, 'status_code', 500) or 500)
+				try:
+					child_data = json.loads((child_resp.content or b'{}').decode('utf-8'))
+				except Exception:
+					child_data = {}
+				child_ok = bool(child_data.get('ok')) and child_status < 400
+				if child_ok:
+					child_logs = child_data.get('logs', []) if isinstance(child_data.get('logs'), list) else []
+					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Alt süreç tamamlandı: {target_proc.name} | log: {len(child_logs)}'})
+				else:
+					child_err = str(child_data.get('error') or f'Alt süreç hata döndürdü (HTTP {child_status})')
+					if continue_on_error:
+						logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Alt süreç hatası (devam): {child_err}'})
+					else:
+						return JsonResponse({'ok': False, 'error': f'Alt süreç başarısız: {child_err}', 'logs': logs, 'failed_at': i}, status=500 if child_status < 400 else child_status)
 
 			else:
 				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Bilinmeyen step_type: {step_type}'})

@@ -332,6 +332,7 @@ class SapProcessStep(models.Model):
 	TYPE_FTP_DOWNLOAD = 'ftp_download'
 	TYPE_FTP_UPLOAD  = 'ftp_upload'
 	TYPE_SAP_CLOSE   = 'sap_close'
+	TYPE_RUN_PROCESS = 'run_process'
 	TYPE_LOOP_NEXT   = 'loop_next'
 	TYPE_IF_ELSE     = 'if_else'
 	TYPE_LOOP_GENERIC = 'loop_generic'
@@ -351,6 +352,7 @@ class SapProcessStep(models.Model):
 		(TYPE_FTP_DOWNLOAD, 'FTP İndir'),
 		(TYPE_FTP_UPLOAD, 'FTP Yükle'),
 		(TYPE_SAP_CLOSE,  'SAP Kapat'),
+		(TYPE_RUN_PROCESS, 'Süreç Çalıştır (Alt Süreç)'),
 		(TYPE_LOOP_NEXT,  'Döngü – Sonraki Kayıt'),
 		(TYPE_IF_ELSE, 'IF / ELSE'),
 		(TYPE_LOOP_GENERIC, 'Döngü (Generic)'),
