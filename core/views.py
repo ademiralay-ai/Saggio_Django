@@ -1868,25 +1868,35 @@ def _resolve_grid_row_by_text(grid, text_contains):
 
 	for ridx in range(row_count):
 		cell_values = []
+		seen_values = set()
 		for col in columns:
 			try:
-				cell_values.append(str(grid.getCellValue(ridx, col) or '').strip())
+				v = str(grid.getCellValue(ridx, col) or '').strip()
+				if v and v not in seen_values:
+					cell_values.append(v)
+					seen_values.add(v)
 				continue
 			except Exception:
 				pass
 			try:
 				cell = grid.GetCell(ridx, col)
-				cell_values.append(str(getattr(cell, 'Text', '') or getattr(cell, 'text', '') or '').strip())
+				v = str(getattr(cell, 'Text', '') or getattr(cell, 'text', '') or '').strip()
+				if v and v not in seen_values:
+					cell_values.append(v)
+					seen_values.add(v)
 			except Exception:
 				continue
 
-		# Kolon listesi alınamazsa tek kolon fallback dene.
-		if not columns:
-			for ci in range(20):
-				try:
-					cell = grid.GetCell(ridx, ci)
-					cell_values.append(str(getattr(cell, 'Text', '') or getattr(cell, 'text', '') or '').strip())
-				except Exception:
+		# GuiTableControl için index bazlı hücre okumayı her durumda dene.
+		for ci in range(30):
+			try:
+				cell = grid.GetCell(ridx, ci)
+				v = str(getattr(cell, 'Text', '') or getattr(cell, 'text', '') or '').strip()
+				if v and v not in seen_values:
+					cell_values.append(v)
+					seen_values.add(v)
+			except Exception:
+				if ci > 8:
 					break
 
 		row_text = _normalize_match_text(' | '.join(v for v in cell_values if v))
@@ -2528,9 +2538,14 @@ def sap_process_run_preview(request, process_id):
 				row_text_contains = str(cfg.get('row_text_contains', '') or '').strip()
 				normalized_grid_id = _normalize_session_element_id(grid_id)
 				wait_timeout_sec = max(1, min(int(cfg.get('wait_timeout_sec') or 25), 60))
+				popup_wait_sec = max(1, min(int(cfg.get('popup_wait_sec') or 12), wait_timeout_sec))
+				allow_main_fallback = bool(cfg.get('allow_main_fallback', True))
 				grid = None
 				grid_source = ''
 				if normalized_grid_id:
+					# Popup grid hedeflenmişse önce popup penceresini bekle.
+					if normalized_grid_id.startswith('wnd[1]/'):
+						service._wait_for_element(service.session, 'wnd[1]', timeout_sec=popup_wait_sec)
 					grid = _find_grid(
 						service,
 						grid_id=normalized_grid_id,
@@ -2539,16 +2554,18 @@ def sap_process_run_preview(request, process_id):
 					)
 					grid_source = normalized_grid_id
 				else:
-					# Grid ID yoksa önce popup detay tablosunu dene (VBS akışındaki wnd[1] senaryosu).
-					popup_first_timeout = min(10, max(2, wait_timeout_sec // 2))
-					if _has_popup_window(service.session):
-						grid = _find_grid(service, grid_id='', timeout_sec=popup_first_timeout, grid_type='detail')
-					if grid is None:
-						remain_timeout = max(1, wait_timeout_sec - popup_first_timeout)
+					# Grid ID yoksa önce popup detay tablosunu aktif olarak bekle.
+					service._wait_for_element(service.session, 'wnd[1]', timeout_sec=popup_wait_sec)
+					grid = _find_grid(service, grid_id='', timeout_sec=popup_wait_sec, grid_type='detail')
+					if grid is not None:
+						grid_source = 'auto-detail'
+					elif allow_main_fallback:
+						remain_timeout = max(1, wait_timeout_sec - popup_wait_sec)
 						grid = _find_grid(service, grid_id='', timeout_sec=remain_timeout, grid_type='main')
 						grid_source = 'auto-main'
 					else:
-						grid_source = 'auto-detail'
+						grid = None
+						grid_source = 'auto-detail-only'
 				if not grid:
 					gid_msg = normalized_grid_id or 'auto-detect'
 					return JsonResponse({'ok': False, 'error': f'Grid bulunamadı: {gid_msg}', 'logs': logs, 'failed_at': i}, status=404)
