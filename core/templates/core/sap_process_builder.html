@@ -35,6 +35,30 @@
         </div>
     </div>
 
+    <div class="spb-meta-card spb-runtime-meta">
+        <div class="spb-runtime-title">
+            <i class="fas fa-sliders-h"></i>
+            Süreç Standart Çalışma Ayarları
+        </div>
+        <div class="spb-runtime-options">
+            <label class="spb-runtime-option" for="spb-ghost-overlay-enabled">
+                <input id="spb-ghost-overlay-enabled" type="checkbox" {% if process.ghost_overlay_enabled %}checked{% endif %}>
+                <span>
+                    <strong>Hayalet ekran açık</strong>
+                    <small>Windows üzerinde en üstte süreç adı, PC adı, adım ve kısa logları göster.</small>
+                </span>
+            </label>
+
+            <label class="spb-runtime-option" for="spb-office-auto-close">
+                <input id="spb-office-auto-close" type="checkbox" {% if process.office_express_auto_close %}checked{% endif %}>
+                <span>
+                    <strong>Office mesaj popup kapatılsın</strong>
+                    <small>Her adım öncesi/sonrası Ofis Ekspres popup'larını otomatik kapat.</small>
+                </span>
+            </label>
+        </div>
+    </div>
+
     <!-- ── Adım Listesi ───────────────────────────────────────── -->
     <div id="spb-step-list" class="spb-step-list">
         <!-- JS tarafından render edilir -->
@@ -106,6 +130,7 @@
     const PROCESS_ID   = {{ process.id }};
     const SAVE_URL     = '{% url "sap_process_step_save" process.id %}';
     const RENAME_URL   = '{% url "sap_process_rename" process.id %}';
+    const RUNTIME_SETTINGS_URL = '{% url "sap_process_runtime_settings_save" process.id %}';
     const RUN_URL      = '{% url "sap_process_run_preview" process.id %}';
     const CSRF         = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
     const TEMPLATE_NAMES = {{ template_names|safe }};
@@ -678,9 +703,35 @@
         }
     }
 
+    async function saveRuntimeSettings() {
+        const ghost = !!document.getElementById('spb-ghost-overlay-enabled')?.checked;
+        const office = !!document.getElementById('spb-office-auto-close')?.checked;
+        try {
+            const resp = await fetch(RUNTIME_SETTINGS_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({
+                    ghost_overlay_enabled: ghost,
+                    office_express_auto_close: office,
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast(data.error || 'Ayarlar kaydedilemedi.', 'error');
+                return;
+            }
+            if (typeof showToast === 'function') showToast('Çalışma ayarları güncellendi.', 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Ayar güncelleme hatası: ' + e.message, 'error');
+        }
+    }
+
     // ── Init ─────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
         renderSteps();
+
+        document.getElementById('spb-ghost-overlay-enabled')?.addEventListener('change', saveRuntimeSettings);
+        document.getElementById('spb-office-auto-close')?.addEventListener('change', saveRuntimeSettings);
 
         document.getElementById('spb-add-btn')?.addEventListener('click', () => {
             const picker = document.getElementById('spb-type-picker');

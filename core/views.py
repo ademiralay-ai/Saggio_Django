@@ -23,6 +23,11 @@ try:
 except Exception:
 	paramiko = None
 
+try:
+	import tkinter as tk
+except Exception:
+	tk = None
+
 
 def get_dashboard_stats():
 	"""Fetch dashboard statistics from Firebase"""
@@ -801,6 +806,29 @@ def sap_process_rename(request, process_id):
 	return JsonResponse({'ok': True, 'name': proc.name})
 
 
+@require_POST
+def sap_process_runtime_settings_save(request, process_id):
+	"""Süreç çalışma ayarlarını (overlay + office popup auto-close) güncelle."""
+	proc = get_object_or_404(SapProcess, pk=process_id)
+	try:
+		body = json.loads(request.body)
+	except (json.JSONDecodeError, TypeError):
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	ghost_overlay_enabled = bool(body.get('ghost_overlay_enabled', proc.ghost_overlay_enabled))
+	office_express_auto_close = bool(body.get('office_express_auto_close', proc.office_express_auto_close))
+
+	proc.ghost_overlay_enabled = ghost_overlay_enabled
+	proc.office_express_auto_close = office_express_auto_close
+	proc.save(update_fields=['ghost_overlay_enabled', 'office_express_auto_close', 'updated_at'])
+
+	return JsonResponse({
+		'ok': True,
+		'ghost_overlay_enabled': proc.ghost_overlay_enabled,
+		'office_express_auto_close': proc.office_express_auto_close,
+	})
+
+
 import re as _re
 
 def _normalize_session_element_id(element_id):
@@ -887,6 +915,123 @@ def _ensure_runtime_loop_state(runtime_state, state, cfg):
 	runtime_state['loop_values'] = values
 	runtime_state['loop_index'] = 0
 	runtime_state['loop_value'] = values[0]
+
+
+def _close_office_express_popups(service):
+	"""Açık SAP popup'larında Ofis Ekspres mesajı varsa otomatik kapatır."""
+	closed = 0
+	try:
+		session = getattr(service, 'session', None)
+		if session is None:
+			return 0
+		while True:
+			children = getattr(session, 'Children', None)
+			count = int(getattr(children, 'Count', 0) or 0) if children is not None else 0
+			if count <= 1:
+				break
+			popup = session.findById('wnd[1]', False)
+			if not popup:
+				break
+			title = str(getattr(popup, 'Text', '') or '').strip().casefold()
+			if 'ofis ekspres' in title or 'office express' in title:
+				popup.sendVKey(0)
+				time.sleep(0.25)
+				closed += 1
+				continue
+			break
+	except Exception:
+		return closed
+	return closed
+
+
+class _GhostOverlayWindow:
+	"""Süreç çalışırken masaüstünde üstte kalan basit durum penceresi."""
+	def __init__(self, enabled, process_name):
+		self.enabled = bool(enabled)
+		self.process_name = str(process_name or '').strip() or 'SAP Süreci'
+		self.pc_name = os.environ.get('COMPUTERNAME') or socket.gethostname() or 'Bilinmeyen'
+		self.root = None
+		self.label = None
+		self.logs = []
+		self.current_step = ''
+		if not self.enabled or tk is None:
+			self.enabled = False
+			return
+		try:
+			self.root = tk.Tk()
+			self.root.overrideredirect(True)
+			self.root.attributes('-topmost', True)
+			self.root.attributes('-alpha', 0.86)
+			self.root.config(bg='black')
+			screen_w = self.root.winfo_screenwidth()
+			x = max(20, screen_w - 500)
+			self.root.geometry(f'470x180+{x}+40')
+			self.label = tk.Label(
+				self.root,
+				text='',
+				font=('Consolas', 10, 'bold'),
+				fg='#58a6ff',
+				bg='black',
+				justify='left',
+				anchor='nw',
+				padx=10,
+				pady=10,
+			)
+			self.label.pack(expand=True, fill='both')
+			self._render()
+		except Exception:
+			self.enabled = False
+			self.root = None
+			self.label = None
+
+	def _render(self):
+		if not self.enabled or self.root is None or self.label is None:
+			return
+		try:
+			stamp = datetime.now().strftime('%H:%M:%S')
+			lines = [
+				'SAGGIO HAYALET EKRAN',
+				f'Süreç: {self.process_name}',
+				f'PC: {self.pc_name}',
+				f'Adım: {self.current_step or "-"}',
+				'',
+				'Log:',
+			]
+			lines.extend(self.logs[-5:] if self.logs else ['Hazır'])
+			lines.append('')
+			lines.append(f'Güncelleme: {stamp}')
+			self.label.config(text='\n'.join(lines))
+			self.root.update_idletasks()
+			self.root.update()
+		except Exception:
+			pass
+
+	def set_step(self, step_no, total_steps, step_name):
+		if not self.enabled:
+			return
+		self.current_step = f'{step_no}/{total_steps} - {step_name}'
+		self._render()
+
+	def push_log(self, text):
+		if not self.enabled:
+			return
+		msg = str(text or '').strip()
+		if msg:
+			self.logs.append(msg)
+		self._render()
+
+	def close(self):
+		if self.root is None:
+			return
+		try:
+			self.root.destroy()
+		except Exception:
+			pass
+		self.root = None
+		self.label = None
+
+	def __del__(self):
+		self.close()
 
 
 def _build_actions_from_template_state_with_runtime(state, runtime_state=None):
@@ -1270,17 +1415,22 @@ def _ftp_upload(account, local_file, remote_path):
 def sap_process_run_preview(request, process_id):
 	"""Süreci (veya belirtilen adıma kadar) gerçek SAP oturumunda çalıştır."""
 	proc = get_object_or_404(SapProcess, pk=process_id)
+	overlay = _GhostOverlayWindow(enabled=proc.ghost_overlay_enabled, process_name=proc.name)
+	overlay.push_log('Süreç başlatıldı')
 	try:
 		body = json.loads(request.body)
 	except (json.JSONDecodeError, TypeError):
+		overlay.close()
 		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
 
 	steps = _extract_runtime_steps(body, proc)
 	if not steps:
+		overlay.close()
 		return JsonResponse({'ok': False, 'error': 'Çalıştırılacak adım yok.'}, status=400)
 
 	conn, conn_err = _resolve_connection_from_steps(steps)
 	if conn_err:
+		overlay.close()
 		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
 
 	try:
@@ -1315,7 +1465,15 @@ def sap_process_run_preview(request, process_id):
 	iteration_count = 0
 	max_iterations = max(100, len(steps) * 20)
 	while i < len(steps) and i <= upto_index:
+		overlay.set_step(i + 1, len(steps), str(steps[i].get('label') or steps[i].get('step_type') or 'Adım'))
+		if proc.office_express_auto_close:
+			closed_before = _close_office_express_popups(service)
+			if closed_before > 0:
+				msg = f'Ofis Ekspres popup kapatıldı (adım öncesi): {closed_before}'
+				logs.append({'step': i + 1, 'type': 'office_popup', 'label': 'Office Popup', 'ok': True, 'msg': msg})
+				overlay.push_log(msg)
 		if iteration_count >= max_iterations:
+			overlay.close()
 			return JsonResponse({'ok': False, 'error': 'Süreç maksimum iterasyon sınırına ulaştı.', 'logs': logs, 'failed_at': i}, status=500)
 		iteration_count += 1
 		step = steps[i]
@@ -1742,9 +1900,22 @@ def sap_process_run_preview(request, process_id):
 		except Exception as ex:
 			if continue_on_error and step_type in (SapProcessStep.TYPE_FTP_LIST, SapProcessStep.TYPE_FTP_DOWNLOAD, SapProcessStep.TYPE_FTP_UPLOAD):
 				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Hata (devam): {ex}'})
+				overlay.push_log(f'Hata (devam): {ex}')
 				continue
+			overlay.close()
 			return JsonResponse({'ok': False, 'error': str(ex), 'logs': logs, 'failed_at': i}, status=500)
 
-		i = next_i
+		if proc.office_express_auto_close:
+			closed_after = _close_office_express_popups(service)
+			if closed_after > 0:
+				msg = f'Ofis Ekspres popup kapatıldı (adım sonrası): {closed_after}'
+				logs.append({'step': i + 1, 'type': 'office_popup', 'label': 'Office Popup', 'ok': True, 'msg': msg})
+				overlay.push_log(msg)
 
+		if logs:
+			overlay.push_log(logs[-1].get('msg', 'Adım tamamlandı'))
+
+		i = next_i
+	overlay.push_log('Süreç tamamlandı')
+	overlay.close()
 	return JsonResponse({'ok': True, 'logs': logs, 'ran_until': upto_index, 'connection_template': conn.get('template_name', '')})
