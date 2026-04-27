@@ -429,6 +429,10 @@
                     <label class="spb-field-label">Seçilecek satır no (1'den başlar)</label>
                     <input type="number" class="spb-input" data-key="row_index" value="${esc(data.row_index||'1')}" min="1" max="9999">
                 </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Satır metni içersin (doluysa satır no yerine bunu arar)</label>
+                    <input type="text" class="spb-input" data-key="row_text_contains" value="${esc(data.row_text_contains||'')}" maxlength="300" placeholder="Örn: HAFTALIK PEŞİN \"BİRİM FİYAT\"">
+                </div>
                 <div class="spb-field">
                     <label class="spb-field-label">Bulunma zaman aşımı (sn)</label>
                     <input type="number" class="spb-input" data-key="wait_timeout_sec" value="${esc(data.wait_timeout_sec||'25')}" min="1" max="60">

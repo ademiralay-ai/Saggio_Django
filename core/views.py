@@ -1827,6 +1827,75 @@ def _get_grid_row_count(grid):
 	return 0
 
 
+def _normalize_match_text(value):
+	return ' '.join(str(value or '').strip().casefold().split())
+
+
+def _resolve_grid_row_by_text(grid, text_contains):
+	needle = _normalize_match_text(text_contains)
+	if not needle:
+		return None
+
+	row_count = _get_grid_row_count(grid)
+	if row_count <= 0:
+		return None
+
+	columns = []
+	try:
+		order = list(getattr(grid, 'ColumnOrder', []) or [])
+		columns = [c for c in order if c is not None and str(c).strip()]
+	except Exception:
+		columns = []
+
+	if not columns:
+		try:
+			cols_obj = getattr(grid, 'columns', None)
+			cnt = int(getattr(cols_obj, 'Count', 0) or 0) if cols_obj is not None else 0
+			for ci in range(cnt):
+				try:
+					col = cols_obj.elementAt(ci)
+				except Exception:
+					try:
+						col = cols_obj.Item(ci)
+					except Exception:
+						col = None
+				if col is None:
+					continue
+				name = str(getattr(col, 'Name', '') or getattr(col, 'name', '') or '').strip()
+				columns.append(name if name else ci)
+		except Exception:
+			columns = []
+
+	for ridx in range(row_count):
+		cell_values = []
+		for col in columns:
+			try:
+				cell_values.append(str(grid.getCellValue(ridx, col) or '').strip())
+				continue
+			except Exception:
+				pass
+			try:
+				cell = grid.GetCell(ridx, col)
+				cell_values.append(str(getattr(cell, 'Text', '') or getattr(cell, 'text', '') or '').strip())
+			except Exception:
+				continue
+
+		# Kolon listesi alınamazsa tek kolon fallback dene.
+		if not columns:
+			for ci in range(20):
+				try:
+					cell = grid.GetCell(ridx, ci)
+					cell_values.append(str(getattr(cell, 'Text', '') or getattr(cell, 'text', '') or '').strip())
+				except Exception:
+					break
+
+		row_text = _normalize_match_text(' | '.join(v for v in cell_values if v))
+		if row_text and needle in row_text:
+			return ridx
+
+	return None
+
+
 def _select_row_on_grid(grid, row_index):
 	"""Hem ALV grid hem GuiTableControl için satır seçmeyi dener."""
 	try:
@@ -2456,6 +2525,7 @@ def sap_process_run_preview(request, process_id):
 				if not ok:
 					return JsonResponse({'ok': False, 'error': payload, 'logs': logs, 'failed_at': i}, status=500)
 				grid_id = str(cfg.get('grid_id', '') or '').strip()
+				row_text_contains = str(cfg.get('row_text_contains', '') or '').strip()
 				normalized_grid_id = _normalize_session_element_id(grid_id)
 				wait_timeout_sec = max(1, min(int(cfg.get('wait_timeout_sec') or 25), 60))
 				grid = None
@@ -2482,15 +2552,27 @@ def sap_process_run_preview(request, process_id):
 				if not grid:
 					gid_msg = normalized_grid_id or 'auto-detect'
 					return JsonResponse({'ok': False, 'error': f'Grid bulunamadı: {gid_msg}', 'logs': logs, 'failed_at': i}, status=404)
-				try:
-					row_index = max(0, int(cfg.get('row_index') or 1) - 1)
-				except (TypeError, ValueError):
-					row_index = 0
+				resolved_by = 'row_index'
+				row_index = 0
+				if row_text_contains:
+					resolved_row = _resolve_grid_row_by_text(grid, row_text_contains)
+					if resolved_row is None:
+						return JsonResponse({'ok': False, 'error': f'Satır metni bulunamadı: {row_text_contains}', 'logs': logs, 'failed_at': i}, status=404)
+					row_index = int(resolved_row)
+					resolved_by = 'row_text_contains'
+				else:
+					try:
+						row_index = max(0, int(cfg.get('row_index') or 1) - 1)
+					except (TypeError, ValueError):
+						row_index = 0
 				ok_select, applied_idx, err_msg = _select_row_on_grid(grid, row_index)
 				if not ok_select:
 					return JsonResponse({'ok': False, 'error': f'Grid satırı seçilemedi: {err_msg}', 'logs': logs, 'failed_at': i}, status=500)
 				service._wait_until_idle(service.session, timeout_sec=5)
-				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {applied_idx + 1} ({grid_source})'})
+				select_hint = f'{applied_idx + 1} ({grid_source})'
+				if resolved_by == 'row_text_contains':
+					select_hint = f'{select_hint} | metin: {row_text_contains}'
+				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {select_hint}'})
 
 			elif step_type == SapProcessStep.TYPE_SAP_POPUP_DECIDE:
 				ok, payload = _ensure_session_ready()
