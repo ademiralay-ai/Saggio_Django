@@ -1546,7 +1546,14 @@ def find_alv_grid(root, candidate_id=None, grid_type='main'):
 			lower_type = node_type.lower()
 			if search_id and node_id == search_id:
 				return node
-			if 'grid' in lower_id or 'grid' in lower_type or 'shell' in lower_type:
+			is_grid_like = (
+				'grid' in lower_id
+				or 'grid' in lower_type
+				or 'shell' in lower_type
+				or 'tablecontrol' in lower_type
+				or lower_id.split('/')[-1].startswith('tbl')
+			)
+			if is_grid_like:
 				if grid_type == 'detail':
 					if 'wnd[1]' in node_id or 'alv_ht' in lower_id:
 						return node
@@ -1560,6 +1567,8 @@ def find_alv_grid(root, candidate_id=None, grid_type='main'):
 		except Exception:
 			pass
 		stack.extend(_iter_children(node))
+	if search_id:
+		return None
 	return preferred
 
 
@@ -1591,6 +1600,29 @@ def _select_row_on_grid(grid, row_index):
 	try:
 		abs_row = grid.getAbsoluteRow(idx)
 		abs_row.selected = True
+		try:
+			grid.currentCellRow = idx
+		except Exception:
+			pass
+		# Eski scriptteki gibi ilk hücreye focus vermeyi dene
+		try:
+			first_cell = None
+			for child in _iter_children(grid):
+				try:
+					cid = str(getattr(child, 'Id', '') or '')
+					if cid.endswith('[0,0]') or cid.endswith(f'[0,{idx}]'):
+						first_cell = child
+						break
+				except Exception:
+					pass
+			if first_cell is not None:
+				first_cell.setFocus()
+				try:
+					first_cell.caretPosition = 0
+				except Exception:
+					pass
+		except Exception:
+			pass
 		return True, idx, None
 	except Exception as ex:
 		errors.append(f'getAbsoluteRow: {ex}')
@@ -1617,8 +1649,27 @@ def _find_grid(service, grid_id='', timeout_sec=5, grid_type='main'):
 		grid = None
 		if normalized_id:
 			grid = service._safe_find(service.session, normalized_id)
+			# Bazı kayıtlarda grid yerine hücre id gelebilir; üst segmentlerden gerçek gridi bul.
+			if grid is None and '/' in normalized_id:
+				parts = normalized_id.split('/')
+				for end in range(len(parts) - 1, 0, -1):
+					candidate = '/'.join(parts[:end])
+					last = candidate.split('/')[-1].lower()
+					if not (last.startswith('tbl') or last.startswith('shell') or 'grid' in last):
+						continue
+					grid = service._safe_find(service.session, candidate)
+					if grid is not None:
+						break
 		if grid is None:
 			grid = find_alv_grid(service.session, normalized_id or None, grid_type=grid_type)
+		# İstenen id verilmişse ve o bulunamadıysa yanlış grid'e düşmeyelim.
+		if normalized_id and grid is not None:
+			try:
+				gid = _normalize_session_element_id(str(getattr(grid, 'Id', '') or ''))
+				if gid != normalized_id and (f'{gid}/' not in f'{normalized_id}/'):
+					grid = None
+			except Exception:
+				pass
 		if grid is not None:
 			return grid
 		time.sleep(0.2)
