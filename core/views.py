@@ -1234,8 +1234,12 @@ class _GhostOverlayWindow:
 		self.pc_name = os.environ.get('COMPUTERNAME') or socket.gethostname() or 'Bilinmeyen'
 		self.root = None
 		self.label = None
+		self.pause_btn = None
+		self.stop_btn = None
 		self.logs = []
 		self.current_step = ''
+		self.paused = False
+		self.stop_requested = False
 		if not self.enabled or tk is None:
 			self.enabled = False
 			return
@@ -1247,7 +1251,7 @@ class _GhostOverlayWindow:
 			self.root.config(bg='black')
 			screen_w = self.root.winfo_screenwidth()
 			x = max(20, screen_w - 500)
-			self.root.geometry(f'470x180+{x}+40')
+			self.root.geometry(f'470x220+{x}+40')
 			self.label = tk.Label(
 				self.root,
 				text='',
@@ -1260,6 +1264,33 @@ class _GhostOverlayWindow:
 				pady=10,
 			)
 			self.label.pack(expand=True, fill='both')
+
+			btn_wrap = tk.Frame(self.root, bg='black')
+			btn_wrap.pack(fill='x', padx=10, pady=(0, 10))
+			self.pause_btn = tk.Button(
+				btn_wrap,
+				text='Duraklat',
+				font=('Consolas', 9, 'bold'),
+				bg='#1f6feb',
+				fg='white',
+				activebackground='#1f6feb',
+				activeforeground='white',
+				relief='flat',
+				command=self.toggle_pause,
+			)
+			self.pause_btn.pack(side='left', fill='x', expand=True, padx=(0, 6))
+			self.stop_btn = tk.Button(
+				btn_wrap,
+				text='Durdur',
+				font=('Consolas', 9, 'bold'),
+				bg='#da3633',
+				fg='white',
+				activebackground='#da3633',
+				activeforeground='white',
+				relief='flat',
+				command=self.request_stop,
+			)
+			self.stop_btn.pack(side='left', fill='x', expand=True)
 			self._render()
 		except Exception:
 			self.enabled = False
@@ -1271,10 +1302,12 @@ class _GhostOverlayWindow:
 			return
 		try:
 			stamp = datetime.now().strftime('%H:%M:%S')
+			status_text = 'Durduruldu' if self.stop_requested else ('Duraklatıldı' if self.paused else 'Çalışıyor')
 			lines = [
 				'SAGGIO HAYALET EKRAN',
 				f'Süreç: {self.process_name}',
 				f'PC: {self.pc_name}',
+				f'Durum: {status_text}',
 				f'Adım: {self.current_step or "-"}',
 				'',
 				'Log:',
@@ -1283,10 +1316,42 @@ class _GhostOverlayWindow:
 			lines.append('')
 			lines.append(f'Güncelleme: {stamp}')
 			self.label.config(text='\n'.join(lines))
+			if self.pause_btn is not None:
+				self.pause_btn.config(text='Devam Et' if self.paused else 'Duraklat')
 			self.root.update_idletasks()
 			self.root.update()
 		except Exception:
 			pass
+
+	def toggle_pause(self):
+		if not self.enabled or self.stop_requested:
+			return
+		self.paused = not self.paused
+		self._render()
+
+	def request_stop(self):
+		if not self.enabled:
+			return
+		self.stop_requested = True
+		self.paused = False
+		self._render()
+
+	def poll_controls(self):
+		if not self.enabled:
+			return False
+		self._render()
+		return bool(self.stop_requested)
+
+	def wait_if_paused(self):
+		if not self.enabled:
+			return False
+		while self.paused and not self.stop_requested:
+			try:
+				self._render()
+				time.sleep(0.15)
+			except Exception:
+				break
+		return bool(self.stop_requested)
 
 	def set_step(self, step_no, total_steps, step_name):
 		if not self.enabled:
@@ -1311,6 +1376,8 @@ class _GhostOverlayWindow:
 			pass
 		self.root = None
 		self.label = None
+		self.pause_btn = None
+		self.stop_btn = None
 
 	def __del__(self):
 		self.close()
@@ -1764,10 +1831,24 @@ def sap_process_run_preview(request, process_id):
 		)
 		return ok, payload
 
+	def _handle_overlay_controls(failed_at_index):
+		if overlay.poll_controls():
+			overlay.push_log('Kullanıcı süreci durdurdu')
+			overlay.close()
+			return JsonResponse({'ok': False, 'error': 'Süreç kullanıcı tarafından durduruldu.', 'logs': logs, 'failed_at': failed_at_index}, status=409)
+		if overlay.wait_if_paused():
+			overlay.push_log('Kullanıcı süreci durdurdu')
+			overlay.close()
+			return JsonResponse({'ok': False, 'error': 'Süreç kullanıcı tarafından durduruldu.', 'logs': logs, 'failed_at': failed_at_index}, status=409)
+		return None
+
 	i = 0
 	iteration_count = 0
 	max_iterations = max(100, len(steps) * 20)
 	while i < len(steps) and i <= upto_index:
+		stop_response = _handle_overlay_controls(i)
+		if stop_response is not None:
+			return stop_response
 		overlay.set_step(i + 1, len(steps), str(steps[i].get('label') or steps[i].get('step_type') or 'Adım'))
 		if proc.office_express_auto_close:
 			closed_before = _close_office_express_popups(service)
@@ -1966,6 +2047,9 @@ def sap_process_run_preview(request, process_id):
 					deadline = time.time() + timeout_sec
 					found = False
 					while time.time() < deadline:
+						stop_response = _handle_overlay_controls(i)
+						if stop_response is not None:
+							return stop_response
 						service._wait_until_idle(service.session, timeout_sec=3, stable_checks=1)
 						title = service._get_window_title(service.session).casefold()
 						if screen_title in title:
@@ -2008,6 +2092,9 @@ def sap_process_run_preview(request, process_id):
 					return JsonResponse({'ok': False, 'error': payload, 'logs': logs, 'failed_at': i}, status=500)
 
 				for a in raw_actions:
+					stop_response = _handle_overlay_controls(i)
+					if stop_response is not None:
+						return stop_response
 					if not isinstance(a, dict):
 						continue
 					a_type = str(a.get('type', '') or '').strip()
