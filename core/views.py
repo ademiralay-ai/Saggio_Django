@@ -15,6 +15,7 @@ import threading
 from email.mime.text import MIMEText
 from datetime import datetime
 from django.http import JsonResponse, HttpRequest
+from django.views.decorators.csrf import ensure_csrf_cookie
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -1172,6 +1173,7 @@ def sap_process_list(request):
 	})
 
 
+@ensure_csrf_cookie
 def sap_process_builder(request, process_id):
 	"""Belirli bir sürecin adım builder sayfasını göster."""
 	proc = get_object_or_404(SapProcess, pk=process_id)
