@@ -72,6 +72,7 @@
             <option value="sap_wait">⏳ Ekranı Bekle</option>
             <option value="sap_scan">🔍 Derin Tarama</option>
             <option value="sap_action">⚡ Aksiyon Yap</option>
+            <option value="sap_press_button">🖱 SAP Butonuna Bas</option>
             <option value="ftp_list">📂 FTP Listele</option>
             <option value="ftp_download">📥 FTP İndir</option>
             <option value="ftp_upload">📤 FTP Yükle</option>
@@ -131,6 +132,7 @@
     const SAVE_URL     = '{% url "sap_process_step_save" process.id %}';
     const RENAME_URL   = '{% url "sap_process_rename" process.id %}';
     const RUNTIME_SETTINGS_URL = '{% url "sap_process_runtime_settings_save" process.id %}';
+    const SCAN_BUTTONS_URL = '{% url "sap_process_scan_buttons" process.id %}';
     const RUN_URL      = '{% url "sap_process_run_preview" process.id %}';
     const CSRF         = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
     const TEMPLATE_NAMES = {{ template_names|safe }};
@@ -146,6 +148,7 @@
         sap_wait:   { icon: 'fas fa-hourglass-half',  label: 'Ekranı Bekle',                color: '#ffb347' },
         sap_scan:   { icon: 'fas fa-satellite-dish',  label: 'Derin Tarama',                color: '#b088ff' },
         sap_action: { icon: 'fas fa-bolt',            label: 'Aksiyon Yap',                 color: '#ff7f50' },
+        sap_press_button: { icon: 'fas fa-hand-pointer', label: 'SAP Butonuna Bas',         color: '#3ed0b8' },
         ftp_list:   { icon: 'fas fa-folder-open',     label: 'FTP Listele',                 color: '#5cc8ff' },
         ftp_download:{ icon: 'fas fa-file-download',  label: 'FTP İndir',                   color: '#37d67a' },
         ftp_upload: { icon: 'fas fa-file-upload',     label: 'FTP Yükle',                   color: '#ffb347' },
@@ -238,6 +241,37 @@
                 </button>
             </div>`;
         }
+
+        case 'sap_press_button':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Buton ID (seçim sonrası otomatik dolar)</label>
+                    <input type="text" class="spb-input" data-key="button_id" value="${esc(data.button_id||'')}" placeholder="wnd[0]/tbar[1]/btn[8]">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Açık SAP ekranındaki butonlar</label>
+                    <div class="spb-inline-tools">
+                        <button type="button" class="btn spb-scan-buttons-btn" data-idx="__IDX__" title="Açık SAP ekranındaki butonları tara">
+                            <i class="fas fa-search"></i> Butonları Tara
+                        </button>
+                        <select class="spb-input spb-button-scan-select" data-idx="__IDX__">
+                            <option value="">— Tarama sonucu buraya gelir —</option>
+                        </select>
+                    </div>
+                    <div class="spb-config-note"><i class="fas fa-info-circle"></i> Teknik ID yazmadan, listeden buton seçebilirsiniz.</div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Bulunma zaman aşımı (sn)</label>
+                    <input type="number" class="spb-input" data-key="wait_timeout_sec" value="${esc(data.wait_timeout_sec||'25')}" min="1" max="60">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Hata olursa adımı logla ve akışa devam et
+                    </label>
+                </div>
+            </div>`;
 
         case 'ftp_list':
             return `
@@ -410,7 +444,7 @@
                 </div>
             </div>
             <div class="spb-step-body ${s._collapsed?'spb-collapsed':''}">
-                ${configHtml}
+                ${configHtml.replaceAll('__IDX__', String(i))}
             </div>
         </div>`;
     }
@@ -497,6 +531,23 @@
 
         // Aksiyon type change → placeholder güncelle
         list.querySelectorAll('.spb-action-list').forEach(al => bindActionTypeListeners(al));
+
+        // SAP buton tara
+        list.querySelectorAll('.spb-scan-buttons-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await scanSapButtonsForStep(i, btn);
+            });
+        });
+
+        // Tarama listesinden seçimi input'a yaz
+        list.querySelectorAll('.spb-button-scan-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const idInput = card?.querySelector('[data-key="button_id"]');
+                if (idInput && sel.value) idInput.value = sel.value;
+            });
+        });
 
         // Drag & Drop
         setupDragDrop();
@@ -723,6 +774,66 @@
             if (typeof showToast === 'function') showToast('Çalışma ayarları güncellendi.', 'success');
         } catch (e) {
             if (typeof showToast === 'function') showToast('Ayar güncelleme hatası: ' + e.message, 'error');
+        }
+    }
+
+    function fillButtonSelectForCard(card, buttons) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-button-scan-select');
+        const idInput = card.querySelector('[data-key="button_id"]');
+        if (!selectEl || !idInput) return;
+        const selectedId = String(idInput.value || '').trim();
+
+        const opts = ['<option value="">— Buton seçiniz —</option>'];
+        (buttons || []).forEach(b => {
+            const id = esc(String(b.id || ''));
+            const label = esc(String(b.label || b.id || ''));
+            const selected = selectedId && selectedId === String(b.id || '') ? ' selected' : '';
+            opts.push(`<option value="${id}"${selected}>${label}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+    }
+
+    async function scanSapButtonsForStep(stepIdx, sourceBtn) {
+        syncAllFromDOM();
+        const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
+        if (!card) return;
+
+        const btn = sourceBtn || card.querySelector('.spb-scan-buttons-btn');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taranıyor...';
+        }
+
+        try {
+            const resp = await fetch(SCAN_BUTTONS_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({
+                    use_current_screen: true,
+                    steps: steps.map((s, i) => ({
+                        step_type: s.step_type,
+                        order: i,
+                        label: s.label || '',
+                        config: s.config || {},
+                    })),
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast('Buton tarama hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+                return;
+            }
+            fillButtonSelectForCard(card, data.buttons || []);
+            if (typeof showToast === 'function') showToast(`${data.count || 0} buton bulundu.`, 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Buton tarama bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
         }
     }
 

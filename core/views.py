@@ -829,6 +829,72 @@ def sap_process_runtime_settings_save(request, process_id):
 	})
 
 
+@require_POST
+def sap_process_scan_buttons(request, process_id):
+	"""Açık SAP ekranındaki butonları tarayıp process builder için döndürür."""
+	proc = get_object_or_404(SapProcess, pk=process_id)
+	try:
+		body = json.loads(request.body)
+	except (json.JSONDecodeError, TypeError):
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	steps = _extract_runtime_steps(body, proc)
+	if not steps:
+		return JsonResponse({'ok': False, 'error': 'Önce en az bir adım tanımlayın.'}, status=400)
+
+	conn, conn_err = _resolve_connection_from_steps(steps)
+	if conn_err:
+		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
+
+	service = SAPScanService()
+	use_current_screen = bool(body.get('use_current_screen', True))
+	t_code = '' if use_current_screen else str(conn.get('t_code', '') or '').strip()
+
+	ok, payload = service.scan_screen(
+		sys_id=conn.get('sys_id', ''),
+		client=conn.get('client', ''),
+		user=conn.get('user', ''),
+		pwd=conn.get('pwd', ''),
+		lang=conn.get('lang', 'TR'),
+		t_code=t_code,
+		root_id=conn.get('root_id', 'wnd[0]'),
+		extra_wait=conn.get('extra_wait', 0),
+	)
+	if not ok:
+		return JsonResponse({'ok': False, 'error': payload}, status=500)
+
+	rows = payload if isinstance(payload, list) else []
+	buttons = []
+	seen_ids = set()
+	for row in rows:
+		if not isinstance(row, dict):
+			continue
+		raw_id = str(row.get('id', '') or '').strip()
+		if not raw_id:
+			continue
+		norm_id = _normalize_session_element_id(raw_id)
+		type_name = str(row.get('type', '') or '').strip()
+		name = str(row.get('name', '') or '').strip()
+		text = str(row.get('text', '') or '').strip()
+
+		is_button = ('button' in type_name.casefold()) or ('/btn[' in norm_id.casefold())
+		if not is_button:
+			continue
+		if norm_id in seen_ids:
+			continue
+		seen_ids.add(norm_id)
+		buttons.append({
+			'id': norm_id,
+			'type': type_name,
+			'name': name,
+			'text': text,
+			'label': f'{text or name or type_name or "Buton"} [{norm_id}]',
+		})
+
+	buttons.sort(key=lambda x: x['id'])
+	return JsonResponse({'ok': True, 'buttons': buttons, 'count': len(buttons)})
+
+
 import re as _re
 
 def _normalize_session_element_id(element_id):

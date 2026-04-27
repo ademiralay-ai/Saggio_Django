@@ -2314,6 +2314,13 @@ tbody tr:hover {
     gap: 8px;
 }
 
+.spb-inline-tools {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    align-items: center;
+}
+
 .spb-action-row {
     display: flex;
     gap: 8px;
