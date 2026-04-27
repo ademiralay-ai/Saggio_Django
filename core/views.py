@@ -412,11 +412,52 @@ def _send_telegram_voice_message(bot, chat_id, text):
 
 	tmp_wav_path = None
 	tmp_ogg_path = None
+	tmp_mp3_path = None
+	co_initialized = False
 	try:
 		import pythoncom
 		import win32com.client
 
+		def _send_voice_file(path_value, filename_value, content_type_value):
+			with open(path_value, 'rb') as fp:
+				file_data = fp.read()
+
+			boundary = f'----SaggioBoundary{uuid.uuid4().hex}'
+			parts = []
+
+			def _add_text(name, value):
+				parts.append(f'--{boundary}'.encode('utf-8'))
+				parts.append(f'Content-Disposition: form-data; name="{name}"'.encode('utf-8'))
+				parts.append(b'')
+				parts.append(str(value).encode('utf-8'))
+
+			_add_text('chat_id', str(chat_id))
+			_add_text('caption', 'Saggio RPA sesli bildirim')
+
+			parts.append(f'--{boundary}'.encode('utf-8'))
+			parts.append(f'Content-Disposition: form-data; name="voice"; filename="{filename_value}"'.encode('utf-8'))
+			parts.append(f'Content-Type: {content_type_value}'.encode('utf-8'))
+			parts.append(b'')
+			parts.append(file_data)
+
+			parts.append(f'--{boundary}--'.encode('utf-8'))
+			parts.append(b'')
+			body = b'\r\n'.join(parts)
+
+			req = Request(
+				f'https://api.telegram.org/bot{token}/sendVoice',
+				data=body,
+				method='POST',
+				headers={'Content-Type': f'multipart/form-data; boundary={boundary}'},
+			)
+			with urlopen(req, timeout=20) as resp:
+				payload = json.loads(resp.read().decode('utf-8') or '{}')
+				if payload.get('ok'):
+					return True, 'telegram_voice_ok'
+				return False, payload.get('description', 'telegram_voice_api_error')
+
 		pythoncom.CoInitialize()
+		co_initialized = True
 		with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmpf:
 			tmp_wav_path = tmpf.name
 		with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as tmpf:
@@ -453,65 +494,55 @@ def _send_telegram_voice_message(bot, chat_id, text):
 		voice.Speak(voice_text)
 		stream.Close()
 
+		errors = []
 		ffmpeg_path = shutil.which('ffmpeg')
-		if not ffmpeg_path:
-			return False, 'ffmpeg bulunamadi. Telegram voice note icin ffmpeg gerekli.'
+		if ffmpeg_path:
+			convert_cmd = [
+				ffmpeg_path,
+				'-y',
+				'-i',
+				tmp_wav_path,
+				'-c:a',
+				'libopus',
+				'-b:a',
+				'24k',
+				tmp_ogg_path,
+			]
+			convert_result = subprocess.run(convert_cmd, capture_output=True, text=True)
+			if convert_result.returncode == 0 and os.path.exists(tmp_ogg_path) and os.path.getsize(tmp_ogg_path) > 0:
+				ok, detail = _send_voice_file(tmp_ogg_path, 'saggio_notification.ogg', 'audio/ogg')
+				if ok:
+					return True, detail
+				errors.append(f'ogg_send_failed: {detail}')
+			else:
+				err = (convert_result.stderr or convert_result.stdout or 'ffmpeg convert hatasi').strip()
+				errors.append(f'ffmpeg_convert_failed: {err}')
+		else:
+			errors.append('ffmpeg_not_found')
 
-		convert_cmd = [
-			ffmpeg_path,
-			'-y',
-			'-i',
-			tmp_wav_path,
-			'-c:a',
-			'libopus',
-			'-b:a',
-			'24k',
-			tmp_ogg_path,
-		]
-		convert_result = subprocess.run(convert_cmd, capture_output=True, text=True)
-		if convert_result.returncode != 0 or not os.path.exists(tmp_ogg_path) or os.path.getsize(tmp_ogg_path) <= 0:
-			err = (convert_result.stderr or convert_result.stdout or 'ffmpeg convert hatasi').strip()
-			return False, f'Voice donusum hatasi: {err}'
+		# ffmpeg/opus başarısız olursa gTTS ile MP3 üretip sendVoice dene.
+		try:
+			from gtts import gTTS
+			with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmpf:
+				tmp_mp3_path = tmpf.name
+			clean_text = voice_text.replace('*', '').replace('_', '')
+			gTTS(text=clean_text, lang='tr', slow=False).save(tmp_mp3_path)
+			ok, detail = _send_voice_file(tmp_mp3_path, 'saggio_notification.mp3', 'audio/mpeg')
+			if ok:
+				return True, detail
+			errors.append(f'gtts_send_failed: {detail}')
+		except Exception as ge:
+			errors.append(f'gtts_fallback_failed: {ge}')
 
-		with open(tmp_ogg_path, 'rb') as fp:
-			file_data = fp.read()
-
-		boundary = f'----SaggioBoundary{uuid.uuid4().hex}'
-		parts = []
-
-		def _add_text(name, value):
-			parts.append(f'--{boundary}'.encode('utf-8'))
-			parts.append(f'Content-Disposition: form-data; name="{name}"'.encode('utf-8'))
-			parts.append(b'')
-			parts.append(str(value).encode('utf-8'))
-
-		_add_text('chat_id', str(chat_id))
-		_add_text('caption', 'Saggio RPA sesli bildirim')
-
-		parts.append(f'--{boundary}'.encode('utf-8'))
-		parts.append(b'Content-Disposition: form-data; name="voice"; filename="saggio_notification.ogg"')
-		parts.append(b'Content-Type: audio/ogg')
-		parts.append(b'')
-		parts.append(file_data)
-
-		parts.append(f'--{boundary}--'.encode('utf-8'))
-		parts.append(b'')
-		body = b'\r\n'.join(parts)
-
-		req = Request(
-			f'https://api.telegram.org/bot{token}/sendVoice',
-			data=body,
-			method='POST',
-			headers={'Content-Type': f'multipart/form-data; boundary={boundary}'},
-		)
-		with urlopen(req, timeout=20) as resp:
-			payload = json.loads(resp.read().decode('utf-8') or '{}')
-			if payload.get('ok'):
-				return True, 'telegram_voice_ok'
-			return False, payload.get('description', 'telegram_voice_api_error')
+		return False, 'Voice note gonderilemedi: ' + ' | '.join(errors)
 	except Exception as e:
 		return False, str(e)
 	finally:
+		if co_initialized:
+			try:
+				pythoncom.CoUninitialize()
+			except Exception:
+				pass
 		if tmp_wav_path and os.path.exists(tmp_wav_path):
 			try:
 				os.remove(tmp_wav_path)
@@ -520,6 +551,11 @@ def _send_telegram_voice_message(bot, chat_id, text):
 		if tmp_ogg_path and os.path.exists(tmp_ogg_path):
 			try:
 				os.remove(tmp_ogg_path)
+			except Exception:
+				pass
+		if tmp_mp3_path and os.path.exists(tmp_mp3_path):
+			try:
+				os.remove(tmp_mp3_path)
 			except Exception:
 				pass
 
