@@ -346,7 +346,7 @@
                 </div>
                 <div class="spb-field spb-field-full">
                     <label class="spb-field-label">Popup metni içersin (boş = önemseme)</label>
-                    <input type="text" class="spb-input" data-key="popup_text_contains" value="${esc(data.popup_text_contains||'')}" maxlength="300" placeholder="Örn: bloke ed">
+                    <textarea class="spb-input" data-key="popup_text_contains" rows="3" maxlength="4000" placeholder="Örn: bloke ed">${esc(data.popup_text_contains||'')}</textarea>
                 </div>
                 <div class="spb-field">
                     <label class="spb-field-label">Popup aksiyonu</label>
@@ -1280,7 +1280,7 @@
         const titleInput = card.querySelector('[data-key="popup_title_contains"]');
         const textInput = card.querySelector('[data-key="popup_text_contains"]');
         if (titleInput) titleInput.value = String(popup.title || '');
-        if (textInput) textInput.value = String(popup.text || '').slice(0, 300);
+        if (textInput) textInput.value = String(popup.text || '').slice(0, 4000);
         fillPopupButtonSelectForCard(card, popup.buttons || []);
     }
 
