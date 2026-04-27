@@ -2270,11 +2270,13 @@ def _collect_node_text(node, limit=40):
 	stack = [node] if node is not None else []
 	while stack and len(parts) < limit:
 		current = stack.pop(0)
-		for attr in ('Text', 'text', 'Tooltip', 'DefaultTooltip'):
+		for attr in ('Text', 'text', 'Tooltip', 'DefaultTooltip', 'Name', 'Caption', 'Title', 'Value', 'MessageText'):
 			try:
 				value = str(getattr(current, attr, '') or '').strip()
 			except Exception:
 				value = ''
+			if value:
+				value = value.replace('\r', ' ').replace('\n', ' ').strip()
 			if value and value not in parts:
 				parts.append(value)
 		stack.extend(_iter_children(current))
@@ -2970,12 +2972,14 @@ def sap_process_run_preview(request, process_id):
 					return JsonResponse({'ok': True, 'logs': logs, 'ran_until': i, 'connection_template': conn.get('template_name', '')})
 				title = str(getattr(popup, 'Text', '') or '').strip()
 				popup_text = _collect_node_text(popup)
-				title_contains = str(cfg.get('popup_title_contains', '') or '').strip().casefold()
-				text_contains = str(cfg.get('popup_text_contains', '') or '').strip().casefold()
+				title_contains = _normalize_match_text(str(cfg.get('popup_title_contains', '') or ''))
+				text_contains = _normalize_match_text(str(cfg.get('popup_text_contains', '') or ''))
+				title_norm = _normalize_match_text(title)
+				popup_text_norm = _normalize_match_text(popup_text)
 				matched = True
-				if title_contains and title_contains not in title.casefold():
+				if title_contains and title_contains not in title_norm:
 					matched = False
-				if text_contains and text_contains not in popup_text.casefold():
+				if text_contains and text_contains not in popup_text_norm:
 					matched = False
 				if not matched:
 					if bool(cfg.get('fail_if_not_match')):
