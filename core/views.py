@@ -620,7 +620,7 @@ def _send_telegram_voice_message(bot, chat_id, text):
 
 
 @require_POST
-def sap_process_scan_popups(request, process_id):
+def _sap_process_scan_popups_impl(request, process_id):
 	"""Açık SAP popup pencerelerini ve içeriklerindeki butonları tarar."""
 	proc = get_object_or_404(SapProcess, pk=process_id)
 	try:
@@ -717,6 +717,15 @@ def sap_process_scan_popups(request, process_id):
 		return JsonResponse({'ok': False, 'error': f'Popup tarama hatası: {ex}'}, status=500)
 
 	return JsonResponse({'ok': True, 'popups': popups, 'count': len(popups)})
+
+
+@require_POST
+def sap_process_scan_popups(request, process_id):
+	"""Açık SAP popup pencerelerini ve içeriklerindeki butonları tarar (hata güvenli JSON)."""
+	try:
+		return _sap_process_scan_popups_impl(request, process_id)
+	except Exception as ex:
+		return JsonResponse({'ok': False, 'error': f'Popup tarama beklenmeyen hata: {ex}'}, status=500)
 
 
 def _send_mail_message(account, to_value, subject, body):

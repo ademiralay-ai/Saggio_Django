@@ -1469,7 +1469,14 @@
                     })),
                 }),
             });
-            const data = await resp.json();
+            const raw = await resp.text();
+            let data = null;
+            try {
+                data = JSON.parse(raw);
+            } catch (parseErr) {
+                const short = String(raw || '').slice(0, 220).replace(/\s+/g, ' ').trim();
+                throw new Error(`Sunucu JSON yerine farklı yanıt döndürdü (HTTP ${resp.status}). ${short}`);
+            }
             if (!data.ok) {
                 if (typeof showToast === 'function') showToast('Popup tarama hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
                 return;
