@@ -97,6 +97,7 @@
             <option value="sap_scan">🔍 Derin Tarama</option>
             <option value="sap_action">⚡ Aksiyon Yap</option>
             <option value="sap_press_button">🖱 SAP Butonuna Bas</option>
+            <option value="sap_select_row">☑ SAP Grid – Satır Seç</option>
             <option value="ftp_list">📂 FTP Listele</option>
             <option value="ftp_download">📥 FTP İndir</option>
             <option value="ftp_upload">📤 FTP Yükle</option>
@@ -157,6 +158,7 @@
     const RENAME_URL   = '{% url "sap_process_rename" process.id %}';
     const RUNTIME_SETTINGS_URL = '{% url "sap_process_runtime_settings_save" process.id %}';
     const SCAN_BUTTONS_URL = '{% url "sap_process_scan_buttons" process.id %}';
+    const SCAN_GRIDS_URL   = '{% url "sap_process_scan_grids" process.id %}';
     const SCAN_SCREENS_URL = '{% url "sap_process_scan_screens" process.id %}';
     const RUN_URL      = '{% url "sap_process_run_preview" process.id %}';
     const CSRF         = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
@@ -174,6 +176,7 @@
         sap_scan:   { icon: 'fas fa-satellite-dish',  label: 'Derin Tarama',                color: '#b088ff' },
         sap_action: { icon: 'fas fa-bolt',            label: 'Aksiyon Yap',                 color: '#ff7f50' },
         sap_press_button: { icon: 'fas fa-hand-pointer', label: 'SAP Butonuna Bas',         color: '#3ed0b8' },
+        sap_select_row:   { icon: 'fas fa-table',         label: 'Grid – Satır Seç',          color: '#a78bfa' },
         ftp_list:   { icon: 'fas fa-folder-open',     label: 'FTP Listele',                 color: '#5cc8ff' },
         ftp_download:{ icon: 'fas fa-file-download',  label: 'FTP İndir',                   color: '#37d67a' },
         ftp_upload: { icon: 'fas fa-file-upload',     label: 'FTP Yükle',                   color: '#ffb347' },
@@ -319,6 +322,35 @@
                         <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
                         Hata olursa adımı logla ve akışa devam et
                     </label>
+                </div>
+            </div>`;
+
+        case 'sap_select_row':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Grid ID (seçim sonrası otomatik dolar)</label>
+                    <input type="text" class="spb-input" data-key="grid_id" value="${esc(data.grid_id||'')}" placeholder="wnd[1]/usr/cntlGRID1/shellcont/shell">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Açık SAP ekranındaki gridler</label>
+                    <div class="spb-inline-tools">
+                        <button type="button" class="btn spb-scan-grids-btn" data-idx="__IDX__" title="Açık SAP ekranındaki gridleri tara">
+                            <i class="fas fa-search"></i> Gridleri Tara
+                        </button>
+                        <select class="spb-input spb-grid-scan-select" data-idx="__IDX__">
+                            <option value="">— Tarama sonucu buraya gelir —</option>
+                        </select>
+                    </div>
+                    <div class="spb-config-note"><i class="fas fa-info-circle"></i> Teknik ID yazmadan, listeden grid seçebilirsiniz.</div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Seçilecek satır no (1'den başlar)</label>
+                    <input type="number" class="spb-input" data-key="row_index" value="${esc(data.row_index||'1')}" min="1" max="9999">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Bulunma zaman aşımı (sn)</label>
+                    <input type="number" class="spb-input" data-key="wait_timeout_sec" value="${esc(data.wait_timeout_sec||'25')}" min="1" max="60">
                 </div>
             </div>`;
 
@@ -598,6 +630,23 @@
             });
         });
 
+        // SAP grid tara
+        list.querySelectorAll('.spb-scan-grids-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await scanSapGridsForStep(i, btn);
+            });
+        });
+
+        // Grid listesinden seçimi input'a yaz
+        list.querySelectorAll('.spb-grid-scan-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const idInput = card?.querySelector('[data-key="grid_id"]');
+                if (idInput && sel.value) idInput.value = sel.value;
+            });
+        });
+
         // SAP ekran tarama (sap_wait)
         list.querySelectorAll('.spb-scan-wait-screens-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
@@ -869,6 +918,23 @@
         selectEl.innerHTML = opts.join('');
     }
 
+    function fillGridSelectForCard(card, grids) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-grid-scan-select');
+        const idInput = card.querySelector('[data-key="grid_id"]');
+        if (!selectEl) return;
+        const selectedId = String(idInput?.value || '').trim();
+
+        const opts = ['<option value="">— Grid seçiniz —</option>'];
+        (grids || []).forEach(g => {
+            const id = esc(String(g.id || ''));
+            const label = esc(String(g.label || g.id || ''));
+            const selected = selectedId && selectedId === String(g.id || '') ? ' selected' : '';
+            opts.push(`<option value="${id}"${selected}>${label}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+    }
+
     function bindWaitTimeoutMode(card) {
         const actionSel = card?.querySelector('.spb-timeout-action');
         const targetWrap = card?.querySelector('.spb-timeout-target-wrap');
@@ -978,6 +1044,49 @@
             if (typeof showToast === 'function') showToast(`${data.count || 0} buton bulundu.`, 'success');
         } catch (e) {
             if (typeof showToast === 'function') showToast('Buton tarama bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+    }
+
+    async function scanSapGridsForStep(stepIdx, sourceBtn) {
+        syncAllFromDOM();
+        const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
+        if (!card) return;
+
+        const btn = sourceBtn || card.querySelector('.spb-scan-grids-btn');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taranıyor...';
+        }
+
+        try {
+            const resp = await fetch(SCAN_GRIDS_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({
+                    use_current_screen: true,
+                    steps: steps.map((s, i) => ({
+                        step_type: s.step_type,
+                        order: i,
+                        label: s.label || '',
+                        config: s.config || {},
+                    })),
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast('Grid tarama hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+                return;
+            }
+            fillGridSelectForCard(card, data.grids || []);
+            if (typeof showToast === 'function') showToast(`${data.count || 0} grid bulundu.`, 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Grid tarama bağlantı hatası: ' + e.message, 'error');
         } finally {
             if (btn) {
                 btn.disabled = false;

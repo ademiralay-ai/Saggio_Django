@@ -981,6 +981,80 @@ def sap_process_scan_screens(request, process_id):
 	return JsonResponse({'ok': True, 'screens': windows, 'count': len(windows)})
 
 
+@require_POST
+def sap_process_scan_grids(request, process_id):
+	"""Açık SAP oturumundaki grid/tablo elementlerini tarar ve döndürür."""
+	proc = get_object_or_404(SapProcess, pk=process_id)
+	try:
+		body = json.loads(request.body)
+	except (json.JSONDecodeError, TypeError):
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	steps = _extract_runtime_steps(body, proc)
+	if not steps:
+		return JsonResponse({'ok': False, 'error': 'Önce en az bir adım tanımlayın.'}, status=400)
+
+	conn, conn_err = _resolve_connection_from_steps(steps)
+	if conn_err:
+		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
+
+	service = SAPScanService()
+	ok, payload = service.scan_screen(
+		sys_id=conn.get('sys_id', ''),
+		client=conn.get('client', ''),
+		user=conn.get('user', ''),
+		pwd=conn.get('pwd', ''),
+		lang=conn.get('lang', 'TR'),
+		t_code='',
+		root_id=conn.get('root_id', 'wnd[0]'),
+		extra_wait=conn.get('extra_wait', 0),
+	)
+	if not ok:
+		return JsonResponse({'ok': False, 'error': payload}, status=500)
+
+	rows = payload if isinstance(payload, list) else []
+	grids = []
+	seen_ids = set()
+	for row in rows:
+		if not isinstance(row, dict):
+			continue
+		raw_id = str(row.get('id', '') or '').strip()
+		if not raw_id:
+			continue
+		norm_id = _normalize_session_element_id(raw_id)
+		type_name = str(row.get('type', '') or '').strip()
+		name = str(row.get('name', '') or '').strip()
+		text = str(row.get('text', '') or '').strip()
+		lower_type = type_name.casefold()
+		lower_id = norm_id.casefold()
+		is_grid = (
+			'grid' in lower_id or
+			'grid' in lower_type or
+			'table' in lower_type or
+			'shell' in lower_type or
+			'GuiTableControl'.casefold() in lower_type or
+			'GuiShell'.casefold() in lower_type
+		)
+		if not is_grid:
+			continue
+		if norm_id in seen_ids:
+			continue
+		seen_ids.add(norm_id)
+		window_hint = 'wnd[1]' if 'wnd[1]' in norm_id else 'wnd[0]'
+		label_text = text or name or type_name or 'Grid'
+		grids.append({
+			'id': norm_id,
+			'type': type_name,
+			'name': name,
+			'text': text,
+			'window': window_hint,
+			'label': f'{label_text} [{norm_id}]',
+		})
+
+	grids.sort(key=lambda x: x['id'])
+	return JsonResponse({'ok': True, 'grids': grids, 'count': len(grids)})
+
+
 import re as _re
 
 def _normalize_session_element_id(element_id):
