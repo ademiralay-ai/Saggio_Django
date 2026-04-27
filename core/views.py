@@ -378,20 +378,32 @@ def _send_telegram_message(bot, chat_id, text):
 	if not token:
 		return False, 'Telegram token cozulmedi.'
 
-	data = {'chat_id': str(chat_id), 'text': text}
+	base_data = {'chat_id': str(chat_id), 'text': text}
+	data = dict(base_data)
 	if bot.default_parse_mode:
 		data['parse_mode'] = bot.default_parse_mode
-	req = Request(
-		f'https://api.telegram.org/bot{token}/sendMessage',
-		data=urlencode(data).encode('utf-8'),
-		method='POST',
-	)
-	try:
+
+	def _call_send_message(payload):
+		req = Request(
+			f'https://api.telegram.org/bot{token}/sendMessage',
+			data=urlencode(payload).encode('utf-8'),
+			method='POST',
+		)
 		with urlopen(req, timeout=10) as resp:
-			payload = json.loads(resp.read().decode('utf-8') or '{}')
-			if payload.get('ok'):
-				return True, 'telegram_ok'
-			return False, payload.get('description', 'telegram_api_error')
+			return json.loads(resp.read().decode('utf-8') or '{}')
+
+	try:
+		payload = _call_send_message(data)
+		if payload.get('ok'):
+			return True, 'telegram_ok'
+		desc = str(payload.get('description', 'telegram_api_error') or '')
+		# parse_mode kaynaklı hata olursa sade metin ile yeniden dene.
+		if data.get('parse_mode') and ('parse entities' in desc.casefold() or 'can\'t parse' in desc.casefold()):
+			payload2 = _call_send_message(base_data)
+			if payload2.get('ok'):
+				return True, 'telegram_ok_plain'
+			return False, payload2.get('description', 'telegram_api_error')
+		return False, desc or 'telegram_api_error'
 	except Exception as e:
 		return False, str(e)
 
@@ -453,6 +465,44 @@ def _send_telegram_voice_message(bot, chat_id, text):
 			if payload.get('ok'):
 				return True, 'telegram_voice_ok'
 			return False, payload.get('description', 'telegram_voice_api_error')
+
+	def _send_audio_file(path_value, filename_value, content_type_value):
+		with open(path_value, 'rb') as fp:
+			file_data = fp.read()
+
+		boundary = f'----SaggioBoundary{uuid.uuid4().hex}'
+		parts = []
+
+		def _add_text(name, value):
+			parts.append(f'--{boundary}'.encode('utf-8'))
+			parts.append(f'Content-Disposition: form-data; name="{name}"'.encode('utf-8'))
+			parts.append(b'')
+			parts.append(str(value).encode('utf-8'))
+
+		_add_text('chat_id', str(chat_id))
+		_add_text('caption', 'Saggio RPA sesli bildirim')
+
+		parts.append(f'--{boundary}'.encode('utf-8'))
+		parts.append(f'Content-Disposition: form-data; name="audio"; filename="{filename_value}"'.encode('utf-8'))
+		parts.append(f'Content-Type: {content_type_value}'.encode('utf-8'))
+		parts.append(b'')
+		parts.append(file_data)
+
+		parts.append(f'--{boundary}--'.encode('utf-8'))
+		parts.append(b'')
+		body = b'\r\n'.join(parts)
+
+		req = Request(
+			f'https://api.telegram.org/bot{token}/sendAudio',
+			data=body,
+			method='POST',
+			headers={'Content-Type': f'multipart/form-data; boundary={boundary}'},
+		)
+		with urlopen(req, timeout=20) as resp:
+			payload = json.loads(resp.read().decode('utf-8') or '{}')
+			if payload.get('ok'):
+				return True, 'telegram_audio_ok'
+			return False, payload.get('description', 'telegram_audio_api_error')
 	try:
 		try:
 			import pythoncom
@@ -534,6 +584,11 @@ def _send_telegram_voice_message(bot, chat_id, text):
 			if ok:
 				return True, detail
 			errors.append(f'gtts_send_failed: {detail}')
+			# Voice endpoint reddederse normal audio olarak düşür.
+			a_ok, a_msg = _send_audio_file(tmp_mp3_path, 'saggio_notification.mp3', 'audio/mpeg')
+			if a_ok:
+				return True, a_msg
+			errors.append(f'gtts_audio_fallback_failed: {a_msg}')
 		except Exception as ge:
 			errors.append(f'gtts_fallback_failed: {ge}')
 
@@ -717,7 +772,7 @@ def _notify_sap_event(notification, phase, result_payload=None):
 			text = str(notification.get('telegram_end_message') or '').strip() or end_default
 		ok, msg = _send_telegram_message(bot, group.chat_id, text)
 		notes.append({'channel': 'telegram', 'ok': ok, 'msg': msg})
-		if ok and tg_voice_enabled:
+		if tg_voice_enabled:
 			v_ok, v_msg = _send_telegram_voice_message(bot, group.chat_id, text)
 			notes.append({'channel': 'telegram_voice', 'ok': v_ok, 'msg': v_msg})
 
@@ -2788,14 +2843,21 @@ def sap_process_run_preview(request, process_id):
 				else:
 					deadline = time.time() + timeout_sec
 					found = False
+					last_countdown = None
 					while time.time() < deadline:
 						stop_response = _handle_overlay_controls(i)
 						if stop_response is not None:
 							return stop_response
+						remain = max(0, int(deadline - time.time()))
+						if remain != last_countdown:
+							last_countdown = remain
+							wait_msg = f'Ekran bekleniyor: {cfg.get("screen_title", "")} | kalan: {remain}s'
+							overlay.push_log(wait_msg)
 						service._wait_until_idle(service.session, timeout_sec=3, stable_checks=1)
 						title = service._get_window_title(service.session).casefold()
 						if screen_title in title:
 							found = True
+							overlay.push_log(f'Ekran geldi: {cfg.get("screen_title", "")}')
 							break
 						time.sleep(poll_ms / 1000.0)
 					if not found:
