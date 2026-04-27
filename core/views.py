@@ -1978,6 +1978,11 @@ def _build_actions_from_template_state_with_runtime(state, runtime_state=None):
 			# radio, chk, secilecek, vb.
 			value = str(row.get('value_text', '') or '')
 
+		# {sutun_N} ve {loop_value} placeholder'larını runtime değerleriyle değiştir
+		if '{' in value and '}' in value:
+			for rt_key, rt_val in rt.items():
+				value = value.replace(f'{{{rt_key}}}', str(rt_val or ''))
+
 		actions.append({'element_id': element_id, 'action_type': action_type, 'value': value})
 
 	return actions
@@ -2137,6 +2142,77 @@ def _resolve_grid_row_by_text(grid, text_contains):
 			return ridx
 
 	return None
+
+
+def _read_grid_row_data(grid, row_index):
+	"""
+	Seçilen grid satırındaki tüm hücre değerlerini sutun_1, sutun_2, ... olarak döndürür.
+	Boş hücreler dahil edilmez; her sutun_N için hem sütun adı hem değer saklanır.
+	Dönüş: {'sutun_1': 'değer', 'sutun_2': 'değer', ...}  (en fazla 50 sütun)
+	"""
+	result = {}
+	ridx = max(0, int(row_index or 0))
+	columns = []
+
+	try:
+		order = list(getattr(grid, 'ColumnOrder', []) or [])
+		columns = [c for c in order if c is not None and str(c).strip()]
+	except Exception:
+		columns = []
+
+	if not columns:
+		try:
+			cols_obj = getattr(grid, 'columns', None)
+			cnt = int(getattr(cols_obj, 'Count', 0) or 0) if cols_obj is not None else 0
+			for ci in range(min(cnt, 50)):
+				try:
+					col = cols_obj.elementAt(ci)
+				except Exception:
+					try:
+						col = cols_obj.Item(ci)
+					except Exception:
+						col = None
+				if col is None:
+					continue
+				name = str(getattr(col, 'Name', '') or getattr(col, 'name', '') or '').strip()
+				columns.append(name if name else ci)
+		except Exception:
+			columns = []
+
+	slot = 1
+	seen_values = set()
+	for col in columns[:50]:
+		v = ''
+		try:
+			v = str(grid.getCellValue(ridx, col) or '').strip()
+		except Exception:
+			pass
+		if not v:
+			try:
+				cell = grid.GetCell(ridx, col)
+				v = str(getattr(cell, 'Text', '') or getattr(cell, 'text', '') or '').strip()
+			except Exception:
+				pass
+		if v and v not in seen_values:
+			result[f'sutun_{slot}'] = v
+			seen_values.add(v)
+			slot += 1
+
+	# GuiTableControl index bazlı fallback
+	if not result:
+		for ci in range(50):
+			try:
+				cell = grid.GetCell(ridx, ci)
+				v = str(getattr(cell, 'Text', '') or getattr(cell, 'text', '') or '').strip()
+				if v and v not in seen_values:
+					result[f'sutun_{slot}'] = v
+					seen_values.add(v)
+					slot += 1
+			except Exception:
+				if ci > 8:
+					break
+
+	return result
 
 
 def _select_row_on_grid(grid, row_index):
@@ -2893,10 +2969,14 @@ def sap_process_run_preview(request, process_id):
 				if not ok_select:
 					return JsonResponse({'ok': False, 'error': f'Grid satırı seçilemedi: {err_msg}', 'logs': logs, 'failed_at': i}, status=500)
 				service._wait_until_idle(service.session, timeout_sec=5)
+				# Seçilen satırın verilerini runtime_state'e kopyala
+				row_data = _read_grid_row_data(grid, applied_idx)
+				runtime_state.update(row_data)
 				select_hint = f'{applied_idx + 1} ({grid_source})'
 				if resolved_by == 'row_text_contains':
 					select_hint = f'{select_hint} | metin: {row_text_contains}'
-				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {select_hint}'})
+				row_data_hint = ', '.join(f'{k}={v}' for k, v in row_data.items()) if row_data else 'veri okunamadı'
+				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {select_hint} | {row_data_hint}'})
 
 			elif step_type == SapProcessStep.TYPE_SAP_POPUP_DECIDE:
 				ok, payload = _ensure_session_ready()
