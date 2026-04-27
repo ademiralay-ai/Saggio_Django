@@ -2502,6 +2502,31 @@ def _press_popup_button_by_text(popup, keyword_list):
 	return False, 'metne uyan popup butonu bulunamadı.'
 
 
+def _popup_has_button_by_text(popup, keyword_list):
+	"""Popup içinde verilen anahtar kelimelerden birini içeren buton var mı?"""
+	keywords = [str(k or '').strip().casefold() for k in (keyword_list or []) if str(k or '').strip()]
+	if not popup or not keywords:
+		return False
+
+	stack = [popup]
+	while stack:
+		node = stack.pop(0)
+		try:
+			node_type = str(getattr(node, 'Type', '') or '').casefold()
+			node_id = str(getattr(node, 'Id', '') or '').casefold()
+			if 'button' in node_type or '/btn' in node_id:
+				text = str(getattr(node, 'Text', '') or '').strip()
+				name = str(getattr(node, 'Name', '') or '').strip()
+				tip = str(getattr(node, 'Tooltip', '') or '').strip()
+				haystack = f'{text} {name} {tip}'.casefold()
+				if any(k in haystack for k in keywords):
+					return True
+		except Exception:
+			pass
+		stack.extend(_iter_children(node))
+	return False
+
+
 def _safe_send_popup_mail(cfg, mail_enabled=True, runtime_state=None, notification_cfg=None, popup_title='', popup_text=''):
 	if not mail_enabled:
 		return 'Mail gönderimi süreç ayarında kapalı.'
@@ -3205,12 +3230,24 @@ def sap_process_run_preview(request, process_id):
 					matched = False
 				if text_contains and text_contains not in popup_text_norm:
 					matched = False
+				fallback_used = False
+				if not matched and bool(cfg.get('allow_question_popup_fallback', True)):
+					title_ok = (not title_contains) or (title_contains in title_norm)
+					has_yes = _popup_has_button_by_text(popup, ['evet', 'yes'])
+					has_no = _popup_has_button_by_text(popup, ['hayır', 'hayir', 'no'])
+					if title_ok and has_yes and has_no:
+						# Eski süreçteki gibi soru popup'ını başlık+buton deseniyle yakala.
+						# Özellikle HTML kontrol içinde metin dönmeyen popup'lar için.
+						matched = True
+						fallback_used = True
 				if not matched:
 					if bool(cfg.get('fail_if_not_match')):
 						return JsonResponse({'ok': False, 'error': f'Popup eşleşmedi. Başlık: {title} | Metin: {popup_text}', 'logs': logs, 'failed_at': i}, status=400)
 					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Popup geldi ama eşleşmedi. Başlık: {title}'})
 					i = next_i
 					continue
+				if fallback_used:
+					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Popup metni alınamadı; başlık ve Evet/Hayır buton desenine göre eşleşti (fallback).'})
 				action = str(cfg.get('popup_action', '') or '').strip().casefold()
 				if action == 'close_escape':
 					popup.sendVKey(12)

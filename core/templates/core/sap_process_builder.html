@@ -407,6 +407,12 @@
                 </div>
                 <div class="spb-field spb-field-full">
                     <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="allow_question_popup_fallback" ${data.allow_question_popup_fallback === false ? '' : 'checked'}>
+                        Soru popup fallback kullan (metin gelmese de başlık + Evet/Hayır butonlarıyla eşleştir)
+                    </label>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
                         <input type="checkbox" data-key="send_mail_on_match" ${data.send_mail_on_match ? 'checked' : ''}>
                         Popup eşleşirse yetkiliye mail gönder
                     </label>
