@@ -2787,9 +2787,15 @@ def sap_process_run_preview(request, process_id):
 				if not popup:
 					if bool(cfg.get('fail_if_not_found')):
 						return JsonResponse({'ok': False, 'error': 'Beklenen popup bulunamadı.', 'logs': logs, 'failed_at': i}, status=404)
-					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Popup bulunamadı, adım atlandı'})
-					i = next_i
-					continue
+					if bool(cfg.get('next_if_not_found', True)):
+						logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Popup bulunamadı, sonraki adıma geçildi'})
+						i = next_i
+						continue
+					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Popup bulunamadı, süreç bu adımda sonlandırıldı'})
+					overlay.push_log('Popup bulunamadı, süreç sonlandırıldı')
+					overlay.close()
+					_runtime_finish(process_id)
+					return JsonResponse({'ok': True, 'logs': logs, 'ran_until': i, 'connection_template': conn.get('template_name', '')})
 				title = str(getattr(popup, 'Text', '') or '').strip()
 				popup_text = _collect_node_text(popup)
 				title_contains = str(cfg.get('popup_title_contains', '') or '').strip().casefold()

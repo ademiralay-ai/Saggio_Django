@@ -389,6 +389,12 @@
                 </div>
                 <div class="spb-field spb-field-full">
                     <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="next_if_not_found" ${data.next_if_not_found === false ? '' : 'checked'}>
+                        Popup bulunamazsa sonraki adıma geç
+                    </label>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
                         <input type="checkbox" data-key="fail_if_not_match" ${data.fail_if_not_match ? 'checked' : ''}>
                         Popup metni/başlığı eşleşmezse hata ver
                     </label>
