@@ -666,8 +666,9 @@
     function renderStepCard(s, i) {
         const m = STEP_META[s.step_type] || {icon:'fas fa-question', label: s.step_type, color:'#888'};
         const configHtml = renderConfigFields(s.step_type, s.config);
+        const isDisabled = !!(s.config && s.config.disabled);
         return `
-        <div class="spb-step-card" data-idx="${i}" draggable="true">
+        <div class="spb-step-card ${isDisabled ? 'spb-step-disabled' : ''}" data-idx="${i}" draggable="true">
             <div class="spb-step-header">
                 <div class="spb-step-drag" title="Sürükleyerek yeniden sırala"><i class="fas fa-grip-vertical"></i></div>
                 <div class="spb-step-badge" style="--step-color:${m.color}">
@@ -689,6 +690,12 @@
                 </div>
             </div>
             <div class="spb-step-body ${s._collapsed?'spb-collapsed':''}">
+                <div class="spb-step-runtime-row">
+                    <label class="spb-step-disable-toggle" title="Açıkken adım kayıtta kalır ama çalıştırmada atlanır">
+                        <input type="checkbox" data-key="disabled" ${isDisabled ? 'checked' : ''}>
+                        Bu adımı pasife al (çalıştırmada atla)
+                    </label>
+                </div>
                 ${configHtml.replaceAll('__IDX__', String(i))}
             </div>
         </div>`;
@@ -916,6 +923,7 @@
         const card = document.querySelector(`.spb-step-card[data-idx="${idx}"]`);
         if (!card) return;
         const stepType = steps[idx]?.step_type;
+        const isDisabled = !!card.querySelector('[data-key="disabled"]')?.checked;
 
         // Label
         const labelInp = card.querySelector('.spb-step-label-input');
@@ -930,7 +938,7 @@
                     value: row.querySelector('[data-akey="value"]')?.value || '',
                 });
             });
-            steps[idx].config = {actions};
+            steps[idx].config = {actions, disabled: isDisabled};
         } else {
             // Genel input/select → data-key
             const cfg = {};

@@ -2365,6 +2365,23 @@ body.sidebar-collapsed .spb-live-panel {
     padding: 14px 16px;
 }
 
+.spb-step-runtime-row {
+    margin: -2px 0 10px;
+}
+
+.spb-step-disable-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.spb-step-card.spb-step-disabled {
+    opacity: .7;
+    border-style: dashed;
+}
+
 .spb-step-body.spb-collapsed {
     display: none;
 }

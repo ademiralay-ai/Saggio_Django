@@ -3030,6 +3030,12 @@ def sap_process_run_preview(request, process_id):
 		step_name = label or step_type
 		continue_on_error = bool(cfg.get('continue_on_error'))
 
+		if bool(cfg.get('disabled', False)):
+			logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Adım pasif olduğu için atlandı'})
+			overlay.push_log(f'{step_name}: pasif adım atlandı')
+			i = next_i
+			continue
+
 		try:
 			if step_type == SapProcessStep.TYPE_SAP_FILL:
 				tpl_name = str(cfg.get('template_name', '') or '').strip()
