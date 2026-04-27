@@ -1166,9 +1166,6 @@ def sap_process_builder(request, process_id):
 	steps = list(proc.steps.values('id', 'order', 'step_type', 'label', 'config').order_by('order'))
 	template_names = SAPTemplateService.list_template_names()
 	ftp_accounts = list(FTPAccount.objects.filter(is_active=True).values('id', 'name', 'protocol', 'host', 'port').order_by('name'))
-	telegram_groups = list(TelegramGroup.objects.filter(is_active=True).order_by('name'))
-	mail_accounts = list(MailAccount.objects.filter(is_active=True).order_by('name'))
-	proc_notify = proc.flow_config.get('_notify', {}) if isinstance(proc.flow_config, dict) else {}
 	return render(request, 'core/sap_process_builder.html', {
 		'current': 'sap_process',
 		'page_title': f'Süreç: {proc.name}',
@@ -1177,9 +1174,6 @@ def sap_process_builder(request, process_id):
 		'steps_json': json.dumps(steps, default=str),
 		'template_names': template_names,
 		'ftp_accounts_json': json.dumps(ftp_accounts, default=str),
-		'telegram_groups': telegram_groups,
-		'mail_accounts': mail_accounts,
-		'proc_notify': proc_notify,
 	})
 
 
@@ -1260,51 +1254,12 @@ def sap_process_runtime_settings_save(request, process_id):
 	proc.telegram_voice_enabled = bool(body.get('telegram_voice_enabled', proc.telegram_voice_enabled))
 	proc.mail_notifications_enabled = bool(body.get('mail_notifications_enabled', proc.mail_notifications_enabled))
 
-	# Bildirim hedef kayıtları: flow_config['_notify'] altında sakla (migration'sız)
-	def _parse_id(v):
-		try:
-			s = str(v or '').strip()
-			return int(s) if s else None
-		except (ValueError, TypeError):
-			return None
-
-	tg_group_id = _parse_id(body.get('notify_telegram_group_id'))
-	mail_account_id = _parse_id(body.get('notify_mail_account_id'))
-
-	if not isinstance(proc.flow_config, dict):
-		proc.flow_config = {}
-	notify_cfg = dict(proc.flow_config.get('_notify', {}))
-	if tg_group_id is not None:
-		grp = TelegramGroup.objects.filter(pk=tg_group_id, is_active=True, default_bot__isnull=False).first()
-		if grp:
-			notify_cfg['telegram_group_id'] = int(grp.id)
-			notify_cfg['telegram_bot_id'] = int(grp.default_bot_id)
-		else:
-			notify_cfg.pop('telegram_group_id', None)
-			notify_cfg.pop('telegram_bot_id', None)
-	elif 'notify_telegram_group_id' in body and not tg_group_id:
-		# Kullanıcı açıkça boş seçti → temizle
-		notify_cfg.pop('telegram_group_id', None)
-		notify_cfg.pop('telegram_bot_id', None)
-
-	if mail_account_id is not None:
-		ma = MailAccount.objects.filter(pk=mail_account_id, is_active=True).first()
-		if ma:
-			notify_cfg['mail_account_id'] = int(ma.id)
-		else:
-			notify_cfg.pop('mail_account_id', None)
-	elif 'notify_mail_account_id' in body and not mail_account_id:
-		notify_cfg.pop('mail_account_id', None)
-
-	proc.flow_config = {**proc.flow_config, '_notify': notify_cfg}
-
 	proc.save(update_fields=[
 		'ghost_overlay_enabled',
 		'office_express_auto_close',
 		'telegram_notifications_enabled',
 		'telegram_voice_enabled',
 		'mail_notifications_enabled',
-		'flow_config',
 		'updated_at',
 	])
 
@@ -2665,14 +2620,9 @@ def sap_process_run_preview(request, process_id):
 		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
 
 	# Bildirim konfigürasyonu
-	# Öncelik sırası: 1) proc.flow_config['_notify'] (builder'da seçilen), 2) şablondaki notification
+	# Bildirim konfigürasyonu — sadece şablondaki notification alanından alınır.
 	_notify_cfg = {}
 	_notify_setup_notes = []
-
-	# 1) Süreç üzerinde kayıtlı bildirim hedefleri
-	_proc_notify = proc.flow_config.get('_notify', {}) if isinstance(proc.flow_config, dict) else {}
-
-	# 2) Şablon notification alanı (fallback)
 	_template_notify = {}
 	try:
 		tpl_name = str(conn.get('template_name', '') or '').strip()
@@ -2693,13 +2643,8 @@ def sap_process_run_preview(request, process_id):
 			return None
 
 	if proc.telegram_notifications_enabled:
-		# Önce builder'dan kaydedilen grup/bot'u dene
-		tg_bot_id = _as_int(_proc_notify.get('telegram_bot_id'))
-		tg_group_id = _as_int(_proc_notify.get('telegram_group_id'))
-		# Yoksa şablondan oku
-		if not (tg_bot_id and tg_group_id):
-			tg_bot_id = _as_int(_template_notify.get('telegram_bot_id'))
-			tg_group_id = _as_int(_template_notify.get('telegram_group_id'))
+		tg_bot_id = _as_int(_template_notify.get('telegram_bot_id'))
+		tg_group_id = _as_int(_template_notify.get('telegram_group_id'))
 		if tg_bot_id and tg_group_id:
 			_notify_cfg['telegram_bot_id'] = tg_bot_id
 			_notify_cfg['telegram_group_id'] = tg_group_id
@@ -2709,10 +2654,10 @@ def sap_process_run_preview(request, process_id):
 				if value:
 					_notify_cfg[key] = value
 		else:
-			_notify_setup_notes.append('Telegram bildirim atlandı: süreç ayarlarında veya şablonda Telegram grubu seçili değil.')
+			_notify_setup_notes.append('Telegram bildirim atlandı: şablonda Telegram bot/grup seçili değil.')
 
 	if proc.mail_notifications_enabled:
-		mail_id = _as_int(_proc_notify.get('mail_account_id')) or _as_int(_template_notify.get('mail_account_id'))
+		mail_id = _as_int(_template_notify.get('mail_account_id'))
 		if mail_id:
 			_notify_cfg['mail_account_id'] = mail_id
 			for key in ('mail_to', 'mail_subject', 'mail_start_message', 'mail_end_message'):
@@ -2720,7 +2665,7 @@ def sap_process_run_preview(request, process_id):
 				if value:
 					_notify_cfg[key] = value
 		else:
-			_notify_setup_notes.append('Mail bildirimi atlandı: süreç ayarlarında veya şablonda mail hesabı seçili değil.')
+			_notify_setup_notes.append('Mail bildirimi atlandı: şablonda mail hesabı seçili değil.')
 
 
 	# Başlangıç bildirimi
@@ -2750,6 +2695,15 @@ def sap_process_run_preview(request, process_id):
 	for note in (_notify_setup_notes or []):
 		logs.append({'step': 0, 'type': 'notification', 'label': 'Bildirim', 'ok': False if 'atlandı' in str(note).casefold() else True, 'msg': str(note)})
 		overlay.push_log(str(note))
+
+	_end_notify_sent = False
+	def _send_end_notify_once():
+		nonlocal _end_notify_sent
+		if _end_notify_sent:
+			return
+		if ('telegram_bot_id' in _notify_cfg and 'telegram_group_id' in _notify_cfg) or ('mail_account_id' in _notify_cfg):
+			_notify_sap_event(_notify_cfg, 'end', logs)
+		_end_notify_sent = True
 
 	def _ensure_session_ready():
 		ok, payload = service.apply_to_screen(
@@ -3062,11 +3016,19 @@ def sap_process_run_preview(request, process_id):
 							next_i = target_idx
 							logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Popup sonrası loop_next adımı olmadan döngü ilerletildi: {loop_msg}'})
 						else:
+							if loop_msg == 'Döngü değerleri tamamlandı':
+								logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Döngü değerleri tamamlandı, süreç bitirildi'})
+								overlay.push_log('Döngü değerleri tamamlandı, süreç bitirildi')
+								overlay.close()
+								_runtime_finish(process_id)
+								_send_end_notify_once()
+								return JsonResponse({'ok': True, 'logs': logs, 'ran_until': i, 'connection_template': conn.get('template_name', '')})
 							logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Popup sonrası loop_next adımı bulunamadı ve döngü ilerletilemedi: {loop_msg}'})
 				elif on_match_action == 'stop':
 					overlay.push_log('Popup adımı sonrası süreç durduruldu')
 					overlay.close()
 					_runtime_finish(process_id)
+					_send_end_notify_once()
 					return JsonResponse({'ok': True, 'logs': logs, 'ran_until': i, 'connection_template': conn.get('template_name', '')})
 				elif on_match_action == 'fail':
 					return JsonResponse({'ok': False, 'error': f'Popup eşleşti ve hata aksiyonu tetiklendi. Başlık: {title}', 'logs': logs, 'failed_at': i}, status=400)
@@ -3126,6 +3088,13 @@ def sap_process_run_preview(request, process_id):
 									next_i = target_idx
 									logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, loop_next adımı olmadan döngü ilerletildi: {loop_msg}'})
 								else:
+									if loop_msg == 'Döngü değerleri tamamlandı':
+										logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Döngü değerleri tamamlandı, süreç bitirildi'})
+										overlay.push_log('Döngü değerleri tamamlandı, süreç bitirildi')
+										overlay.close()
+										_runtime_finish(process_id)
+										_send_end_notify_once()
+										return JsonResponse({'ok': True, 'logs': logs, 'ran_until': i, 'connection_template': conn.get('template_name', '')})
 									logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, loop_next adımı bulunamadı ve döngü ilerletilemedi: {loop_msg}'})
 						else:
 							return JsonResponse({'ok': False, 'error': f'Beklenen ekran başlığı zaman aşımına uğradı: {cfg.get("screen_title", "")}', 'logs': logs, 'failed_at': i}, status=408)
@@ -3282,6 +3251,13 @@ def sap_process_run_preview(request, process_id):
 			elif step_type == SapProcessStep.TYPE_LOOP_NEXT:
 				advanced, loop_msg, target_idx = _advance_loop_runtime(steps, runtime_state, i)
 				if not advanced:
+					if loop_msg == 'Döngü değerleri tamamlandı':
+						logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Döngü değerleri tamamlandı, süreç bitirildi'})
+						overlay.push_log('Döngü değerleri tamamlandı, süreç bitirildi')
+						overlay.close()
+						_runtime_finish(process_id)
+						_send_end_notify_once()
+						return JsonResponse({'ok': True, 'logs': logs, 'ran_until': i, 'connection_template': conn.get('template_name', '')})
 					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': loop_msg})
 				else:
 					next_i = target_idx
@@ -3382,6 +3358,5 @@ def sap_process_run_preview(request, process_id):
 	overlay.close()
 	_runtime_finish(process_id)
 	# Bitiş bildirimi
-	if ('telegram_bot_id' in _notify_cfg and 'telegram_group_id' in _notify_cfg) or ('mail_account_id' in _notify_cfg):
-		_notify_sap_event(_notify_cfg, 'end', logs)
+	_send_end_notify_once()
 	return JsonResponse({'ok': True, 'logs': logs, 'ran_until': upto_index, 'connection_template': conn.get('template_name', '')})
