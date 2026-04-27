@@ -999,7 +999,8 @@ def sap_process_scan_grids(request, process_id):
 		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
 
 	service = SAPScanService()
-	ok, payload = service.scan_screen(
+	# apply_to_screen ile bağlan (scan_screens ile aynı yöntem) — session nesnesine erişmek için
+	ok, payload = service.apply_to_screen(
 		sys_id=conn.get('sys_id', ''),
 		client=conn.get('client', ''),
 		user=conn.get('user', ''),
@@ -1008,48 +1009,76 @@ def sap_process_scan_grids(request, process_id):
 		t_code='',
 		root_id=conn.get('root_id', 'wnd[0]'),
 		extra_wait=conn.get('extra_wait', 0),
+		actions=[],
+		execute_f8=False,
 	)
 	if not ok:
 		return JsonResponse({'ok': False, 'error': payload}, status=500)
 
-	rows = payload if isinstance(payload, list) else []
+	session = getattr(service, 'session', None)
+	if session is None:
+		return JsonResponse({'ok': False, 'error': 'Aktif SAP session bulunamadı.'}, status=500)
+
 	grids = []
 	seen_ids = set()
-	for row in rows:
-		if not isinstance(row, dict):
-			continue
-		raw_id = str(row.get('id', '') or '').strip()
-		if not raw_id:
-			continue
-		norm_id = _normalize_session_element_id(raw_id)
-		type_name = str(row.get('type', '') or '').strip()
-		name = str(row.get('name', '') or '').strip()
-		text = str(row.get('text', '') or '').strip()
-		lower_type = type_name.casefold()
-		lower_id = norm_id.casefold()
-		is_grid = (
-			'grid' in lower_id or
-			'grid' in lower_type or
-			'table' in lower_type or
-			'shell' in lower_type or
-			'GuiTableControl'.casefold() in lower_type or
-			'GuiShell'.casefold() in lower_type
-		)
-		if not is_grid:
-			continue
-		if norm_id in seen_ids:
-			continue
-		seen_ids.add(norm_id)
-		window_hint = 'wnd[1]' if 'wnd[1]' in norm_id else 'wnd[0]'
-		label_text = text or name or type_name or 'Grid'
-		grids.append({
-			'id': norm_id,
-			'type': type_name,
-			'name': name,
-			'text': text,
-			'window': window_hint,
-			'label': f'{label_text} [{norm_id}]',
-		})
+
+	def _collect_grids(node):
+		"""node altındaki tüm GuiTableControl ve GuiShell grid elementlerini recursive toplar."""
+		stack = [node] if node is not None else []
+		while stack:
+			current = stack.pop(0)
+			try:
+				node_id = str(getattr(current, 'Id', '') or '').strip()
+				node_type = str(getattr(current, 'Type', '') or '').strip()
+				norm_id = _normalize_session_element_id(node_id)
+				lower_type = node_type.casefold()
+				lower_id = norm_id.casefold()
+				# GuiTableControl: type'ta "tablecontrol" var veya ID'de "/tbl" segmenti var
+				# GuiShell (ALV grid): type'ta "shell" var ve ID'de "shellcont" veya "grid" geçiyor
+				is_grid = (
+					'tablecontrol' in lower_type
+					or '/tbl' in lower_id
+					or (lower_id.split('/')[-1].startswith('tbl'))
+					or ('shell' in lower_type and ('shellcont' in lower_id or 'grid' in lower_id))
+				)
+				if is_grid and norm_id and norm_id not in seen_ids:
+					name = str(getattr(current, 'Name', '') or '').strip()
+					text = str(getattr(current, 'Text', '') or '').strip()
+					window_hint = 'wnd[1]' if 'wnd[1]' in norm_id else 'wnd[0]'
+					label_text = text or name or node_type or 'Grid'
+					seen_ids.add(norm_id)
+					grids.append({
+						'id': norm_id,
+						'type': node_type,
+						'name': name,
+						'text': text,
+						'window': window_hint,
+						'label': f'{label_text} [{norm_id}]',
+					})
+			except Exception:
+				pass
+			stack.extend(_iter_children(current))
+
+	# Tüm SAP pencerelerini (wnd[0], wnd[1], ...) tara
+	try:
+		children = getattr(session, 'Children', None)
+		wnd_count = int(getattr(children, 'Count', 0) or 0) if children is not None else 0
+		if wnd_count == 0:
+			_collect_grids(session)
+		else:
+			for idx in range(wnd_count):
+				wnd = None
+				try:
+					wnd = children(idx)
+				except Exception:
+					try:
+						wnd = children.Item(idx)
+					except Exception:
+						wnd = None
+				if wnd is not None:
+					_collect_grids(wnd)
+	except Exception as ex:
+		return JsonResponse({'ok': False, 'error': f'Grid tarama hatası: {ex}'}, status=500)
 
 	grids.sort(key=lambda x: x['id'])
 	return JsonResponse({'ok': True, 'grids': grids, 'count': len(grids)})
