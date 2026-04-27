@@ -1704,6 +1704,8 @@ class _GhostOverlayWindow:
 		self.pc_name = os.environ.get('COMPUTERNAME') or socket.gethostname() or 'Bilinmeyen'
 		self.root = None
 		self.label = None
+		self.log_text = None
+		self.log_scroll = None
 		self.pause_btn = None
 		self.stop_btn = None
 		self.logs = []
@@ -1762,9 +1764,28 @@ class _GhostOverlayWindow:
 				justify='left',
 				anchor='nw',
 				padx=10,
-				pady=10,
+				pady=6,
 			)
-			self.label.pack(expand=True, fill='both')
+			self.label.pack(fill='x')
+
+			log_wrap = tk.Frame(self.root, bg='black')
+			log_wrap.pack(expand=True, fill='both', padx=10, pady=(4, 10))
+			self.log_text = tk.Text(
+				log_wrap,
+				font=('Consolas', 9, 'bold'),
+				fg='#58a6ff',
+				bg='black',
+				insertbackground='#58a6ff',
+				relief='flat',
+				borderwidth=0,
+				highlightthickness=0,
+				wrap='word',
+			)
+			self.log_scroll = tk.Scrollbar(log_wrap, orient='vertical', command=self.log_text.yview)
+			self.log_text.configure(yscrollcommand=self.log_scroll.set)
+			self.log_text.pack(side='left', expand=True, fill='both')
+			self.log_scroll.pack(side='right', fill='y')
+			self.log_text.configure(state='disabled')
 			self._render()
 		except Exception:
 			self.enabled = False
@@ -1783,13 +1804,17 @@ class _GhostOverlayWindow:
 				f'PC: {self.pc_name}',
 				f'Durum: {status_text}',
 				f'Adım: {self.current_step or "-"}',
-				'',
-				'Log:',
+				f'Güncelleme: {stamp}',
 			]
-			lines.extend(self.logs[-5:] if self.logs else ['Hazır'])
-			lines.append('')
-			lines.append(f'Güncelleme: {stamp}')
 			self.label.config(text='\n'.join(lines))
+			if self.log_text is not None:
+				self.log_text.configure(state='normal')
+				self.log_text.delete('1.0', 'end')
+				log_lines = self.logs[-200:] if self.logs else ['Hazır']
+				for line in log_lines:
+					self.log_text.insert('end', f'{line}\n')
+				self.log_text.see('end')
+				self.log_text.configure(state='disabled')
 			if self.pause_btn is not None:
 				self.pause_btn.config(text='Devam Et' if self.paused else 'Duraklat')
 			self.root.update_idletasks()
@@ -1858,6 +1883,8 @@ class _GhostOverlayWindow:
 			pass
 		self.root = None
 		self.label = None
+		self.log_text = None
+		self.log_scroll = None
 		self.pause_btn = None
 		self.stop_btn = None
 
