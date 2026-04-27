@@ -676,9 +676,10 @@ def _sap_process_scan_popups_impl(request, process_id):
 
 			popup_id = _normalize_session_element_id(str(getattr(wnd, 'Id', '') or '').strip())
 			title = str(getattr(wnd, 'Text', '') or '').strip()
+			legacy_text = _collect_popup_text_legacy(session, popup_id or 'wnd[1]', limit=220)
 			message_text = _collect_popup_message_text(session, popup_id or 'wnd[1]', limit=120)
 			deep_text = _collect_node_text(wnd, limit=220)
-			text = ' | '.join([p for p in [message_text, deep_text] if p])
+			text = ' | '.join([p for p in [legacy_text, message_text, deep_text] if p])
 			key = f'{popup_id}|{title}|{text}'.casefold()
 			if key in seen:
 				continue
@@ -2417,6 +2418,64 @@ def _collect_popup_message_text(session, popup_root_id='wnd[1]', limit=80):
 	return ' | '.join(clean[:limit])
 
 
+def _collect_popup_text_legacy(session, popup_root_id='wnd[1]', limit=200):
+	"""Eski süreçte çalışan yöntemi birebir uygular: recursive Children.Item(i) + Text/text."""
+	if session is None:
+		return ''
+	root = _normalize_session_element_id(popup_root_id or 'wnd[1]')
+	try:
+		popup = session.findById(root)
+	except Exception:
+		return ''
+
+	parts = []
+	seen = set()
+
+	def _push(v):
+		try:
+			txt = str(v or '').replace('\r', ' ').replace('\n', ' ').strip()
+		except Exception:
+			txt = ''
+		if not txt:
+			return
+		txt = ' '.join(txt.split())
+		if txt and txt not in seen:
+			seen.add(txt)
+			parts.append(txt)
+
+	def _extract_all_text(obj):
+		if obj is None or len(parts) >= limit:
+			return
+		try:
+			t = getattr(obj, 'text', getattr(obj, 'Text', ''))
+		except Exception:
+			t = ''
+		_push(t)
+
+		try:
+			children = getattr(obj, 'Children', None)
+			count = int(getattr(children, 'Count', 0) or 0) if children is not None else 0
+		except Exception:
+			count = 0
+
+		for i in range(count):
+			if len(parts) >= limit:
+				break
+			child = None
+			try:
+				child = children.Item(i)
+			except Exception:
+				try:
+					child = children(i)
+				except Exception:
+					child = None
+			if child is not None:
+				_extract_all_text(child)
+
+	_extract_all_text(popup)
+	return ' | '.join(parts[:limit])
+
+
 def _press_popup_button_by_text(popup, keyword_list):
 	"""Popup içinde metnine göre uygun butonu bulup basar."""
 	keywords = [str(k or '').strip().casefold() for k in (keyword_list or []) if str(k or '').strip()]
@@ -3133,9 +3192,10 @@ def sap_process_run_preview(request, process_id):
 					_runtime_finish(process_id)
 					return JsonResponse({'ok': True, 'logs': logs, 'ran_until': i, 'connection_template': conn.get('template_name', '')})
 				title = str(getattr(popup, 'Text', '') or '').strip()
+				popup_legacy_text = _collect_popup_text_legacy(service.session, popup_root_id, limit=220)
 				popup_message_text = _collect_popup_message_text(service.session, popup_root_id, limit=120)
 				popup_deep_text = _collect_node_text(popup, limit=220)
-				popup_text = ' | '.join([p for p in [popup_message_text, popup_deep_text] if p])
+				popup_text = ' | '.join([p for p in [popup_legacy_text, popup_message_text, popup_deep_text] if p])
 				title_contains = _normalize_match_text(str(cfg.get('popup_title_contains', '') or ''))
 				text_contains = _normalize_match_text(str(cfg.get('popup_text_contains', '') or ''))
 				title_norm = _normalize_match_text(title)
