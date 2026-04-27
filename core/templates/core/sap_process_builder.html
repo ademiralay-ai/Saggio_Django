@@ -56,6 +56,30 @@
                     <small>Her adım öncesi/sonrası Ofis Ekspres popup'larını otomatik kapat.</small>
                 </span>
             </label>
+
+            <label class="spb-runtime-option" for="spb-telegram-enabled">
+                <input id="spb-telegram-enabled" type="checkbox" {% if process.telegram_notifications_enabled %}checked{% endif %}>
+                <span>
+                    <strong>Telegram mesajları gönderilsin mi</strong>
+                    <small>Kapalıysa süreçte Telegram bildirimleri atlanır.</small>
+                </span>
+            </label>
+
+            <label class="spb-runtime-option" for="spb-telegram-voice-enabled">
+                <input id="spb-telegram-voice-enabled" type="checkbox" {% if process.telegram_voice_enabled %}checked{% endif %}>
+                <span>
+                    <strong>Telegram mesajları sesli de iletilsin mi</strong>
+                    <small>Açıkken Telegram bildirimleri sesli mesaj formatı için işaretlenir.</small>
+                </span>
+            </label>
+
+            <label class="spb-runtime-option" for="spb-mail-enabled">
+                <input id="spb-mail-enabled" type="checkbox" {% if process.mail_notifications_enabled %}checked{% endif %}>
+                <span>
+                    <strong>Mail gönderilsin mi</strong>
+                    <small>Kapalıysa süreçte mail gönderimleri atlanır.</small>
+                </span>
+            </label>
         </div>
     </div>
 
@@ -133,6 +157,7 @@
     const RENAME_URL   = '{% url "sap_process_rename" process.id %}';
     const RUNTIME_SETTINGS_URL = '{% url "sap_process_runtime_settings_save" process.id %}';
     const SCAN_BUTTONS_URL = '{% url "sap_process_scan_buttons" process.id %}';
+    const SCAN_SCREENS_URL = '{% url "sap_process_scan_screens" process.id %}';
     const RUN_URL      = '{% url "sap_process_run_preview" process.id %}';
     const CSRF         = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
     const TEMPLATE_NAMES = {{ template_names|safe }};
@@ -216,7 +241,31 @@
                 </div>
                 <div class="spb-field spb-field-full">
                     <label class="spb-field-label">Beklenen ekran başlığı (kısmi eşleşme, boş = herhangi)</label>
-                    <input type="text" class="spb-input" data-key="screen_title" value="${esc(data.screen_title||'')}" maxlength="200">
+                    <input type="text" class="spb-input" data-key="screen_title" value="${esc(data.screen_title||'')}" maxlength="200" placeholder="Örn: İade Talepleri">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Açık SAP ekranları</label>
+                    <div class="spb-inline-tools">
+                        <button type="button" class="btn spb-scan-wait-screens-btn" data-idx="__IDX__" title="Açık SAP ekranlarını tara">
+                            <i class="fas fa-search"></i> Ekranları Tara
+                        </button>
+                        <select class="spb-input spb-wait-screen-select" data-idx="__IDX__">
+                            <option value="">— Tarama sonucu buraya gelir —</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Ekran gelmezse</label>
+                    <select class="spb-input spb-timeout-action" data-key="on_timeout_action">
+                        <option value="fail" ${(data.on_timeout_action||'fail')==='fail'?'selected':''}>Hata ver ve dur</option>
+                        <option value="next_step" ${(data.on_timeout_action||'fail')==='next_step'?'selected':''}>Sonraki adıma geç</option>
+                        <option value="goto_step" ${(data.on_timeout_action||'fail')==='goto_step'?'selected':''}>Belirli adıma dön</option>
+                        <option value="loop_next" ${(data.on_timeout_action||'fail')==='loop_next'?'selected':''}>Döngüde sonraki elemana geç</option>
+                    </select>
+                </div>
+                <div class="spb-field spb-timeout-target-wrap">
+                    <label class="spb-field-label">Dönülecek adım no (1,2,3...)</label>
+                    <input type="number" class="spb-input" data-key="timeout_target_step" value="${esc(data.timeout_target_step||'1')}" min="1" max="999">
                 </div>
             </div>`;
 
@@ -549,6 +598,26 @@
             });
         });
 
+        // SAP ekran tarama (sap_wait)
+        list.querySelectorAll('.spb-scan-wait-screens-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await scanSapScreensForWaitStep(i, btn);
+            });
+        });
+
+        // Ekran seçilince screen_title alanına yaz
+        list.querySelectorAll('.spb-wait-screen-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const titleInput = card?.querySelector('[data-key="screen_title"]');
+                if (titleInput && sel.value) titleInput.value = sel.value;
+            });
+        });
+
+        // Timeout aksiyonu görünürlüğü
+        list.querySelectorAll('.spb-step-card').forEach(card => bindWaitTimeoutMode(card));
+
         // Drag & Drop
         setupDragDrop();
     }
@@ -757,6 +826,9 @@
     async function saveRuntimeSettings() {
         const ghost = !!document.getElementById('spb-ghost-overlay-enabled')?.checked;
         const office = !!document.getElementById('spb-office-auto-close')?.checked;
+        const telegramEnabled = !!document.getElementById('spb-telegram-enabled')?.checked;
+        const telegramVoiceEnabled = !!document.getElementById('spb-telegram-voice-enabled')?.checked;
+        const mailEnabled = !!document.getElementById('spb-mail-enabled')?.checked;
         try {
             const resp = await fetch(RUNTIME_SETTINGS_URL, {
                 method: 'POST',
@@ -764,6 +836,9 @@
                 body: JSON.stringify({
                     ghost_overlay_enabled: ghost,
                     office_express_auto_close: office,
+                    telegram_notifications_enabled: telegramEnabled,
+                    telegram_voice_enabled: telegramVoiceEnabled,
+                    mail_notifications_enabled: mailEnabled,
                 }),
             });
             const data = await resp.json();
@@ -792,6 +867,80 @@
             opts.push(`<option value="${id}"${selected}>${label}</option>`);
         });
         selectEl.innerHTML = opts.join('');
+    }
+
+    function bindWaitTimeoutMode(card) {
+        const actionSel = card?.querySelector('.spb-timeout-action');
+        const targetWrap = card?.querySelector('.spb-timeout-target-wrap');
+        if (!actionSel || !targetWrap) return;
+        const refresh = () => {
+            targetWrap.style.display = actionSel.value === 'goto_step' ? '' : 'none';
+        };
+        refresh();
+        if (actionSel._spbBound) return;
+        actionSel._spbBound = true;
+        actionSel.addEventListener('change', refresh);
+    }
+
+    function fillWaitScreenSelectForCard(card, screens) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-wait-screen-select');
+        const titleInput = card.querySelector('[data-key="screen_title"]');
+        if (!selectEl || !titleInput) return;
+        const selectedTitle = String(titleInput.value || '').trim();
+
+        const opts = ['<option value="">— Ekran seçiniz —</option>'];
+        (screens || []).forEach(s => {
+            const title = String(s.title || '').trim();
+            if (!title) return;
+            const value = esc(title);
+            const label = esc(String(s.label || title));
+            const selected = selectedTitle && selectedTitle === title ? ' selected' : '';
+            opts.push(`<option value="${value}"${selected}>${label}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+    }
+
+    async function scanSapScreensForWaitStep(stepIdx, sourceBtn) {
+        syncAllFromDOM();
+        const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
+        if (!card) return;
+
+        const btn = sourceBtn || card.querySelector('.spb-scan-wait-screens-btn');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taranıyor...';
+        }
+
+        try {
+            const resp = await fetch(SCAN_SCREENS_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({
+                    steps: steps.map((s, i) => ({
+                        step_type: s.step_type,
+                        order: i,
+                        label: s.label || '',
+                        config: s.config || {},
+                    })),
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast('Ekran tarama hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+                return;
+            }
+            fillWaitScreenSelectForCard(card, data.screens || []);
+            if (typeof showToast === 'function') showToast(`${data.count || 0} ekran bulundu.`, 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Ekran tarama bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
     }
 
     async function scanSapButtonsForStep(stepIdx, sourceBtn) {
@@ -843,6 +992,9 @@
 
         document.getElementById('spb-ghost-overlay-enabled')?.addEventListener('change', saveRuntimeSettings);
         document.getElementById('spb-office-auto-close')?.addEventListener('change', saveRuntimeSettings);
+        document.getElementById('spb-telegram-enabled')?.addEventListener('change', saveRuntimeSettings);
+        document.getElementById('spb-telegram-voice-enabled')?.addEventListener('change', saveRuntimeSettings);
+        document.getElementById('spb-mail-enabled')?.addEventListener('change', saveRuntimeSettings);
 
         document.getElementById('spb-add-btn')?.addEventListener('click', () => {
             const picker = document.getElementById('spb-type-picker');

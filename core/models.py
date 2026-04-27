@@ -301,6 +301,9 @@ class SapProcess(models.Model):
 	flow_config = models.JSONField(default=dict, blank=True, help_text='Canvas layout: nodes ve connections')
 	ghost_overlay_enabled = models.BooleanField(default=True, help_text='Calistirma sirasinda hayalet log overlay goster')
 	office_express_auto_close = models.BooleanField(default=True, help_text='Ofis Ekspres popup geldiğinde otomatik kapat')
+	telegram_notifications_enabled = models.BooleanField(default=True, help_text='Süreç bildirimlerinde Telegram mesajı gönder')
+	telegram_voice_enabled = models.BooleanField(default=True, help_text='Telegram bildirimi yanında sesli mesaj da gönder')
+	mail_notifications_enabled = models.BooleanField(default=True, help_text='Süreç bildirimlerinde mail gönder')
 	created_at = models.DateTimeField(auto_now_add=True)
 	updated_at = models.DateTimeField(auto_now=True)
 

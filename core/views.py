@@ -808,24 +808,34 @@ def sap_process_rename(request, process_id):
 
 @require_POST
 def sap_process_runtime_settings_save(request, process_id):
-	"""Süreç çalışma ayarlarını (overlay + office popup auto-close) güncelle."""
+	"""Süreç çalışma ayarlarını (overlay + popup + bildirim) güncelle."""
 	proc = get_object_or_404(SapProcess, pk=process_id)
 	try:
 		body = json.loads(request.body)
 	except (json.JSONDecodeError, TypeError):
 		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
 
-	ghost_overlay_enabled = bool(body.get('ghost_overlay_enabled', proc.ghost_overlay_enabled))
-	office_express_auto_close = bool(body.get('office_express_auto_close', proc.office_express_auto_close))
-
-	proc.ghost_overlay_enabled = ghost_overlay_enabled
-	proc.office_express_auto_close = office_express_auto_close
-	proc.save(update_fields=['ghost_overlay_enabled', 'office_express_auto_close', 'updated_at'])
+	proc.ghost_overlay_enabled = bool(body.get('ghost_overlay_enabled', proc.ghost_overlay_enabled))
+	proc.office_express_auto_close = bool(body.get('office_express_auto_close', proc.office_express_auto_close))
+	proc.telegram_notifications_enabled = bool(body.get('telegram_notifications_enabled', proc.telegram_notifications_enabled))
+	proc.telegram_voice_enabled = bool(body.get('telegram_voice_enabled', proc.telegram_voice_enabled))
+	proc.mail_notifications_enabled = bool(body.get('mail_notifications_enabled', proc.mail_notifications_enabled))
+	proc.save(update_fields=[
+		'ghost_overlay_enabled',
+		'office_express_auto_close',
+		'telegram_notifications_enabled',
+		'telegram_voice_enabled',
+		'mail_notifications_enabled',
+		'updated_at',
+	])
 
 	return JsonResponse({
 		'ok': True,
 		'ghost_overlay_enabled': proc.ghost_overlay_enabled,
 		'office_express_auto_close': proc.office_express_auto_close,
+		'telegram_notifications_enabled': proc.telegram_notifications_enabled,
+		'telegram_voice_enabled': proc.telegram_voice_enabled,
+		'mail_notifications_enabled': proc.mail_notifications_enabled,
 	})
 
 
@@ -893,6 +903,82 @@ def sap_process_scan_buttons(request, process_id):
 
 	buttons.sort(key=lambda x: x['id'])
 	return JsonResponse({'ok': True, 'buttons': buttons, 'count': len(buttons)})
+
+
+@require_POST
+def sap_process_scan_screens(request, process_id):
+	"""Açık SAP oturumundaki ekran başlıklarını (wnd[*]) tarar."""
+	proc = get_object_or_404(SapProcess, pk=process_id)
+	try:
+		body = json.loads(request.body)
+	except (json.JSONDecodeError, TypeError):
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	steps = _extract_runtime_steps(body, proc)
+	if not steps:
+		return JsonResponse({'ok': False, 'error': 'Önce en az bir adım tanımlayın.'}, status=400)
+
+	conn, conn_err = _resolve_connection_from_steps(steps)
+	if conn_err:
+		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
+
+	service = SAPScanService()
+	ok, payload = service.apply_to_screen(
+		sys_id=conn.get('sys_id', ''),
+		client=conn.get('client', ''),
+		user=conn.get('user', ''),
+		pwd=conn.get('pwd', ''),
+		lang=conn.get('lang', 'TR'),
+		t_code='',
+		root_id=conn.get('root_id', 'wnd[0]'),
+		extra_wait=conn.get('extra_wait', 0),
+		actions=[],
+		execute_f8=False,
+	)
+	if not ok:
+		return JsonResponse({'ok': False, 'error': payload}, status=500)
+
+	session = getattr(service, 'session', None)
+	if session is None:
+		return JsonResponse({'ok': False, 'error': 'Aktif SAP session bulunamadı.'}, status=500)
+
+	windows = []
+	seen = set()
+	try:
+		children = getattr(session, 'Children', None)
+		count = int(getattr(children, 'Count', 0) or 0) if children is not None else 0
+		for idx in range(count):
+			wnd = None
+			try:
+				wnd = children(idx)
+			except Exception:
+				try:
+					wnd = children.Item(idx)
+				except Exception:
+					wnd = None
+			if wnd is None:
+				continue
+			wid = str(getattr(wnd, 'Id', '') or '').strip()
+			title = str(getattr(wnd, 'Text', '') or '').strip()
+			if not title:
+				title = wid or f'wnd[{idx}]'
+			key = f'{wid}|{title}'.casefold()
+			if key in seen:
+				continue
+			seen.add(key)
+			windows.append({'id': _normalize_session_element_id(wid), 'title': title, 'label': f'{title} [{_normalize_session_element_id(wid)}]'})
+	except Exception as ex:
+		return JsonResponse({'ok': False, 'error': f'Ekran tarama hatası: {ex}'}, status=500)
+
+	if not windows:
+		try:
+			current_title = str(service._get_window_title(session) or '').strip()
+		except Exception:
+			current_title = ''
+		if current_title:
+			windows.append({'id': 'wnd[0]', 'title': current_title, 'label': f'{current_title} [wnd[0]]'})
+
+	return JsonResponse({'ok': True, 'screens': windows, 'count': len(windows)})
 
 
 import re as _re
@@ -1238,7 +1324,9 @@ def _collect_node_text(node, limit=40):
 	return ' | '.join(parts)
 
 
-def _safe_send_popup_mail(cfg):
+def _safe_send_popup_mail(cfg, mail_enabled=True):
+	if not mail_enabled:
+		return 'Mail gönderimi süreç ayarında kapalı.'
 	if not bool(cfg.get('send_mail_on_match')):
 		return None
 	mail_to = str(cfg.get('mail_to', '') or '').strip()
@@ -1693,7 +1781,7 @@ def sap_process_run_preview(request, process_id):
 						return JsonResponse({'ok': False, 'error': f'Popup butonu bulunamadı: {button_id}', 'logs': logs, 'failed_at': i}, status=404)
 					button.press()
 				service._wait_until_idle(service.session, timeout_sec=10)
-				mail_msg = _safe_send_popup_mail(cfg)
+				mail_msg = _safe_send_popup_mail(cfg, mail_enabled=proc.mail_notifications_enabled)
 				log_msg = f'Popup işlendi. Başlık: {title}'
 				if mail_msg:
 					log_msg = f'{log_msg} | {mail_msg}'
@@ -1722,8 +1810,33 @@ def sap_process_run_preview(request, process_id):
 							break
 						time.sleep(poll_ms / 1000.0)
 					if not found:
-						return JsonResponse({'ok': False, 'error': f'Beklenen ekran başlığı zaman aşımına uğradı: {cfg.get("screen_title", "")}', 'logs': logs, 'failed_at': i}, status=408)
-					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Ekran geldi: {cfg.get("screen_title", "")}'})
+						timeout_action = str(cfg.get('on_timeout_action', 'fail') or 'fail').strip().casefold()
+						if timeout_action == 'next_step':
+							logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, sonraki adıma geçildi: {cfg.get("screen_title", "")}'})
+						elif timeout_action == 'goto_step':
+							try:
+								target_step_no = int(cfg.get('timeout_target_step') or 1)
+							except (TypeError, ValueError):
+								target_step_no = 1
+							target_step_no = max(1, min(target_step_no, len(steps)))
+							next_i = target_step_no - 1
+							logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, {target_step_no}. adıma dönüldü: {cfg.get("screen_title", "")}'})
+						elif timeout_action == 'loop_next':
+							loop_idx = None
+							for k in range(i + 1, len(steps)):
+								st = str(steps[k].get('step_type', '') or '').strip()
+								if st == SapProcessStep.TYPE_LOOP_NEXT:
+									loop_idx = k
+									break
+							if loop_idx is not None:
+								next_i = loop_idx
+								logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, döngüde sonraki elemana geçildi ({loop_idx + 1}. adım): {cfg.get("screen_title", "")}'})
+							else:
+								logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, loop_next adımı bulunamadı; sonraki adıma geçildi: {cfg.get("screen_title", "")}'})
+						else:
+							return JsonResponse({'ok': False, 'error': f'Beklenen ekran başlığı zaman aşımına uğradı: {cfg.get("screen_title", "")}', 'logs': logs, 'failed_at': i}, status=408)
+					else:
+						logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Ekran geldi: {cfg.get("screen_title", "")}'})
 
 			elif step_type == SapProcessStep.TYPE_SAP_ACTION:
 				raw_actions = cfg.get('actions', []) if isinstance(cfg.get('actions'), list) else []
