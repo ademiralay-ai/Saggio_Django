@@ -801,6 +801,139 @@ def sap_process_rename(request, process_id):
 	return JsonResponse({'ok': True, 'name': proc.name})
 
 
+import re as _re
+
+def _normalize_session_element_id(element_id):
+	"""'/app/con[0]/ses[0]/wnd[0]/...' → 'wnd[0]/...'  (veya zaten kısa ise olduğu gibi)."""
+	eid = str(element_id or '').strip()
+	# /app/con[N]/ses[N]/ önekini at
+	eid = _re.sub(r'^/?app/con\[\d+\]/ses\[\d+\]/', '', eid)
+	eid = eid.lstrip('/')
+	return eid
+
+
+def _calc_dynamic_date(key):
+	"""JS calcDynamicDate'in Python karşılığı — SAP DD.MM.YYYY formatında tarih döner."""
+	from datetime import date, timedelta
+	import calendar
+	today = date.today()
+	y, m = today.year, today.month
+
+	if key == 'today':
+		d = today
+	elif key == 'year_start':
+		d = date(y, 1, 1)
+	elif key == 'month_start':
+		d = date(y, m, 1)
+	elif key == 'year_end':
+		d = date(y, 12, 31)
+	elif key == 'month_end':
+		d = date(y, m, calendar.monthrange(y, m)[1])
+	elif key == 'prev_month_start':
+		pm = m - 1 if m > 1 else 12
+		py = y if m > 1 else y - 1
+		d = date(py, pm, 1)
+	elif key == 'prev_month_end':
+		pm = m - 1 if m > 1 else 12
+		py = y if m > 1 else y - 1
+		d = date(py, pm, calendar.monthrange(py, pm)[1])
+	elif key == 'month_5':
+		d = date(y, m, 5)
+	elif key == 'prev_year_start':
+		d = date(y - 1, 1, 1)
+	elif key == 'days_15':
+		d = today - timedelta(days=15)
+	elif key == 'days_30':
+		d = today - timedelta(days=30)
+	elif key == 'days_45':
+		d = today - timedelta(days=45)
+	elif key == 'days_60':
+		d = today - timedelta(days=60)
+	elif key == 'days_365':
+		d = today - timedelta(days=365)
+	else:
+		return ''
+
+	return f"{d.day:02d}.{d.month:02d}.{d.year}"
+
+
+def _parse_loop_values(raw):
+	"""Virgül / noktalı virgül / satır sonu ile verilen döngü değerlerini normalize eder."""
+	text = str(raw or '').strip()
+	if not text:
+		return []
+	parts = _re.split(r'[\n,;]+', text)
+	return [p.strip() for p in parts if str(p).strip()]
+
+
+def _ensure_runtime_loop_state(runtime_state, state, cfg):
+	"""runtime_state içine loop_values ve aktif loop_value bilgisini ilk kez yükler."""
+	if not isinstance(runtime_state, dict):
+		return
+	if runtime_state.get('loop_values'):
+		return
+
+	form = state.get('form', {}) if isinstance(state, dict) and isinstance(state.get('form'), dict) else {}
+	raw = (
+		cfg.get('loop_values')
+		or cfg.get('loop_values_override')
+		or form.get('loop_values')
+		or ''
+	)
+	values = _parse_loop_values(raw)
+	if not values:
+		return
+
+	runtime_state['loop_values'] = values
+	runtime_state['loop_index'] = 0
+	runtime_state['loop_value'] = values[0]
+
+
+def _build_actions_from_template_state_with_runtime(state, runtime_state=None):
+	"""
+	Şablon state'indeki rows'dan SAP apply_to_screen actions listesi oluşturur.
+	runtime_state: dongu tipi alanlar için {"loop_value": "..."} gibi değerler içerebilir.
+	"""
+	if not isinstance(state, dict):
+		return []
+	rows = state.get('rows', {})
+	if not isinstance(rows, dict):
+		return []
+
+	rt = runtime_state or {}
+	actions = []
+
+	for raw_id, row in rows.items():
+		if not isinstance(row, dict):
+			continue
+		if not row.get('checked'):
+			continue
+
+		element_id  = _normalize_session_element_id(raw_id)
+		if not element_id or not element_id.startswith('wnd['):
+			continue
+
+		action_type = str(row.get('action_type', '') or '').strip()
+		if not action_type:
+			continue
+
+		if action_type == 'sabit':
+			value = str(row.get('value_text', '') or '')
+		elif action_type == 'dinamik':
+			value = _calc_dynamic_date(str(row.get('value_date', '') or ''))
+		elif action_type == 'selectbox':
+			value = str(row.get('value_select', '') or '')
+		elif action_type == 'dongu':
+			value = str(rt.get('loop_value', '') or '')
+		else:
+			# radio, chk, secilecek, vb.
+			value = str(row.get('value_text', '') or '')
+
+		actions.append({'element_id': element_id, 'action_type': action_type, 'value': value})
+
+	return actions
+
+
 def _iter_children(node):
 	try:
 		children = getattr(node, 'Children', None)
@@ -1204,6 +1337,7 @@ def sap_process_run_preview(request, process_id):
 					return JsonResponse({'ok': False, 'error': f'Şablon bulunamadı: {tpl_name}', 'logs': logs, 'failed_at': i}, status=404)
 
 				state = tpl.get('state', {}) if isinstance(tpl.get('state'), dict) else {}
+				_ensure_runtime_loop_state(runtime_state, state, cfg)
 				actions = _build_actions_from_template_state_with_runtime(state, runtime_state=runtime_state)
 				form = state.get('form', {}) if isinstance(state.get('form'), dict) else {}
 				t_code = str(cfg.get('t_code_override', '') or form.get('t_code', '') or conn.get('t_code', '') or '').strip()
@@ -1222,7 +1356,13 @@ def sap_process_run_preview(request, process_id):
 				)
 				if not ok:
 					return JsonResponse({'ok': False, 'error': payload, 'logs': logs, 'failed_at': i}, status=500)
-				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Şablon uygulandı ({tpl_name}), aksiyon: {len(actions)}'})
+				loop_msg = ''
+				if runtime_state.get('loop_values'):
+					current_loop = str(runtime_state.get('loop_value', '') or '')
+					loop_idx = int(runtime_state.get('loop_index', 0) or 0) + 1
+					loop_total = len(runtime_state.get('loop_values') or [])
+					loop_msg = f' | döngü: {loop_idx}/{loop_total} ({current_loop})'
+				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Şablon uygulandı ({tpl_name}), aksiyon: {len(actions)}{loop_msg}'})
 
 			elif step_type == SapProcessStep.TYPE_SAP_RUN:
 				key = str(cfg.get('key', 'F8') or 'F8').strip()
@@ -1504,7 +1644,35 @@ def sap_process_run_preview(request, process_id):
 				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'SAP kapatma komutu gönderildi'})
 
 			elif step_type == SapProcessStep.TYPE_LOOP_NEXT:
-				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Döngüde sonraki kayıt adımı işaretlendi'})
+				loop_values = runtime_state.get('loop_values') or []
+				if not loop_values:
+					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Döngü değeri tanımlı değil, adım atlandı'})
+				else:
+					current_idx = int(runtime_state.get('loop_index', 0) or 0)
+					next_loop_idx = current_idx + 1
+					if next_loop_idx >= len(loop_values):
+						logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Döngü değerleri tamamlandı'})
+					else:
+						runtime_state['loop_index'] = next_loop_idx
+						runtime_state['loop_value'] = loop_values[next_loop_idx]
+
+						# Varsayılan davranış: bir önceki sap_fill adımına dön ve yeni loop değeriyle devam et.
+						target_idx = None
+						for back_i in range(i - 1, -1, -1):
+							st = str(steps[back_i].get('step_type', '') or '').strip()
+							if st == SapProcessStep.TYPE_SAP_FILL:
+								target_idx = back_i
+								break
+						if target_idx is None:
+							target_idx = 0
+						next_i = target_idx
+						logs.append({
+							'step': i + 1,
+							'type': step_type,
+							'label': step_name,
+							'ok': True,
+							'msg': f'Döngüde sonraki kayıt: {next_loop_idx + 1}/{len(loop_values)} ({runtime_state.get("loop_value", "")}) | adıma dön: {target_idx + 1}'
+						})
 
 			elif step_type == SapProcessStep.TYPE_SAP_SCAN:
 				ok, payload = _ensure_session_ready()

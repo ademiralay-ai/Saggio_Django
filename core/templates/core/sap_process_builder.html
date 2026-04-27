@@ -60,6 +60,14 @@
     <div id="spb-run-log" class="spb-run-log" style="display:none"></div>
 </div>
 
+<!-- ── Sabit Aksiyon Çubuğu (sağ alt) ──────────────────────── -->
+<div class="spb-sticky-bar" id="spb-sticky-bar">
+    <button class="btn" type="button" onclick="document.getElementById('spb-rename-btn').click()" title="Süreci düzenle"><i class="fas fa-pencil-alt"></i> Düzenle</button>
+    <button class="btn" type="button" onclick="document.getElementById('spb-run-btn').click()" title="Süreci çalıştır"><i class="fas fa-play"></i> Çalıştır</button>
+    <button class="btn btn-primary" type="button" onclick="document.getElementById('spb-save-btn').click()"><i class="fas fa-save"></i> Kaydet</button>
+    <a href="{% url 'sap_process_list' %}" class="btn" title="Geri"><i class="fas fa-arrow-left"></i></a>
+</div>
+
 <!-- ── Onay Modali ────────────────────────────────────────────── -->
 <div id="spb-confirm-modal" class="contact-confirm-modal" role="dialog" aria-modal="true">
     <div class="contact-confirm-card">
@@ -747,6 +755,20 @@
             }
         });
     });
+
+    // \u2500\u2500 Sabit bar: \u00fcst butonlar g\u00f6r\u00fcnmezken g\u00f6ster \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    (function () {
+        const stickyBar  = document.getElementById('spb-sticky-bar');
+        const topButtons = document.querySelector('.spb-meta-right');
+        if (!stickyBar || !topButtons) return;
+
+        const obs = new IntersectionObserver(entries => {
+            const visible = entries[0].isIntersecting;
+            stickyBar.classList.toggle('spb-sticky-hidden', visible);
+        }, { threshold: 0.5 });
+
+        obs.observe(topButtons);
+    })();
 })();
 </script>
 {% endblock %}

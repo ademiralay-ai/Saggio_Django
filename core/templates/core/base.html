@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{% static 'core/css/style.css' %}">
 </head>
 <body>
-    <div class="bg-grid"></div>
+    <canvas id="neural-bg"></canvas>
 
     {% with current=request.resolver_match.url_name %}
     <div class="app-shell">
@@ -388,6 +388,142 @@
                 showToast('Bildirimler kontrol ediliyor...', 'info');
             });
         });
+    </script>
+
+    <!-- ── Nöral Ağ Arka Plan Animasyonu ─────────────────────── -->
+    <script>
+    (function () {
+        const canvas = document.getElementById('neural-bg');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        const NODE_COUNT  = 72;
+        const MAX_DIST    = 210;
+        const SIGNAL_SPD  = 1.6;   // px/frame
+        const SPAWN_MS    = 280;   // ms arası yeni sinyal
+
+        let nodes = [], signals = [], W = 0, H = 0;
+
+        function isDark() {
+            return document.documentElement.getAttribute('data-theme') !== 'light';
+        }
+
+        function resize() {
+            W = canvas.width  = window.innerWidth;
+            H = canvas.height = window.innerHeight;
+        }
+
+        function initNodes() {
+            nodes = [];
+            for (let i = 0; i < NODE_COUNT; i++) {
+                nodes.push({
+                    x  : Math.random() * W,
+                    y  : Math.random() * H,
+                    vx : (Math.random() - 0.5) * 0.28,
+                    vy : (Math.random() - 0.5) * 0.28,
+                    r  : Math.random() * 1.5 + 0.8
+                });
+            }
+        }
+
+        function spawnSignal() {
+            for (let attempt = 0; attempt < 25; attempt++) {
+                const i = Math.floor(Math.random() * nodes.length);
+                const j = Math.floor(Math.random() * nodes.length);
+                if (i === j) continue;
+                const dx = nodes[j].x - nodes[i].x;
+                const dy = nodes[j].y - nodes[i].y;
+                if (dx * dx + dy * dy < MAX_DIST * MAX_DIST) {
+                    signals.push({ from: i, to: j, t: 0 });
+                    break;
+                }
+            }
+        }
+
+        function frame() {
+            ctx.clearRect(0, 0, W, H);
+
+            const dark  = isDark();
+            const eR    = dark ? '0,243,255'  : '0,80,180';
+            const sR    = dark ? '155,0,255'  : '90,0,200';
+
+            /* -- düğümleri hareket ettir -- */
+            for (const n of nodes) {
+                n.x += n.vx;
+                n.y += n.vy;
+                if (n.x < 0)  { n.x = 0;  n.vx *= -1; }
+                if (n.x > W)  { n.x = W;  n.vx *= -1; }
+                if (n.y < 0)  { n.y = 0;  n.vy *= -1; }
+                if (n.y > H)  { n.y = H;  n.vy *= -1; }
+            }
+
+            /* -- bağlantı çizgileri -- */
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const dx   = nodes[j].x - nodes[i].x;
+                    const dy   = nodes[j].y - nodes[i].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < MAX_DIST) {
+                        const a = (1 - dist / MAX_DIST) * (dark ? 0.18 : 0.10);
+                        ctx.beginPath();
+                        ctx.moveTo(nodes[i].x, nodes[i].y);
+                        ctx.lineTo(nodes[j].x, nodes[j].y);
+                        ctx.strokeStyle = `rgba(${eR},${a.toFixed(3)})`;
+                        ctx.lineWidth   = 0.8;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            /* -- düğümler -- */
+            const nAlpha = dark ? 0.55 : 0.35;
+            for (const n of nodes) {
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${eR},${nAlpha})`;
+                ctx.fill();
+            }
+
+            /* -- sinyal parçacıkları -- */
+            signals = signals.filter(s => s.t < 1);
+            for (const s of signals) {
+                const fn  = nodes[s.from];
+                const tn  = nodes[s.to];
+                const dx  = tn.x - fn.x;
+                const dy  = tn.y - fn.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                s.t += SIGNAL_SPD / dist;
+                if (s.t >= 1) continue;
+
+                const sx = fn.x + dx * s.t;
+                const sy = fn.y + dy * s.t;
+
+                /* parıltı (glow) */
+                const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, 7);
+                g.addColorStop(0,   `rgba(${sR},0.85)`);
+                g.addColorStop(0.4, `rgba(${sR},0.35)`);
+                g.addColorStop(1,   `rgba(${sR},0)`);
+                ctx.beginPath();
+                ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+                ctx.fillStyle = g;
+                ctx.fill();
+
+                /* merkez nokta */
+                ctx.beginPath();
+                ctx.arc(sx, sy, 1.8, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.92)';
+                ctx.fill();
+            }
+
+            requestAnimationFrame(frame);
+        }
+
+        window.addEventListener('resize', () => { resize(); initNodes(); });
+        resize();
+        initNodes();
+        setInterval(spawnSignal, SPAWN_MS);
+        frame();
+    })();
     </script>
 </body>
 </html>
