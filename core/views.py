@@ -675,7 +675,9 @@ def sap_process_scan_popups(request, process_id):
 
 			popup_id = _normalize_session_element_id(str(getattr(wnd, 'Id', '') or '').strip())
 			title = str(getattr(wnd, 'Text', '') or '').strip()
-			text = _collect_node_text(wnd, limit=120)
+			message_text = _collect_popup_message_text(session, popup_id or 'wnd[1]', limit=120)
+			deep_text = _collect_node_text(wnd, limit=220)
+			text = ' | '.join([p for p in [message_text, deep_text] if p])
 			key = f'{popup_id}|{title}|{text}'.casefold()
 			if key in seen:
 				continue
@@ -2323,6 +2325,87 @@ def _collect_node_text(node, limit=40):
 	return ' | '.join(parts)
 
 
+def _collect_popup_message_text(session, popup_root_id='wnd[1]', limit=80):
+	"""SAP popup'larda soru metnini doğrudan txt/lbl alanlarından toplamayı dener."""
+	if session is None:
+		return ''
+	root = _normalize_session_element_id(popup_root_id or 'wnd[1]')
+	parts = []
+	seen = set()
+
+	def _push(v):
+		try:
+			txt = str(v or '').replace('\r', ' ').replace('\n', ' ').strip()
+		except Exception:
+			txt = ''
+		if not txt:
+			return
+		txt = ' '.join(txt.split())
+		if txt and txt not in seen:
+			seen.add(txt)
+			parts.append(txt)
+
+	attrs = (
+		'Text', 'text', 'Value', 'DisplayedText', 'PromptText', 'Caption', 'Title',
+		'Tooltip', 'DefaultTooltip', 'MessageText', 'Name'
+	)
+
+	# Bilinen popup mesaj alanlarını doğrudan dene.
+	candidates = []
+	for i in range(1, 10):
+		candidates.extend([
+			f'{root}/usr/txtMESSTXT{i}',
+			f'{root}/usr/txtSPOP-TEXTLINE{i}',
+			f'{root}/usr/subSUBSCREEN:SAPLSPO1:0502/txtSPOP-TEXTLINE{i}',
+		])
+	for cid in candidates:
+		try:
+			obj = session.findById(cid)
+		except Exception:
+			obj = None
+		if obj is None:
+			continue
+		for attr in attrs:
+			try:
+				_push(getattr(obj, attr, ''))
+			except Exception:
+				continue
+
+	# Hala yoksa popup altındaki txt/lbl tiplerini gez.
+	try:
+		root_obj = session.findById(root)
+	except Exception:
+		root_obj = None
+
+	stack = [root_obj] if root_obj is not None else []
+	while stack and len(parts) < limit:
+		node = stack.pop(0)
+		try:
+			node_id = str(getattr(node, 'Id', '') or getattr(node, 'ID', '') or '')
+			node_type = str(getattr(node, 'Type', '') or '')
+		except Exception:
+			node_id = ''
+			node_type = ''
+		low_id = node_id.casefold()
+		low_type = node_type.casefold()
+		if '/txt' in low_id or '/lbl' in low_id or 'label' in low_type or 'text' in low_type:
+			for attr in attrs:
+				try:
+					_push(getattr(node, attr, ''))
+				except Exception:
+					continue
+		stack.extend(_iter_children(node))
+
+	# Sık görülen teknik etiketleri eleyerek daha temiz mesaj döndür.
+	noise_tokens = {'wnd[1]', 'usr', 'tbar[0]', 'shellcont', 'shell', 'button_1', 'button_2', 'button_3'}
+	clean = []
+	for p in parts:
+		if p.casefold() in noise_tokens:
+			continue
+		clean.append(p)
+	return ' | '.join(clean[:limit])
+
+
 def _press_popup_button_by_text(popup, keyword_list):
 	"""Popup içinde metnine göre uygun butonu bulup basar."""
 	keywords = [str(k or '').strip().casefold() for k in (keyword_list or []) if str(k or '').strip()]
@@ -3039,7 +3122,9 @@ def sap_process_run_preview(request, process_id):
 					_runtime_finish(process_id)
 					return JsonResponse({'ok': True, 'logs': logs, 'ran_until': i, 'connection_template': conn.get('template_name', '')})
 				title = str(getattr(popup, 'Text', '') or '').strip()
-				popup_text = _collect_node_text(popup)
+				popup_message_text = _collect_popup_message_text(service.session, popup_root_id, limit=120)
+				popup_deep_text = _collect_node_text(popup, limit=220)
+				popup_text = ' | '.join([p for p in [popup_message_text, popup_deep_text] if p])
 				title_contains = _normalize_match_text(str(cfg.get('popup_title_contains', '') or ''))
 				text_contains = _normalize_match_text(str(cfg.get('popup_text_contains', '') or ''))
 				title_norm = _normalize_match_text(title)
