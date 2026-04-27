@@ -2538,7 +2538,7 @@ def sap_process_run_preview(request, process_id):
 				row_text_contains = str(cfg.get('row_text_contains', '') or '').strip()
 				normalized_grid_id = _normalize_session_element_id(grid_id)
 				wait_timeout_sec = max(1, min(int(cfg.get('wait_timeout_sec') or 25), 60))
-				popup_wait_sec = max(1, min(int(cfg.get('popup_wait_sec') or 12), wait_timeout_sec))
+				popup_wait_sec = max(1, min(int(cfg.get('popup_wait_sec') or wait_timeout_sec), wait_timeout_sec))
 				allow_main_fallback = bool(cfg.get('allow_main_fallback', True))
 				grid = None
 				grid_source = ''
