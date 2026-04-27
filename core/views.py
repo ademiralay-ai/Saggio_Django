@@ -6,6 +6,8 @@ import ftplib
 import socket
 import os
 import fnmatch
+import tempfile
+import uuid
 from email.mime.text import MIMEText
 from datetime import datetime
 from django.http import JsonResponse
@@ -290,6 +292,83 @@ def _send_telegram_message(bot, chat_id, text):
 		return False, str(e)
 
 
+def _send_telegram_voice_message(bot, chat_id, text):
+	"""Windows SAPI ile ses dosyası üretip Telegram'a ses dosyası olarak gönderir."""
+	if not bot or not bot.is_active:
+		return False, 'Telegram bot aktif degil veya secilmedi.'
+	if not chat_id:
+		return False, 'Telegram chat id secilmedi.'
+	token = bot.get_bot_token()
+	if not token:
+		return False, 'Telegram token cozulmedi.'
+
+	voice_text = str(text or '').strip()
+	if not voice_text:
+		return False, 'Sesli mesaj metni boş.'
+
+	tmp_path = None
+	try:
+		import pythoncom
+		import win32com.client
+
+		pythoncom.CoInitialize()
+		with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmpf:
+			tmp_path = tmpf.name
+
+		voice = win32com.client.Dispatch('SAPI.SpVoice')
+		stream = win32com.client.Dispatch('SAPI.SpFileStream')
+		# 3 = SSFMCreateForWrite
+		stream.Open(tmp_path, 3, False)
+		voice.AudioOutputStream = stream
+		voice.Speak(voice_text)
+		stream.Close()
+
+		with open(tmp_path, 'rb') as fp:
+			file_data = fp.read()
+
+		boundary = f'----SaggioBoundary{uuid.uuid4().hex}'
+		parts = []
+
+		def _add_text(name, value):
+			parts.append(f'--{boundary}'.encode('utf-8'))
+			parts.append(f'Content-Disposition: form-data; name="{name}"'.encode('utf-8'))
+			parts.append(b'')
+			parts.append(str(value).encode('utf-8'))
+
+		_add_text('chat_id', str(chat_id))
+		_add_text('caption', 'Saggio RPA sesli bildirim')
+
+		parts.append(f'--{boundary}'.encode('utf-8'))
+		parts.append(b'Content-Disposition: form-data; name="audio"; filename="saggio_notification.wav"')
+		parts.append(b'Content-Type: audio/wav')
+		parts.append(b'')
+		parts.append(file_data)
+
+		parts.append(f'--{boundary}--'.encode('utf-8'))
+		parts.append(b'')
+		body = b'\r\n'.join(parts)
+
+		req = Request(
+			f'https://api.telegram.org/bot{token}/sendAudio',
+			data=body,
+			method='POST',
+			headers={'Content-Type': f'multipart/form-data; boundary={boundary}'},
+		)
+		with urlopen(req, timeout=20) as resp:
+			payload = json.loads(resp.read().decode('utf-8') or '{}')
+			if payload.get('ok'):
+				return True, 'telegram_voice_ok'
+			return False, payload.get('description', 'telegram_voice_api_error')
+	except Exception as e:
+		return False, str(e)
+	finally:
+		if tmp_path and os.path.exists(tmp_path):
+			try:
+				os.remove(tmp_path)
+			except Exception:
+				pass
+
+
 def _send_mail_message(account, to_value, subject, body):
 	if not account or not account.is_active:
 		return False, 'Mail hesabi aktif degil veya secilmedi.'
@@ -327,6 +406,7 @@ def _notify_sap_event(notification, phase, result_payload=None):
 
 	tg_bot_id = notification.get('telegram_bot_id')
 	tg_group_id = notification.get('telegram_group_id')
+	tg_voice_enabled = bool(notification.get('telegram_voice_enabled'))
 	mail_id = notification.get('mail_account_id')
 
 	bot = TelegramBot.objects.filter(pk=tg_bot_id, is_active=True).first() if tg_bot_id else None
@@ -345,6 +425,9 @@ def _notify_sap_event(notification, phase, result_payload=None):
 			text = str(notification.get('telegram_end_message') or '').strip() or end_default
 		ok, msg = _send_telegram_message(bot, group.chat_id, text)
 		notes.append({'channel': 'telegram', 'ok': ok, 'msg': msg})
+		if ok and tg_voice_enabled:
+			v_ok, v_msg = _send_telegram_voice_message(bot, group.chat_id, text)
+			notes.append({'channel': 'telegram_voice', 'ok': v_ok, 'msg': v_msg})
 
 	if mail_account:
 		to_value = str(notification.get('mail_to') or '').strip() or mail_account.email
@@ -1060,14 +1143,13 @@ def sap_process_scan_grids(request, process_id):
 				norm_id = _normalize_session_element_id(node_id)
 				lower_type = node_type.casefold()
 				lower_id = norm_id.casefold()
-				# GuiTableControl: type'ta "tablecontrol" var veya ID'de "/tbl" segmenti var
-				# GuiShell (ALV grid): type'ta "shell" var ve ID'de "shellcont" veya "grid" geçiyor
-				is_grid = (
-					'tablecontrol' in lower_type
-					or '/tbl' in lower_id
-					or (lower_id.split('/')[-1].startswith('tbl'))
-					or ('shell' in lower_type and ('shellcont' in lower_id or 'grid' in lower_id))
+				last_segment = lower_id.split('/')[-1] if lower_id else ''
+				# Yalnızca gerçek grid kontrolü dönsün; hücre (txt..., lbl...) ID'lerini dışarıda bırak.
+				is_table_control = ('tablecontrol' in lower_type) or last_segment.startswith('tbl')
+				is_shell_grid = ('shell' in lower_type) and (
+					last_segment.startswith('shell') or 'grid' in lower_id or 'shellcont' in lower_id
 				)
+				is_grid = is_table_control or is_shell_grid
 				if is_grid and norm_id and norm_id not in seen_ids:
 					name = str(getattr(current, 'Name', '') or '').strip()
 					text = str(getattr(current, 'Text', '') or '').strip()
@@ -1489,6 +1571,41 @@ def _get_grid_row_count(grid):
 	return 0
 
 
+def _select_row_on_grid(grid, row_index):
+	"""Hem ALV grid hem GuiTableControl için satır seçmeyi dener."""
+	try:
+		idx = max(0, int(row_index or 0))
+	except Exception:
+		idx = 0
+
+	row_count = _get_grid_row_count(grid)
+	if row_count > 0:
+		idx = min(idx, row_count - 1)
+
+	errors = []
+
+	# GuiTableControl için en güvenilir yöntem
+	try:
+		abs_row = grid.getAbsoluteRow(idx)
+		abs_row.selected = True
+		return True, idx, None
+	except Exception as ex:
+		errors.append(f'getAbsoluteRow: {ex}')
+
+	# ALV GridView için yaygın yöntem
+	try:
+		grid.currentCellRow = idx
+		try:
+			grid.selectedRows = str(idx)
+		except Exception:
+			pass
+		return True, idx, None
+	except Exception as ex:
+		errors.append(f'currentCellRow/selectedRows: {ex}')
+
+	return False, idx, ' | '.join(errors)
+
+
 def _find_grid(service, grid_id='', timeout_sec=5, grid_type='main'):
 	normalized_id = _normalize_session_element_id(grid_id)
 	deadline = time.time() + max(1, timeout_sec)
@@ -1784,23 +1901,50 @@ def sap_process_run_preview(request, process_id):
 		overlay.close()
 		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
 
-	# Bildirim konfigürasyonu — ilk aktif bot+group ve mail hesabını kullan
+	# Bildirim konfigürasyonu — öncelik şablondaki notification alanı
 	_notify_cfg = {}
+	_template_notify = {}
+	try:
+		tpl_name = str(conn.get('template_name', '') or '').strip()
+		if tpl_name:
+			tpl = SAPTemplateService.get_template(tpl_name)
+			if isinstance(tpl, dict):
+				state = tpl.get('state', {}) if isinstance(tpl.get('state'), dict) else {}
+				notification = state.get('notification', {}) if isinstance(state.get('notification'), dict) else {}
+				_template_notify = notification
+	except Exception:
+		_template_notify = {}
+
+	def _as_int(value):
+		try:
+			v = str(value or '').strip()
+			return int(v) if v else None
+		except Exception:
+			return None
+
 	if proc.telegram_notifications_enabled:
-		_tg_bot = TelegramBot.objects.filter(is_active=True).order_by('pk').first()
-		_tg_group = TelegramGroup.objects.filter(is_active=True).order_by('pk').first()
-		if _tg_bot and _tg_group:
-			_notify_cfg['telegram_bot_id'] = _tg_bot.pk
-			_notify_cfg['telegram_group_id'] = _tg_group.pk
+		tg_bot_id = _as_int(_template_notify.get('telegram_bot_id'))
+		tg_group_id = _as_int(_template_notify.get('telegram_group_id'))
+		if tg_bot_id and tg_group_id:
+			_notify_cfg['telegram_bot_id'] = tg_bot_id
+			_notify_cfg['telegram_group_id'] = tg_group_id
+			_notify_cfg['telegram_voice_enabled'] = bool(proc.telegram_voice_enabled)
+			for key in ('telegram_start_message', 'telegram_end_message'):
+				value = str(_template_notify.get(key, '') or '').strip()
+				if value:
+					_notify_cfg[key] = value
+
 	if proc.mail_notifications_enabled:
-		_mail_acc = MailAccount.objects.filter(is_active=True).order_by('pk').first()
-		if _mail_acc:
-			_notify_cfg['mail_account_id'] = _mail_acc.pk
-			_notify_cfg['mail_to'] = _mail_acc.email
-			_notify_cfg['mail_subject'] = f'Saggio RPA – {proc.name}'
+		mail_id = _as_int(_template_notify.get('mail_account_id'))
+		if mail_id:
+			_notify_cfg['mail_account_id'] = mail_id
+			for key in ('mail_to', 'mail_subject', 'mail_start_message', 'mail_end_message'):
+				value = str(_template_notify.get(key, '') or '').strip()
+				if value:
+					_notify_cfg[key] = value
 
 	# Başlangıç bildirimi
-	if _notify_cfg:
+	if ('telegram_bot_id' in _notify_cfg and 'telegram_group_id' in _notify_cfg) or ('mail_account_id' in _notify_cfg):
 		_notify_sap_event(_notify_cfg, 'start')
 
 	try:
@@ -1981,10 +2125,11 @@ def sap_process_run_preview(request, process_id):
 					row_index = max(0, int(cfg.get('row_index') or 1) - 1)
 				except (TypeError, ValueError):
 					row_index = 0
-				grid.currentCellRow = row_index
-				grid.selectedRows = str(row_index)
+				ok_select, applied_idx, err_msg = _select_row_on_grid(grid, row_index)
+				if not ok_select:
+					return JsonResponse({'ok': False, 'error': f'Grid satırı seçilemedi: {err_msg}', 'logs': logs, 'failed_at': i}, status=500)
 				service._wait_until_idle(service.session, timeout_sec=5)
-				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {row_index + 1}'})
+				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {applied_idx + 1}'})
 
 			elif step_type == SapProcessStep.TYPE_SAP_POPUP_DECIDE:
 				ok, payload = _ensure_session_ready()
@@ -2106,12 +2251,14 @@ def sap_process_run_preview(request, process_id):
 							if grid:
 								if a_value.lower() == 'current':
 									# User'ın SAP'ta tıkladığı satırı al
-									row_idx = grid.currentCellRow
+									row_idx = int(getattr(grid, 'currentCellRow', 0) or 0)
 								else:
 									row_idx = int(a_value or 0)
-								grid.currentCellRow = row_idx
-								grid.selectedRows = str(row_idx)
-								logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {row_idx}'})
+								ok_select, applied_idx, err_msg = _select_row_on_grid(grid, row_idx)
+								if ok_select:
+									logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {applied_idx + 1}'})
+								else:
+									logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Grid seçim hatası: {err_msg}'})
 							else:
 								logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': 'Grid bulunamadı'})
 						except Exception as ge:
@@ -2348,6 +2495,6 @@ def sap_process_run_preview(request, process_id):
 	overlay.push_log('Süreç tamamlandı')
 	overlay.close()
 	# Bitiş bildirimi
-	if _notify_cfg:
+	if ('telegram_bot_id' in _notify_cfg and 'telegram_group_id' in _notify_cfg) or ('mail_account_id' in _notify_cfg):
 		_notify_sap_event(_notify_cfg, 'end', logs)
 	return JsonResponse({'ok': True, 'logs': logs, 'ran_until': upto_index, 'connection_template': conn.get('template_name', '')})
