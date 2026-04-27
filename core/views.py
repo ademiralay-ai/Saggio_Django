@@ -414,113 +414,116 @@ def _send_telegram_voice_message(bot, chat_id, text):
 	tmp_ogg_path = None
 	tmp_mp3_path = None
 	co_initialized = False
-	try:
-		import pythoncom
-		import win32com.client
+	errors = []
 
-		def _send_voice_file(path_value, filename_value, content_type_value):
-			with open(path_value, 'rb') as fp:
-				file_data = fp.read()
+	def _send_voice_file(path_value, filename_value, content_type_value):
+		with open(path_value, 'rb') as fp:
+			file_data = fp.read()
 
-			boundary = f'----SaggioBoundary{uuid.uuid4().hex}'
-			parts = []
+		boundary = f'----SaggioBoundary{uuid.uuid4().hex}'
+		parts = []
 
-			def _add_text(name, value):
-				parts.append(f'--{boundary}'.encode('utf-8'))
-				parts.append(f'Content-Disposition: form-data; name="{name}"'.encode('utf-8'))
-				parts.append(b'')
-				parts.append(str(value).encode('utf-8'))
-
-			_add_text('chat_id', str(chat_id))
-			_add_text('caption', 'Saggio RPA sesli bildirim')
-
+		def _add_text(name, value):
 			parts.append(f'--{boundary}'.encode('utf-8'))
-			parts.append(f'Content-Disposition: form-data; name="voice"; filename="{filename_value}"'.encode('utf-8'))
-			parts.append(f'Content-Type: {content_type_value}'.encode('utf-8'))
+			parts.append(f'Content-Disposition: form-data; name="{name}"'.encode('utf-8'))
 			parts.append(b'')
-			parts.append(file_data)
+			parts.append(str(value).encode('utf-8'))
 
-			parts.append(f'--{boundary}--'.encode('utf-8'))
-			parts.append(b'')
-			body = b'\r\n'.join(parts)
+		_add_text('chat_id', str(chat_id))
+		_add_text('caption', 'Saggio RPA sesli bildirim')
 
-			req = Request(
-				f'https://api.telegram.org/bot{token}/sendVoice',
-				data=body,
-				method='POST',
-				headers={'Content-Type': f'multipart/form-data; boundary={boundary}'},
-			)
-			with urlopen(req, timeout=20) as resp:
-				payload = json.loads(resp.read().decode('utf-8') or '{}')
-				if payload.get('ok'):
-					return True, 'telegram_voice_ok'
-				return False, payload.get('description', 'telegram_voice_api_error')
+		parts.append(f'--{boundary}'.encode('utf-8'))
+		parts.append(f'Content-Disposition: form-data; name="voice"; filename="{filename_value}"'.encode('utf-8'))
+		parts.append(f'Content-Type: {content_type_value}'.encode('utf-8'))
+		parts.append(b'')
+		parts.append(file_data)
 
-		pythoncom.CoInitialize()
-		co_initialized = True
-		with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmpf:
-			tmp_wav_path = tmpf.name
-		with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as tmpf:
-			tmp_ogg_path = tmpf.name
+		parts.append(f'--{boundary}--'.encode('utf-8'))
+		parts.append(b'')
+		body = b'\r\n'.join(parts)
 
-		voice = win32com.client.Dispatch('SAPI.SpVoice')
-		# Türkçe sese öncelik ver (kuruluysa)
+		req = Request(
+			f'https://api.telegram.org/bot{token}/sendVoice',
+			data=body,
+			method='POST',
+			headers={'Content-Type': f'multipart/form-data; boundary={boundary}'},
+		)
+		with urlopen(req, timeout=20) as resp:
+			payload = json.loads(resp.read().decode('utf-8') or '{}')
+			if payload.get('ok'):
+				return True, 'telegram_voice_ok'
+			return False, payload.get('description', 'telegram_voice_api_error')
+	try:
 		try:
-			voices = voice.GetVoices()
-			selected_voice = None
-			count = int(getattr(voices, 'Count', 0) or 0)
-			for i in range(count):
-				try:
-					candidate = voices.Item(i)
-					desc = str(candidate.GetDescription() or '').casefold()
-					lang = str(candidate.GetAttribute('Language') or '').casefold()
-					if 'turkish' in desc or 'türk' in desc or '041f' in lang:
-						selected_voice = candidate
-						break
-				except Exception:
-					continue
-			if selected_voice is not None:
-				voice.Voice = selected_voice
-		except Exception:
-			pass
-		try:
-			voice.Rate = -1
-		except Exception:
-			pass
-		stream = win32com.client.Dispatch('SAPI.SpFileStream')
-		# 3 = SSFMCreateForWrite
-		stream.Open(tmp_wav_path, 3, False)
-		voice.AudioOutputStream = stream
-		voice.Speak(voice_text)
-		stream.Close()
+			import pythoncom
+			import win32com.client
 
-		errors = []
-		ffmpeg_path = shutil.which('ffmpeg')
-		if ffmpeg_path:
-			convert_cmd = [
-				ffmpeg_path,
-				'-y',
-				'-i',
-				tmp_wav_path,
-				'-c:a',
-				'libopus',
-				'-b:a',
-				'24k',
-				tmp_ogg_path,
-			]
-			convert_result = subprocess.run(convert_cmd, capture_output=True, text=True)
-			if convert_result.returncode == 0 and os.path.exists(tmp_ogg_path) and os.path.getsize(tmp_ogg_path) > 0:
-				ok, detail = _send_voice_file(tmp_ogg_path, 'saggio_notification.ogg', 'audio/ogg')
-				if ok:
-					return True, detail
-				errors.append(f'ogg_send_failed: {detail}')
+			pythoncom.CoInitialize()
+			co_initialized = True
+			with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmpf:
+				tmp_wav_path = tmpf.name
+			with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as tmpf:
+				tmp_ogg_path = tmpf.name
+
+			voice = win32com.client.Dispatch('SAPI.SpVoice')
+			# Türkçe sese öncelik ver (kuruluysa)
+			try:
+				voices = voice.GetVoices()
+				selected_voice = None
+				count = int(getattr(voices, 'Count', 0) or 0)
+				for i in range(count):
+					try:
+						candidate = voices.Item(i)
+						desc = str(candidate.GetDescription() or '').casefold()
+						lang = str(candidate.GetAttribute('Language') or '').casefold()
+						if 'turkish' in desc or 'türk' in desc or '041f' in lang:
+							selected_voice = candidate
+							break
+					except Exception:
+						continue
+				if selected_voice is not None:
+					voice.Voice = selected_voice
+			except Exception:
+				pass
+			try:
+				voice.Rate = -1
+			except Exception:
+				pass
+			stream = win32com.client.Dispatch('SAPI.SpFileStream')
+			# 3 = SSFMCreateForWrite
+			stream.Open(tmp_wav_path, 3, False)
+			voice.AudioOutputStream = stream
+			voice.Speak(voice_text)
+			stream.Close()
+
+			ffmpeg_path = shutil.which('ffmpeg')
+			if ffmpeg_path:
+				convert_cmd = [
+					ffmpeg_path,
+					'-y',
+					'-i',
+					tmp_wav_path,
+					'-c:a',
+					'libopus',
+					'-b:a',
+					'24k',
+					tmp_ogg_path,
+				]
+				convert_result = subprocess.run(convert_cmd, capture_output=True, text=True)
+				if convert_result.returncode == 0 and os.path.exists(tmp_ogg_path) and os.path.getsize(tmp_ogg_path) > 0:
+					ok, detail = _send_voice_file(tmp_ogg_path, 'saggio_notification.ogg', 'audio/ogg')
+					if ok:
+						return True, detail
+					errors.append(f'ogg_send_failed: {detail}')
+				else:
+					err = (convert_result.stderr or convert_result.stdout or 'ffmpeg convert hatasi').strip()
+					errors.append(f'ffmpeg_convert_failed: {err}')
 			else:
-				err = (convert_result.stderr or convert_result.stdout or 'ffmpeg convert hatasi').strip()
-				errors.append(f'ffmpeg_convert_failed: {err}')
-		else:
-			errors.append('ffmpeg_not_found')
+				errors.append('ffmpeg_not_found')
+		except Exception as sapi_ex:
+			errors.append(f'sapi_flow_failed: {sapi_ex}')
 
-		# ffmpeg/opus başarısız olursa gTTS ile MP3 üretip sendVoice dene.
+		# SAPI/ffmpeg başarısız olursa gTTS ile MP3 üretip sendVoice dene.
 		try:
 			from gtts import gTTS
 			with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmpf:
@@ -558,6 +561,104 @@ def _send_telegram_voice_message(bot, chat_id, text):
 				os.remove(tmp_mp3_path)
 			except Exception:
 				pass
+
+
+@require_POST
+def sap_process_scan_popups(request, process_id):
+	"""Açık SAP popup pencerelerini ve içeriklerindeki butonları tarar."""
+	proc = get_object_or_404(SapProcess, pk=process_id)
+	try:
+		body = json.loads(request.body)
+	except (json.JSONDecodeError, TypeError):
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	steps = _extract_runtime_steps(body, proc)
+	if not steps:
+		return JsonResponse({'ok': False, 'error': 'Önce en az bir adım tanımlayın.'}, status=400)
+
+	conn, conn_err = _resolve_connection_from_steps(steps)
+	if conn_err:
+		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
+
+	service = SAPScanService()
+	ok, payload = service.apply_to_screen(
+		sys_id=conn.get('sys_id', ''),
+		client=conn.get('client', ''),
+		user=conn.get('user', ''),
+		pwd=conn.get('pwd', ''),
+		lang=conn.get('lang', 'TR'),
+		t_code='',
+		root_id=conn.get('root_id', 'wnd[0]'),
+		extra_wait=conn.get('extra_wait', 0),
+		actions=[],
+		execute_f8=False,
+	)
+	if not ok:
+		return JsonResponse({'ok': False, 'error': payload}, status=500)
+
+	session = getattr(service, 'session', None)
+	if session is None:
+		return JsonResponse({'ok': False, 'error': 'Aktif SAP session bulunamadı.'}, status=500)
+
+	popups = []
+	seen = set()
+	try:
+		children = getattr(session, 'Children', None)
+		count = int(getattr(children, 'Count', 0) or 0) if children is not None else 0
+		for idx in range(1, count):
+			wnd = None
+			try:
+				wnd = children(idx)
+			except Exception:
+				try:
+					wnd = children.Item(idx)
+				except Exception:
+					wnd = None
+			if wnd is None:
+				continue
+
+			popup_id = _normalize_session_element_id(str(getattr(wnd, 'Id', '') or '').strip())
+			title = str(getattr(wnd, 'Text', '') or '').strip()
+			text = _collect_node_text(wnd, limit=120)
+			key = f'{popup_id}|{title}|{text}'.casefold()
+			if key in seen:
+				continue
+			seen.add(key)
+
+			buttons = []
+			btn_seen = set()
+			stack = [wnd]
+			while stack:
+				node = stack.pop(0)
+				try:
+					node_type = str(getattr(node, 'Type', '') or '').casefold()
+					node_id = _normalize_session_element_id(str(getattr(node, 'Id', '') or '').strip())
+					if ('button' in node_type or '/btn' in node_id.casefold()) and node_id not in btn_seen:
+						btn_seen.add(node_id)
+						btn_text = str(getattr(node, 'Text', '') or '').strip()
+						btn_name = str(getattr(node, 'Name', '') or '').strip()
+						btn_label = btn_text or btn_name or node_id or 'Popup Butonu'
+						buttons.append({
+							'id': node_id,
+							'text': btn_text,
+							'name': btn_name,
+							'label': f'{btn_label} [{node_id}]',
+						})
+				except Exception:
+					pass
+				stack.extend(_iter_children(node))
+
+			popups.append({
+				'id': popup_id,
+				'title': title,
+				'text': text,
+				'buttons': buttons,
+				'label': f'{title or popup_id or "Popup"} [{popup_id}]',
+			})
+	except Exception as ex:
+		return JsonResponse({'ok': False, 'error': f'Popup tarama hatası: {ex}'}, status=500)
+
+	return JsonResponse({'ok': True, 'popups': popups, 'count': len(popups)})
 
 
 def _send_mail_message(account, to_value, subject, body):

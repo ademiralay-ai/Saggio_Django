@@ -182,6 +182,7 @@
     const SCAN_BUTTONS_URL = '{% url "sap_process_scan_buttons" process.id %}';
     const SCAN_GRIDS_URL   = '{% url "sap_process_scan_grids" process.id %}';
     const SCAN_SCREENS_URL = '{% url "sap_process_scan_screens" process.id %}';
+    const SCAN_POPUPS_URL  = '{% url "sap_process_scan_popups" process.id %}';
     const RUN_URL      = '{% url "sap_process_run_preview" process.id %}';
     const CSRF         = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
     const TEMPLATE_NAMES = {{ template_names|safe }};
@@ -189,6 +190,7 @@
 
     let steps = {{ steps_json|safe }};   // [{id, order, step_type, label, config}]
     let _pendingDeleteIdx = null;
+    const _popupScanCacheByStep = {};
 
     // ── Step meta ─────────────────────────────────────────────────────────
     const STEP_META = {
@@ -321,6 +323,18 @@
             return `
             <div class="spb-config-grid">
                 <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Açık popup ekranlarını tara</label>
+                    <div class="spb-inline-tools">
+                        <button type="button" class="btn spb-scan-popups-btn" data-idx="__IDX__" title="Açık popup ekranlarını tara">
+                            <i class="fas fa-search"></i> Popup Tara
+                        </button>
+                        <select class="spb-input spb-popup-scan-select" data-idx="__IDX__">
+                            <option value="">— Tarama sonucu popup seçiniz —</option>
+                        </select>
+                    </div>
+                    <div class="spb-config-note"><i class="fas fa-info-circle"></i> Seçilen popupın başlığı/metni alanlara yazılır, butonları listelenir.</div>
+                </div>
+                <div class="spb-field spb-field-full">
                     <label class="spb-field-label">Popup başlığı içersin (boş = önemseme)</label>
                     <input type="text" class="spb-input" data-key="popup_title_contains" value="${esc(data.popup_title_contains||'')}" maxlength="200" placeholder="Örn: Program ADEMIRALAY kullanıcısı tarafından bloke ed">
                 </div>
@@ -342,6 +356,12 @@
                 <div class="spb-field spb-popup-buttonid-wrap">
                     <label class="spb-field-label">Popup buton ID</label>
                     <input type="text" class="spb-input" data-key="popup_button_id" value="${esc(data.popup_button_id||'')}" placeholder="wnd[1]/usr/btnSPOP-OPTION1">
+                </div>
+                <div class="spb-field spb-field-full spb-popup-button-select-wrap">
+                    <label class="spb-field-label">Popup butonları (taramadan)</label>
+                    <select class="spb-input spb-popup-button-select">
+                        <option value="">— Popup butonu seçiniz —</option>
+                    </select>
                 </div>
                 <div class="spb-field">
                     <label class="spb-field-label">Popup bulunma timeout (sn)</label>
@@ -740,6 +760,36 @@
             });
         });
 
+        // SAP popup tara (sap_popup_decide)
+        list.querySelectorAll('.spb-scan-popups-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await scanSapPopupsForStep(i, btn);
+            });
+        });
+
+        // Popup seçilince başlık/metin ve buton listesi doldur
+        list.querySelectorAll('.spb-popup-scan-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const stepIdx = Number(card?.dataset?.idx || sel.dataset.idx || -1);
+                const popups = _popupScanCacheByStep[stepIdx] || [];
+                const popup = popups.find(p => String(p.id || '') === String(sel.value || ''));
+                if (popup) {
+                    applyScannedPopupToCard(card, popup);
+                }
+            });
+        });
+
+        // Popup buton listesi seçilince popup_button_id alanına yaz
+        list.querySelectorAll('.spb-popup-button-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const idInput = card?.querySelector('[data-key="popup_button_id"]');
+                if (idInput && sel.value) idInput.value = sel.value;
+            });
+        });
+
         // Ekran seçilince screen_title alanına yaz
         list.querySelectorAll('.spb-wait-screen-select').forEach(sel => {
             sel.addEventListener('change', () => {
@@ -781,12 +831,14 @@
         if (!card) return;
         const popupAction = card.querySelector('.spb-popup-action');
         const popupBtnWrap = card.querySelector('.spb-popup-buttonid-wrap');
+        const popupBtnSelectWrap = card.querySelector('.spb-popup-button-select-wrap');
         const popupMatchAction = card.querySelector('.spb-popup-match-action');
         const popupTargetWrap = card.querySelector('.spb-popup-target-wrap');
 
         const refreshPopupUI = () => {
             const actionVal = String(popupAction?.value || '');
             if (popupBtnWrap) popupBtnWrap.style.display = actionVal === 'press_button_id' ? '' : 'none';
+            if (popupBtnSelectWrap) popupBtnSelectWrap.style.display = actionVal === 'press_button_id' ? '' : 'none';
             const matchVal = String(popupMatchAction?.value || 'next_step');
             if (popupTargetWrap) popupTargetWrap.style.display = matchVal === 'goto_step' ? '' : 'none';
         };
@@ -1139,6 +1191,46 @@
         selectEl.innerHTML = opts.join('');
     }
 
+    function fillPopupSelectForCard(card, popups) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-popup-scan-select');
+        if (!selectEl) return;
+
+        const opts = ['<option value="">— Tarama sonucu popup seçiniz —</option>'];
+        (popups || []).forEach(p => {
+            const id = esc(String(p.id || ''));
+            const label = esc(String(p.label || p.id || 'Popup'));
+            opts.push(`<option value="${id}">${label}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+    }
+
+    function fillPopupButtonSelectForCard(card, buttons) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-popup-button-select');
+        const idInput = card.querySelector('[data-key="popup_button_id"]');
+        if (!selectEl) return;
+        const selectedId = String(idInput?.value || '').trim();
+
+        const opts = ['<option value="">— Popup butonu seçiniz —</option>'];
+        (buttons || []).forEach(b => {
+            const id = esc(String(b.id || ''));
+            const label = esc(String(b.label || b.id || 'Popup Butonu'));
+            const selected = selectedId && selectedId === String(b.id || '') ? ' selected' : '';
+            opts.push(`<option value="${id}"${selected}>${label}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+    }
+
+    function applyScannedPopupToCard(card, popup) {
+        if (!card || !popup) return;
+        const titleInput = card.querySelector('[data-key="popup_title_contains"]');
+        const textInput = card.querySelector('[data-key="popup_text_contains"]');
+        if (titleInput) titleInput.value = String(popup.title || '');
+        if (textInput) textInput.value = String(popup.text || '').slice(0, 300);
+        fillPopupButtonSelectForCard(card, popup.buttons || []);
+    }
+
     function bindWaitTimeoutMode(card) {
         const actionSel = card?.querySelector('.spb-timeout-action');
         const targetWrap = card?.querySelector('.spb-timeout-target-wrap');
@@ -1291,6 +1383,53 @@
             if (typeof showToast === 'function') showToast(`${data.count || 0} grid bulundu.`, 'success');
         } catch (e) {
             if (typeof showToast === 'function') showToast('Grid tarama bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+    }
+
+    async function scanSapPopupsForStep(stepIdx, sourceBtn) {
+        syncAllFromDOM();
+        const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
+        if (!card) return;
+
+        const btn = sourceBtn || card.querySelector('.spb-scan-popups-btn');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taranıyor...';
+        }
+
+        try {
+            const resp = await fetch(SCAN_POPUPS_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({
+                    steps: steps.map((s, i) => ({
+                        step_type: s.step_type,
+                        order: i,
+                        label: s.label || '',
+                        config: s.config || {},
+                    })),
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast('Popup tarama hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+                return;
+            }
+            const popups = Array.isArray(data.popups) ? data.popups : [];
+            _popupScanCacheByStep[stepIdx] = popups;
+            fillPopupSelectForCard(card, popups);
+            if (popups.length > 0) {
+                applyScannedPopupToCard(card, popups[0]);
+            }
+            if (typeof showToast === 'function') showToast(`${data.count || 0} popup bulundu.`, 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Popup tarama bağlantı hatası: ' + e.message, 'error');
         } finally {
             if (btn) {
                 btn.disabled = false;
