@@ -10,6 +10,25 @@
     <p>Robotun adım adım ne yapacağını tanımla, kaydet.</p>
 </section>
 
+<aside id="spb-live-panel" class="spb-live-panel" aria-live="polite">
+    <div class="spb-live-head">
+        <i class="fas fa-wave-square"></i>
+        Canlı Süreç Logu
+    </div>
+    <div id="spb-live-status" class="spb-live-status">Durum: Hazır</div>
+    <div class="spb-live-actions">
+        <button id="spb-live-pause-btn" type="button" class="btn" title="Süreç duraklat/devam et">
+            <i class="fas fa-pause"></i> Duraklat
+        </button>
+        <button id="spb-live-stop-btn" type="button" class="btn btn-danger" title="Süreci tamamen durdur">
+            <i class="fas fa-stop"></i> Durdur
+        </button>
+    </div>
+    <div id="spb-live-logs" class="spb-live-logs">
+        <div class="spb-live-log-item">Henüz log yok.</div>
+    </div>
+</aside>
+
 <div class="spb-wrap">
     <!-- ── Başlık / Meta ──────────────────────────────────────── -->
     <div class="spb-meta-card">
@@ -158,6 +177,8 @@
     const SAVE_URL     = '{% url "sap_process_step_save" process.id %}';
     const RENAME_URL   = '{% url "sap_process_rename" process.id %}';
     const RUNTIME_SETTINGS_URL = '{% url "sap_process_runtime_settings_save" process.id %}';
+    const RUNTIME_CONTROL_URL = '{% url "sap_process_runtime_control" process.id %}';
+    const RUNTIME_STATUS_URL  = '{% url "sap_process_runtime_status" process.id %}';
     const SCAN_BUTTONS_URL = '{% url "sap_process_scan_buttons" process.id %}';
     const SCAN_GRIDS_URL   = '{% url "sap_process_scan_grids" process.id %}';
     const SCAN_SCREENS_URL = '{% url "sap_process_scan_screens" process.id %}';
@@ -902,6 +923,91 @@
         `;
     }
 
+    let _runtimePollTimer = null;
+    let _runtimeRunActive = false;
+
+    function renderLiveRuntimePanel(state) {
+        const statusEl = document.getElementById('spb-live-status');
+        const logsEl = document.getElementById('spb-live-logs');
+        const pauseBtn = document.getElementById('spb-live-pause-btn');
+        const stopBtn = document.getElementById('spb-live-stop-btn');
+        if (!statusEl || !logsEl) return;
+
+        const s = state || {};
+        const running = !!s.running || _runtimeRunActive;
+        const paused = !!s.paused;
+        const stopped = !!s.stop_requested;
+        const current = Number(s.current_step || 0);
+        const total = Number(s.total_steps || 0);
+        const stepName = String(s.step_name || '').trim();
+
+        if (stopped) {
+            statusEl.textContent = 'Durum: Durdurma istendi';
+        } else if (paused) {
+            statusEl.textContent = `Durum: Duraklatıldı${total ? ` | Adım ${current}/${total}` : ''}${stepName ? ` - ${stepName}` : ''}`;
+        } else if (running) {
+            statusEl.textContent = `Durum: Çalışıyor${total ? ` | Adım ${current}/${total}` : ''}${stepName ? ` - ${stepName}` : ''}`;
+        } else {
+            statusEl.textContent = 'Durum: Hazır';
+        }
+
+        const logs = Array.isArray(s.logs) ? s.logs : [];
+        logsEl.innerHTML = logs.length
+            ? logs.slice(-18).map(l => `<div class="spb-live-log-item">${esc(String(l || ''))}</div>`).join('')
+            : '<div class="spb-live-log-item">Henüz log yok.</div>';
+        logsEl.scrollTop = logsEl.scrollHeight;
+
+        if (pauseBtn) {
+            pauseBtn.disabled = !running && !paused;
+            pauseBtn.innerHTML = paused
+                ? '<i class="fas fa-play"></i> Devam Et'
+                : '<i class="fas fa-pause"></i> Duraklat';
+        }
+        if (stopBtn) {
+            stopBtn.disabled = !running || stopped;
+        }
+    }
+
+    async function pollRuntimeStatus() {
+        try {
+            const resp = await fetch(RUNTIME_STATUS_URL, {cache: 'no-store'});
+            const data = await resp.json();
+            if (data?.ok) renderLiveRuntimePanel(data.state || {});
+        } catch (_) {
+            // Sessiz geç: panel son state'i korur.
+        }
+    }
+
+    function startRuntimePolling() {
+        if (_runtimePollTimer) return;
+        pollRuntimeStatus();
+        _runtimePollTimer = setInterval(pollRuntimeStatus, 700);
+    }
+
+    function stopRuntimePolling() {
+        if (!_runtimePollTimer) return;
+        clearInterval(_runtimePollTimer);
+        _runtimePollTimer = null;
+    }
+
+    async function sendRuntimeControl(action) {
+        try {
+            const resp = await fetch(RUNTIME_CONTROL_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({action}),
+            });
+            const data = await resp.json();
+            if (!data?.ok) {
+                if (typeof showToast === 'function') showToast(data?.error || 'Canlı kontrol hatası.', 'error');
+                return;
+            }
+            renderLiveRuntimePanel(data.state || {});
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Canlı kontrol bağlantı hatası: ' + e.message, 'error');
+        }
+    }
+
     async function runProcessToStep(uptoIndex = null, sourceBtn = null) {
         syncAllFromDOM();
         const hasTemplate = steps.some(s => s.step_type === 'sap_fill' && String((s.config || {}).template_name || '').trim());
@@ -923,6 +1029,8 @@
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Çalışıyor...';
         }
+        _runtimeRunActive = true;
+        startRuntimePolling();
         try {
             const payload = {
                 upto_index: targetIndex,
@@ -954,6 +1062,9 @@
         } catch (e) {
             if (typeof showToast === 'function') showToast('Bağlantı hatası: ' + e.message, 'error');
         } finally {
+            _runtimeRunActive = false;
+            await pollRuntimeStatus();
+            stopRuntimePolling();
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = orig;
@@ -1187,6 +1298,14 @@
     // ── Init ─────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
         renderSteps();
+
+        document.getElementById('spb-live-pause-btn')?.addEventListener('click', async () => {
+            await sendRuntimeControl('pause_toggle');
+        });
+        document.getElementById('spb-live-stop-btn')?.addEventListener('click', async () => {
+            await sendRuntimeControl('stop');
+        });
+        pollRuntimeStatus();
 
         document.getElementById('spb-ghost-overlay-enabled')?.addEventListener('change', saveRuntimeSettings);
         document.getElementById('spb-office-auto-close')?.addEventListener('change', saveRuntimeSettings);

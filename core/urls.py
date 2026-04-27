@@ -5,7 +5,7 @@ from .views import (
     sap_scan, sap_apply, sap_run,
     sap_template_list, sap_template_get, sap_template_save, sap_template_delete,
     sap_process_list, sap_process_builder, sap_process_delete,
-    sap_process_step_save, sap_process_rename, sap_process_runtime_settings_save, sap_process_scan_buttons, sap_process_scan_screens, sap_process_scan_grids, sap_process_run_preview,
+    sap_process_step_save, sap_process_rename, sap_process_runtime_settings_save, sap_process_runtime_control, sap_process_runtime_status, sap_process_scan_buttons, sap_process_scan_screens, sap_process_scan_grids, sap_process_run_preview,
     scheduler, settings_page, telegram_bots_manage, telegram_groups_manage,
 )
 
@@ -34,6 +34,8 @@ urlpatterns = [
     path('sap-process/<int:process_id>/steps/save/', sap_process_step_save, name='sap_process_step_save'),
     path('sap-process/<int:process_id>/rename/', sap_process_rename, name='sap_process_rename'),
     path('sap-process/<int:process_id>/runtime-settings/', sap_process_runtime_settings_save, name='sap_process_runtime_settings_save'),
+    path('sap-process/<int:process_id>/runtime-control/', sap_process_runtime_control, name='sap_process_runtime_control'),
+    path('sap-process/<int:process_id>/runtime-status/', sap_process_runtime_status, name='sap_process_runtime_status'),
     path('sap-process/<int:process_id>/scan-buttons/', sap_process_scan_buttons, name='sap_process_scan_buttons'),
     path('sap-process/<int:process_id>/scan-screens/', sap_process_scan_screens, name='sap_process_scan_screens'),
     path('sap-process/<int:process_id>/scan-grids/', sap_process_scan_grids, name='sap_process_scan_grids'),

@@ -8,6 +8,7 @@ import os
 import fnmatch
 import tempfile
 import uuid
+import threading
 from email.mime.text import MIMEText
 from datetime import datetime
 from django.http import JsonResponse
@@ -29,6 +30,107 @@ try:
 	import tkinter as tk
 except Exception:
 	tk = None
+
+
+_PROCESS_RUNTIME = {}
+_PROCESS_RUNTIME_LOCK = threading.Lock()
+
+
+def _runtime_init(process_id, process_name, total_steps):
+	pid = int(process_id)
+	with _PROCESS_RUNTIME_LOCK:
+		_PROCESS_RUNTIME[pid] = {
+			'process_id': pid,
+			'process_name': str(process_name or ''),
+			'total_steps': int(total_steps or 0),
+			'current_step': 0,
+			'step_name': '',
+			'paused': False,
+			'stop_requested': False,
+			'running': True,
+			'updated_at': datetime.now().isoformat(),
+			'logs': [],
+		}
+
+
+def _runtime_get(process_id):
+	pid = int(process_id)
+	with _PROCESS_RUNTIME_LOCK:
+		state = _PROCESS_RUNTIME.get(pid)
+		if not state:
+			return None
+		return {
+			'process_id': state.get('process_id'),
+			'process_name': state.get('process_name', ''),
+			'total_steps': int(state.get('total_steps', 0) or 0),
+			'current_step': int(state.get('current_step', 0) or 0),
+			'step_name': state.get('step_name', ''),
+			'paused': bool(state.get('paused')),
+			'stop_requested': bool(state.get('stop_requested')),
+			'running': bool(state.get('running')),
+			'updated_at': state.get('updated_at'),
+			'logs': list(state.get('logs') or []),
+		}
+
+
+def _runtime_touch(process_id):
+	pid = int(process_id)
+	with _PROCESS_RUNTIME_LOCK:
+		state = _PROCESS_RUNTIME.get(pid)
+		if not state:
+			return
+		state['updated_at'] = datetime.now().isoformat()
+
+
+def _runtime_set_controls(process_id, *, paused=None, stop_requested=None):
+	pid = int(process_id)
+	with _PROCESS_RUNTIME_LOCK:
+		state = _PROCESS_RUNTIME.get(pid)
+		if not state:
+			return
+		if paused is not None:
+			state['paused'] = bool(paused)
+		if stop_requested is not None:
+			state['stop_requested'] = bool(stop_requested)
+		state['updated_at'] = datetime.now().isoformat()
+
+
+def _runtime_set_step(process_id, step_no, total_steps, step_name):
+	pid = int(process_id)
+	with _PROCESS_RUNTIME_LOCK:
+		state = _PROCESS_RUNTIME.get(pid)
+		if not state:
+			return
+		state['current_step'] = int(step_no or 0)
+		state['total_steps'] = int(total_steps or state.get('total_steps', 0) or 0)
+		state['step_name'] = str(step_name or '')
+		state['updated_at'] = datetime.now().isoformat()
+
+
+def _runtime_push_log(process_id, text):
+	msg = str(text or '').strip()
+	if not msg:
+		return
+	pid = int(process_id)
+	with _PROCESS_RUNTIME_LOCK:
+		state = _PROCESS_RUNTIME.get(pid)
+		if not state:
+			return
+		logs = state.setdefault('logs', [])
+		logs.append(msg)
+		if len(logs) > 120:
+			del logs[:-120]
+		state['updated_at'] = datetime.now().isoformat()
+
+
+def _runtime_finish(process_id):
+	pid = int(process_id)
+	with _PROCESS_RUNTIME_LOCK:
+		state = _PROCESS_RUNTIME.get(pid)
+		if not state:
+			return
+		state['running'] = False
+		state['updated_at'] = datetime.now().isoformat()
 
 
 def get_dashboard_stats():
@@ -316,6 +418,29 @@ def _send_telegram_voice_message(bot, chat_id, text):
 			tmp_path = tmpf.name
 
 		voice = win32com.client.Dispatch('SAPI.SpVoice')
+		# Türkçe sese öncelik ver (kuruluysa)
+		try:
+			voices = voice.GetVoices()
+			selected_voice = None
+			count = int(getattr(voices, 'Count', 0) or 0)
+			for i in range(count):
+				try:
+					candidate = voices.Item(i)
+					desc = str(candidate.GetDescription() or '').casefold()
+					lang = str(candidate.GetAttribute('Language') or '').casefold()
+					if 'turkish' in desc or 'türk' in desc or '041f' in lang:
+						selected_voice = candidate
+						break
+				except Exception:
+					continue
+			if selected_voice is not None:
+				voice.Voice = selected_voice
+		except Exception:
+			pass
+		try:
+			voice.Rate = -1
+		except Exception:
+			pass
 		stream = win32com.client.Dispatch('SAPI.SpFileStream')
 		# 3 = SSFMCreateForWrite
 		stream.Open(tmp_path, 3, False)
@@ -926,6 +1051,43 @@ def sap_process_runtime_settings_save(request, process_id):
 
 
 @require_POST
+def sap_process_runtime_control(request, process_id):
+	"""Canlı süreç kontrolü: duraklat/devam et/durdur."""
+	get_object_or_404(SapProcess, pk=process_id)
+	try:
+		body = json.loads(request.body)
+	except (json.JSONDecodeError, TypeError):
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	action = str(body.get('action', '') or '').strip().casefold()
+	state = _runtime_get(process_id)
+	if state is None:
+		return JsonResponse({'ok': False, 'error': 'Bu süreç için aktif runtime bulunamadı.'}, status=404)
+
+	if action == 'pause_toggle':
+		_runtime_set_controls(process_id, paused=not bool(state.get('paused')), stop_requested=bool(state.get('stop_requested')))
+	elif action == 'pause':
+		_runtime_set_controls(process_id, paused=True)
+	elif action == 'resume':
+		_runtime_set_controls(process_id, paused=False)
+	elif action == 'stop':
+		_runtime_set_controls(process_id, paused=False, stop_requested=True)
+	else:
+		return JsonResponse({'ok': False, 'error': f'Desteklenmeyen aksiyon: {action}'}, status=400)
+
+	return JsonResponse({'ok': True, 'state': _runtime_get(process_id)})
+
+
+def sap_process_runtime_status(request, process_id):
+	"""Canlı süreç durumunu ve hayalet log akışını döndürür."""
+	get_object_or_404(SapProcess, pk=process_id)
+	state = _runtime_get(process_id)
+	if state is None:
+		return JsonResponse({'ok': True, 'state': {'running': False, 'paused': False, 'stop_requested': False, 'current_step': 0, 'total_steps': 0, 'step_name': '', 'logs': []}})
+	return JsonResponse({'ok': True, 'state': state})
+
+
+@require_POST
 def sap_process_scan_buttons(request, process_id):
 	"""Açık SAP ekranındaki butonları tarayıp process builder için döndürür."""
 	proc = get_object_or_404(SapProcess, pk=process_id)
@@ -1313,9 +1475,10 @@ def _close_office_express_popups(service):
 
 class _GhostOverlayWindow:
 	"""Süreç çalışırken masaüstünde üstte kalan basit durum penceresi."""
-	def __init__(self, enabled, process_name):
+	def __init__(self, enabled, process_name, process_id=None):
 		self.enabled = bool(enabled)
 		self.process_name = str(process_name or '').strip() or 'SAP Süreci'
+		self.process_id = int(process_id) if process_id is not None else None
 		self.pc_name = os.environ.get('COMPUTERNAME') or socket.gethostname() or 'Bilinmeyen'
 		self.root = None
 		self.label = None
@@ -1412,6 +1575,8 @@ class _GhostOverlayWindow:
 		if not self.enabled or self.stop_requested:
 			return
 		self.paused = not self.paused
+		if self.process_id is not None:
+			_runtime_set_controls(self.process_id, paused=self.paused, stop_requested=self.stop_requested)
 		self._render()
 
 	def request_stop(self):
@@ -1419,6 +1584,8 @@ class _GhostOverlayWindow:
 			return
 		self.stop_requested = True
 		self.paused = False
+		if self.process_id is not None:
+			_runtime_set_controls(self.process_id, paused=False, stop_requested=True)
 		self._render()
 
 	def poll_controls(self):
@@ -1439,15 +1606,19 @@ class _GhostOverlayWindow:
 		return bool(self.stop_requested)
 
 	def set_step(self, step_no, total_steps, step_name):
+		if self.process_id is not None:
+			_runtime_set_step(self.process_id, step_no, total_steps, step_name)
 		if not self.enabled:
 			return
 		self.current_step = f'{step_no}/{total_steps} - {step_name}'
 		self._render()
 
 	def push_log(self, text):
+		msg = str(text or '').strip()
+		if self.process_id is not None and msg:
+			_runtime_push_log(self.process_id, msg)
 		if not self.enabled:
 			return
-		msg = str(text or '').strip()
 		if msg:
 			self.logs.append(msg)
 		self._render()
@@ -1963,22 +2134,27 @@ def _ftp_upload(account, local_file, remote_path):
 def sap_process_run_preview(request, process_id):
 	"""Süreci (veya belirtilen adıma kadar) gerçek SAP oturumunda çalıştır."""
 	proc = get_object_or_404(SapProcess, pk=process_id)
-	overlay = _GhostOverlayWindow(enabled=proc.ghost_overlay_enabled, process_name=proc.name)
+	_runtime_init(process_id, proc.name, 0)
+	overlay = _GhostOverlayWindow(enabled=proc.ghost_overlay_enabled, process_name=proc.name, process_id=process_id)
 	overlay.push_log('Süreç başlatıldı')
 	try:
 		body = json.loads(request.body)
 	except (json.JSONDecodeError, TypeError):
 		overlay.close()
+		_runtime_finish(process_id)
 		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
 
 	steps = _extract_runtime_steps(body, proc)
 	if not steps:
 		overlay.close()
+		_runtime_finish(process_id)
 		return JsonResponse({'ok': False, 'error': 'Çalıştırılacak adım yok.'}, status=400)
+	_runtime_set_step(process_id, 0, len(steps), '')
 
 	conn, conn_err = _resolve_connection_from_steps(steps)
 	if conn_err:
 		overlay.close()
+		_runtime_finish(process_id)
 		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
 
 	# Bildirim konfigürasyonu — öncelik şablondaki notification alanı
@@ -2056,13 +2232,22 @@ def sap_process_run_preview(request, process_id):
 		return ok, payload
 
 	def _handle_overlay_controls(failed_at_index):
+		state = _runtime_get(process_id) or {}
+		web_stop = bool(state.get('stop_requested'))
+		web_paused = bool(state.get('paused'))
+		if web_stop:
+			overlay.stop_requested = True
+		if web_paused != bool(overlay.paused):
+			overlay.paused = web_paused
 		if overlay.poll_controls():
 			overlay.push_log('Kullanıcı süreci durdurdu')
 			overlay.close()
+			_runtime_finish(process_id)
 			return JsonResponse({'ok': False, 'error': 'Süreç kullanıcı tarafından durduruldu.', 'logs': logs, 'failed_at': failed_at_index}, status=409)
 		if overlay.wait_if_paused():
 			overlay.push_log('Kullanıcı süreci durdurdu')
 			overlay.close()
+			_runtime_finish(process_id)
 			return JsonResponse({'ok': False, 'error': 'Süreç kullanıcı tarafından durduruldu.', 'logs': logs, 'failed_at': failed_at_index}, status=409)
 		return None
 
@@ -2082,6 +2267,7 @@ def sap_process_run_preview(request, process_id):
 				overlay.push_log(msg)
 		if iteration_count >= max_iterations:
 			overlay.close()
+			_runtime_finish(process_id)
 			return JsonResponse({'ok': False, 'error': 'Süreç maksimum iterasyon sınırına ulaştı.', 'logs': logs, 'failed_at': i}, status=500)
 		iteration_count += 1
 		step = steps[i]
@@ -2287,6 +2473,7 @@ def sap_process_run_preview(request, process_id):
 				elif on_match_action == 'stop':
 					overlay.push_log('Popup adımı sonrası süreç durduruldu')
 					overlay.close()
+					_runtime_finish(process_id)
 					return JsonResponse({'ok': True, 'logs': logs, 'ran_until': i, 'connection_template': conn.get('template_name', '')})
 				elif on_match_action == 'fail':
 					return JsonResponse({'ok': False, 'error': f'Popup eşleşti ve hata aksiyonu tetiklendi. Başlık: {title}', 'logs': logs, 'failed_at': i}, status=400)
@@ -2594,6 +2781,7 @@ def sap_process_run_preview(request, process_id):
 				overlay.push_log(f'Hata (devam): {ex}')
 				continue
 			overlay.close()
+			_runtime_finish(process_id)
 			return JsonResponse({'ok': False, 'error': str(ex), 'logs': logs, 'failed_at': i}, status=500)
 
 		if proc.office_express_auto_close:
@@ -2609,6 +2797,7 @@ def sap_process_run_preview(request, process_id):
 		i = next_i
 	overlay.push_log('Süreç tamamlandı')
 	overlay.close()
+	_runtime_finish(process_id)
 	# Bitiş bildirimi
 	if ('telegram_bot_id' in _notify_cfg and 'telegram_group_id' in _notify_cfg) or ('mail_account_id' in _notify_cfg):
 		_notify_sap_event(_notify_cfg, 'end', logs)

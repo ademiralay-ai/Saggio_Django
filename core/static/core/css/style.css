@@ -1987,6 +1987,13 @@ tbody tr:hover {
     gap: 14px;
 }
 
+@media (min-width: 1281px) {
+    .spb-wrap {
+        margin-left: 320px;
+        margin-right: auto;
+    }
+}
+
 /* ── Sabit Aksiyon Çubuğu ─────────────────────────────────── */
 .spb-sticky-bar {
     position: fixed;
@@ -2148,6 +2155,79 @@ tbody tr:hover {
 
 .spb-run-log-item.err {
     background: rgba(210, 40, 70, .16);
+}
+
+.spb-live-panel {
+    position: fixed;
+    left: 14px;
+    top: 108px;
+    width: 280px;
+    max-height: calc(100vh - 140px);
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    border-radius: 12px;
+    box-shadow: 0 10px 34px rgba(0, 0, 0, .22);
+    padding: 10px;
+}
+
+.spb-live-head {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spb-live-status {
+    font-size: 12px;
+    color: var(--text-main);
+    border: 1px solid var(--border-glass);
+    border-radius: 8px;
+    padding: 6px 8px;
+    background: rgba(127, 127, 127, .08);
+}
+
+.spb-live-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.spb-live-actions .btn {
+    flex: 1;
+}
+
+.spb-live-logs {
+    border: 1px solid var(--border-glass);
+    border-radius: 8px;
+    padding: 8px;
+    overflow: auto;
+    min-height: 140px;
+    max-height: calc(100vh - 280px);
+    background: rgba(0, 0, 0, .08);
+}
+
+.spb-live-log-item {
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--text-main);
+    padding: 4px 2px;
+    border-bottom: 1px dashed var(--border-glass);
+}
+
+.spb-live-log-item:last-child {
+    border-bottom: 0;
+}
+
+@media (max-width: 1280px) {
+    .spb-live-panel {
+        display: none;
+    }
 }
 
 .spb-step-list {
