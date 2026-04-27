@@ -5,6 +5,7 @@ import time
 import ftplib
 import socket
 import os
+import re
 import shutil
 import subprocess
 import fnmatch
@@ -1959,7 +1960,10 @@ def _iter_children(node):
 			try:
 				result.append(children(idx))
 			except Exception:
-				continue
+				try:
+					result.append(children.Item(idx))
+				except Exception:
+					continue
 		return result
 	except Exception:
 		return []
@@ -2268,6 +2272,44 @@ def _find_grid(service, grid_id='', timeout_sec=5, grid_type='main'):
 def _collect_node_text(node, limit=40):
 	parts = []
 	stack = [node] if node is not None else []
+
+	def _push_value(value):
+		v = str(value or '').replace('\r', ' ').replace('\n', ' ').strip()
+		if not v:
+			return
+		v = ' '.join(v.split())
+		if v and v not in parts:
+			parts.append(v)
+
+	def _extract_html_text(obj):
+		for doc_attr in ('Document', 'document', 'HtmlDocument', 'BrowserDocument'):
+			try:
+				doc = getattr(obj, doc_attr, None)
+			except Exception:
+				doc = None
+			if doc is None:
+				continue
+			candidates = [doc]
+			for sub_attr in ('body', 'documentElement'):
+				try:
+					sub = getattr(doc, sub_attr, None)
+				except Exception:
+					sub = None
+				if sub is not None:
+					candidates.append(sub)
+			for cand in candidates:
+				for txt_attr in ('innerText', 'Text', 'text', 'innerHTML'):
+					try:
+						raw = getattr(cand, txt_attr, None)
+					except Exception:
+						raw = None
+					if not raw:
+						continue
+					value = str(raw)
+					if txt_attr == 'innerHTML':
+						value = re.sub(r'<[^>]+>', ' ', value)
+					_push_value(value)
+
 	while stack and len(parts) < limit:
 		current = stack.pop(0)
 		for attr in ('Text', 'text', 'Tooltip', 'DefaultTooltip', 'Name', 'Caption', 'Title', 'Value', 'MessageText'):
@@ -2275,10 +2317,8 @@ def _collect_node_text(node, limit=40):
 				value = str(getattr(current, attr, '') or '').strip()
 			except Exception:
 				value = ''
-			if value:
-				value = value.replace('\r', ' ').replace('\n', ' ').strip()
-			if value and value not in parts:
-				parts.append(value)
+			_push_value(value)
+		_extract_html_text(current)
 		stack.extend(_iter_children(current))
 	return ' | '.join(parts)
 
@@ -2309,21 +2349,49 @@ def _press_popup_button_by_text(popup, keyword_list):
 	return False, 'metne uyan popup butonu bulunamadı.'
 
 
-def _safe_send_popup_mail(cfg, mail_enabled=True):
+def _safe_send_popup_mail(cfg, mail_enabled=True, runtime_state=None, notification_cfg=None, popup_title='', popup_text=''):
 	if not mail_enabled:
 		return 'Mail gönderimi süreç ayarında kapalı.'
 	if not bool(cfg.get('send_mail_on_match')):
 		return None
-	mail_to = str(cfg.get('mail_to', '') or '').strip()
-	account_id = cfg.get('mail_account_id')
-	if not mail_to or not account_id:
-		return 'Mail atlandi: hesap veya alici eksik.'
+	rt = runtime_state if isinstance(runtime_state, dict) else {}
+	notify = notification_cfg if isinstance(notification_cfg, dict) else {}
+
+	mail_to = str(cfg.get('mail_to', '') or '').strip() or str(notify.get('mail_to', '') or '').strip()
+	account_id = cfg.get('mail_account_id') or notify.get('mail_account_id')
+	if not account_id:
+		return 'Mail atlandi: mail hesabı seçili değil.'
 	account = MailAccount.objects.filter(pk=account_id, is_active=True).first()
 	if not account:
 		return f'Mail atlandi: hesap bulunamadi (id={account_id}).'
+	if not mail_to:
+		mail_to = str(account.email or '').strip()
+	if not mail_to:
+		return 'Mail atlandi: alıcı bulunamadı.'
+
+	subject = str(cfg.get('mail_subject', '') or '').strip() or f'SAP popup uyarısı: {popup_title or "Popup"}'
+	body_lines = []
+	custom_body = str(cfg.get('mail_body', '') or '').strip()
+	if custom_body:
+		body_lines.append(custom_body)
+	body_lines.append(f'Popup Başlığı: {popup_title or "(boş)"}')
+	body_lines.append(f'Popup Metni: {popup_text or "(boş)"}')
+
+	memory_items = []
+	for k in sorted(rt.keys(), key=lambda x: str(x)):
+		ks = str(k)
+		if ks.startswith('sutun_') or ks.startswith('loop_'):
+			memory_items.append((ks, rt.get(k)))
+	if memory_items:
+		body_lines.append('')
+		body_lines.append('Hafıza Değerleri:')
+		for mk, mv in memory_items:
+			body_lines.append(f'- {mk}: {mv}')
+	body = '\n'.join(body_lines)
+
 	try:
-		msg = MIMEText(str(cfg.get('mail_body', '') or ''), _charset='utf-8')
-		msg['Subject'] = str(cfg.get('mail_subject', '') or 'SAP popup bildirimi')
+		msg = MIMEText(body, _charset='utf-8')
+		msg['Subject'] = subject
 		msg['From'] = account.email
 		msg['To'] = mail_to
 		if account.use_ssl:
@@ -3011,7 +3079,14 @@ def sap_process_run_preview(request, process_id):
 						return JsonResponse({'ok': False, 'error': f'Popup butonu bulunamadı: {button_id}', 'logs': logs, 'failed_at': i}, status=404)
 					button.press()
 				service._wait_until_idle(service.session, timeout_sec=10)
-				mail_msg = _safe_send_popup_mail(cfg, mail_enabled=proc.mail_notifications_enabled)
+				mail_msg = _safe_send_popup_mail(
+					cfg,
+					mail_enabled=proc.mail_notifications_enabled,
+					runtime_state=runtime_state,
+					notification_cfg=_notify_cfg,
+					popup_title=title,
+					popup_text=popup_text,
+				)
 				log_msg = f'Popup işlendi. Başlık: {title}'
 				if mail_msg:
 					log_msg = f'{log_msg} | {mail_msg}'

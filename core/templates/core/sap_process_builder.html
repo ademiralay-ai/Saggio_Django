@@ -405,6 +405,24 @@
                         Popup metni/başlığı eşleşmezse hata ver
                     </label>
                 </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="send_mail_on_match" ${data.send_mail_on_match ? 'checked' : ''}>
+                        Popup eşleşirse yetkiliye mail gönder
+                    </label>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Mail alıcı (boşsa şablondaki mail_to)</label>
+                    <input type="text" class="spb-input" data-key="mail_to" value="${esc(data.mail_to||'')}" maxlength="300" placeholder="ornek@firma.com, ikinci@firma.com">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Mail konu (boşsa otomatik)</label>
+                    <input type="text" class="spb-input" data-key="mail_subject" value="${esc(data.mail_subject||'')}" maxlength="300" placeholder="SAP popup uyarısı">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Mail mesajı (opsiyonel)</label>
+                    <textarea class="spb-input" data-key="mail_body" rows="2" maxlength="2000" placeholder="Ek açıklama...">${esc(data.mail_body||'')}</textarea>
+                </div>
             </div>`;
 
         case 'sap_press_button':
