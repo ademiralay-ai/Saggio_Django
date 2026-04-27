@@ -404,6 +404,125 @@ body {
     font-weight: 600;
 }
 
+/* ── Sidebar Arama Kutusu ──────────────────────────────── */
+.nav-search-wrap {
+    position: relative;
+    margin: 8px 10px 6px;
+    display: flex;
+    align-items: center;
+}
+
+.nav-search-icon {
+    position: absolute;
+    left: 10px;
+    color: var(--text-dim);
+    font-size: 12px;
+    pointer-events: none;
+}
+
+.nav-search-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-glass);
+    border-radius: 8px;
+    padding: 7px 32px 7px 30px;
+    color: var(--text-main);
+    font-size: 13px;
+    outline: none;
+    transition: border-color .15s;
+}
+
+.nav-search-input::placeholder {
+    color: var(--text-dim);
+    opacity: .7;
+}
+
+.nav-search-input:focus {
+    border-color: var(--neon-cyan);
+    background: rgba(0, 243, 255, 0.05);
+}
+
+.nav-search-clear {
+    position: absolute;
+    right: 7px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 4px;
+    font-size: 11px;
+    border-radius: 4px;
+}
+
+.nav-search-clear:hover {
+    color: var(--neon-cyan);
+}
+
+/* ── Collapsible Grup Başlıkları ──────────────────────── */
+.nav-group {
+    margin-bottom: 2px;
+}
+
+.menu-group-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 13px 15px 7px;
+    color: var(--text-dim);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    transition: color .15s;
+}
+
+.menu-group-btn:hover {
+    color: var(--neon-cyan);
+}
+
+.menu-group-arrow {
+    font-size: 10px;
+    transition: transform .22s ease;
+}
+
+.menu-group-arrow.rotated {
+    transform: rotate(-90deg);
+}
+
+.nav-group-items {
+    list-style: none;
+    overflow: hidden;
+    transition: height .25s ease;
+}
+
+.nav-group-items.nav-group-closed {
+    height: 0 !important;
+}
+
+/* sidebar collapsed modunda arama ve ok gizle */
+body.sidebar-collapsed .nav-search-wrap,
+body.sidebar-collapsed .menu-group-btn span,
+body.sidebar-collapsed .menu-group-arrow {
+    display: none;
+}
+
+body.sidebar-collapsed .menu-group-btn {
+    justify-content: center;
+    padding: 10px;
+}
+
+body.sidebar-collapsed .nav-group-items {
+    height: auto !important;
+    overflow: visible;
+}
+
 .nav-link {
     display: flex;
     align-items: center;

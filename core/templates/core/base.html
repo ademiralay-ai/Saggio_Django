@@ -21,98 +21,133 @@
                 <div class="logo-text">Saggio RPA</div>
             </div>
 
-            <ul class="nav-menu">
-                <li class="nav-item">
-                    <p class="menu-group">Genel</p>
-                    <a class="nav-link {% if current == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}" data-label="Dashboard">
-                        <i class="fas fa-chart-line"></i>
-                        <span>Dashboard</span>
-                    </a>
-                </li>
-                
-                <li class="nav-item">
-                    <p class="menu-group">Orkestrasyon</p>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'robots' %}active{% endif %}" href="{% url 'robots' %}" data-label="Robotlar">
-                        <i class="fas fa-robot"></i>
-                        <span>Robotlar</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'processes' %}active{% endif %}" href="{% url 'processes' %}" data-label="Süreçler">
-                        <i class="fas fa-tasks"></i>
-                        <span>Süreçler</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'queues' %}active{% endif %}" href="{% url 'queues' %}" data-label="Kuyruk Yonetimi">
-                        <i class="fas fa-list"></i>
-                        <span>Kuyruk Yonetimi</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'scheduler' %}active{% endif %}" href="{% url 'scheduler' %}" data-label="Scheduler">
-                        <i class="fas fa-clock"></i>
-                        <span>Scheduler</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'sap_scan' %}active{% endif %}" href="{% url 'sap_scan' %}" data-label="SAP Derin Tarama">
-                        <i class="fas fa-magnifying-glass"></i>
-                        <span>SAP Derin Tarama</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'sap_process' %}active{% endif %}" href="{% url 'sap_process_list' %}" data-label="SAP Süreçleri">
-                        <i class="fas fa-project-diagram"></i>
-                        <span>SAP Süreçleri</span>
-                    </a>
+            <!-- ── Hızlı Arama ─────────────────────────────── -->
+            <div class="nav-search-wrap">
+                <i class="fas fa-search nav-search-icon"></i>
+                <input id="nav-search" type="text" class="nav-search-input" placeholder="Menüde ara..." autocomplete="off">
+                <button id="nav-search-clear" class="nav-search-clear" type="button" title="Temizle"><i class="fas fa-times"></i></button>
+            </div>
+
+            <ul class="nav-menu" id="nav-menu">
+
+                <!-- GENEL -->
+                <li class="nav-group" data-group="genel">
+                    <button class="menu-group-btn" type="button" data-target="group-genel">
+                        <span>Genel</span>
+                        <i class="fas fa-chevron-down menu-group-arrow"></i>
+                    </button>
+                    <ul class="nav-group-items" id="group-genel">
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}" data-label="Dashboard">
+                                <i class="fas fa-chart-line"></i>
+                                <span>Dashboard</span>
+                            </a>
+                        </li>
+                    </ul>
                 </li>
 
-                <li class="nav-item">
-                    <p class="menu-group">Bildirim</p>
+                <!-- ORKESTRASyon -->
+                <li class="nav-group" data-group="orkestrasyon">
+                    <button class="menu-group-btn" type="button" data-target="group-orkestrasyon">
+                        <span>Orkestrasyon</span>
+                        <i class="fas fa-chevron-down menu-group-arrow"></i>
+                    </button>
+                    <ul class="nav-group-items" id="group-orkestrasyon">
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'robots' %}active{% endif %}" href="{% url 'robots' %}" data-label="Robotlar">
+                                <i class="fas fa-robot"></i>
+                                <span>Robotlar</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'processes' %}active{% endif %}" href="{% url 'processes' %}" data-label="Süreçler">
+                                <i class="fas fa-tasks"></i>
+                                <span>Süreçler</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'queues' %}active{% endif %}" href="{% url 'queues' %}" data-label="Kuyruk Yonetimi">
+                                <i class="fas fa-list"></i>
+                                <span>Kuyruk Yonetimi</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'scheduler' %}active{% endif %}" href="{% url 'scheduler' %}" data-label="Scheduler">
+                                <i class="fas fa-clock"></i>
+                                <span>Scheduler</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'sap_scan' %}active{% endif %}" href="{% url 'sap_scan' %}" data-label="SAP Derin Tarama">
+                                <i class="fas fa-magnifying-glass"></i>
+                                <span>SAP Derin Tarama</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'sap_process' %}active{% endif %}" href="{% url 'sap_process_list' %}" data-label="SAP Süreçleri">
+                                <i class="fas fa-project-diagram"></i>
+                                <span>SAP Süreçleri</span>
+                            </a>
+                        </li>
+                    </ul>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'telegram_bots_manage' %}active{% endif %}" href="{% url 'telegram_bots_manage' %}" data-label="Telegram Botlari">
-                        <i class="fab fa-telegram"></i>
-                        <span>Telegram Botlari</span>
-                    </a>
+
+                <!-- BİLDİRİM -->
+                <li class="nav-group" data-group="bildirim">
+                    <button class="menu-group-btn" type="button" data-target="group-bildirim">
+                        <span>Bildirim</span>
+                        <i class="fas fa-chevron-down menu-group-arrow"></i>
+                    </button>
+                    <ul class="nav-group-items" id="group-bildirim">
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'telegram_bots_manage' %}active{% endif %}" href="{% url 'telegram_bots_manage' %}" data-label="Telegram Botlari">
+                                <i class="fab fa-telegram"></i>
+                                <span>Telegram Botlari</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'telegram_groups_manage' %}active{% endif %}" href="{% url 'telegram_groups_manage' %}" data-label="Telegram Gruplari">
+                                <i class="fas fa-users"></i>
+                                <span>Telegram Gruplari</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'mail_accounts_manage' %}active{% endif %}" href="{% url 'mail_accounts_manage' %}" data-label="Mail Hesaplari">
+                                <i class="fas fa-envelope"></i>
+                                <span>Mail Hesaplari</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'ftp_accounts_manage' %}active{% endif %}" href="{% url 'ftp_accounts_manage' %}" data-label="FTP Hesaplari">
+                                <i class="fas fa-server"></i>
+                                <span>FTP Hesaplari</span>
+                            </a>
+                        </li>
+                    </ul>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'telegram_groups_manage' %}active{% endif %}" href="{% url 'telegram_groups_manage' %}" data-label="Telegram Gruplari">
-                        <i class="fas fa-users"></i>
-                        <span>Telegram Gruplari</span>
-                    </a>
+
+                <!-- İZLEME -->
+                <li class="nav-group" data-group="izleme">
+                    <button class="menu-group-btn" type="button" data-target="group-izleme">
+                        <span>Izleme</span>
+                        <i class="fas fa-chevron-down menu-group-arrow"></i>
+                    </button>
+                    <ul class="nav-group-items" id="group-izleme">
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'reports' %}active{% endif %}" href="{% url 'reports' %}" data-label="Raporlar">
+                                <i class="fas fa-file-alt"></i>
+                                <span>Raporlar</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'settings' %}active{% endif %}" href="{% url 'settings' %}" data-label="Ayarlar">
+                                <i class="fas fa-cog"></i>
+                                <span>Ayarlar</span>
+                            </a>
+                        </li>
+                    </ul>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'mail_accounts_manage' %}active{% endif %}" href="{% url 'mail_accounts_manage' %}" data-label="Mail Hesaplari">
-                        <i class="fas fa-envelope"></i>
-                        <span>Mail Hesaplari</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'ftp_accounts_manage' %}active{% endif %}" href="{% url 'ftp_accounts_manage' %}" data-label="FTP Hesaplari">
-                        <i class="fas fa-server"></i>
-                        <span>FTP Hesaplari</span>
-                    </a>
-                </li>
-                
-                <li class="nav-item">
-                    <p class="menu-group">Izleme</p>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'reports' %}active{% endif %}" href="{% url 'reports' %}" data-label="Raporlar">
-                        <i class="fas fa-file-alt"></i>
-                        <span>Raporlar</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current == 'settings' %}active{% endif %}" href="{% url 'settings' %}" data-label="Ayarlar">
-                        <i class="fas fa-cog"></i>
-                        <span>Ayarlar</span>
-                    </a>
-                </li>
+
             </ul>
 
         </aside>
@@ -219,6 +254,111 @@
     {% block page_scripts %}{% endblock %}
 
     <script>
+    // ── Sidebar: Collapsible Groups + Search ─────────────────────────────
+    (function () {
+        const STORAGE_KEY = 'saggio_nav_collapsed';
+
+        function getCollapsed() {
+            try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+        }
+        function setCollapsed(arr) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+        }
+
+        function initGroups() {
+            const collapsed = getCollapsed();
+            document.querySelectorAll('.menu-group-btn').forEach(btn => {
+                const targetId = btn.dataset.target;
+                const panel    = document.getElementById(targetId);
+                if (!panel) return;
+
+                // Aktif link içeren grup varsayılan açık kalır
+                const hasActive = panel.querySelector('.nav-link.active');
+                const isCollapsed = !hasActive && collapsed.includes(targetId);
+
+                if (isCollapsed) {
+                    panel.style.height = '0';
+                    panel.classList.add('nav-group-closed');
+                    btn.querySelector('.menu-group-arrow')?.classList.add('rotated');
+                } else {
+                    panel.style.height = panel.scrollHeight + 'px';
+                }
+
+                btn.addEventListener('click', () => {
+                    const isClosed = panel.classList.contains('nav-group-closed');
+                    const arr = getCollapsed();
+                    if (isClosed) {
+                        panel.classList.remove('nav-group-closed');
+                        panel.style.height = panel.scrollHeight + 'px';
+                        btn.querySelector('.menu-group-arrow')?.classList.remove('rotated');
+                        const idx = arr.indexOf(targetId);
+                        if (idx !== -1) arr.splice(idx, 1);
+                    } else {
+                        panel.style.height = panel.scrollHeight + 'px';
+                        requestAnimationFrame(() => {
+                            panel.style.height = panel.scrollHeight + 'px';
+                            requestAnimationFrame(() => {
+                                panel.classList.add('nav-group-closed');
+                                panel.style.height = '0';
+                                btn.querySelector('.menu-group-arrow')?.classList.add('rotated');
+                            });
+                        });
+                        if (!arr.includes(targetId)) arr.push(targetId);
+                    }
+                    setCollapsed(arr);
+                });
+            });
+        }
+
+        function initSearch() {
+            const input  = document.getElementById('nav-search');
+            const clear  = document.getElementById('nav-search-clear');
+            if (!input) return;
+
+            input.addEventListener('input', () => {
+                const q = input.value.trim().toLocaleLowerCase('tr');
+                clear.style.display = q ? 'flex' : 'none';
+
+                if (!q) {
+                    // Aramayı temizle: orijinal collapse durumuna dön
+                    document.querySelectorAll('.nav-item').forEach(li => li.style.display = '');
+                    document.querySelectorAll('.nav-group').forEach(g => g.style.display = '');
+                    document.querySelectorAll('.nav-group-items').forEach(p => p.style.removeProperty('height'));
+                    initGroups();
+                    return;
+                }
+
+                // Arama modunda tüm panelleri aç, sadece eşleşenleri göster
+                document.querySelectorAll('.nav-group-items').forEach(p => {
+                    p.classList.remove('nav-group-closed');
+                    p.style.height = 'auto';
+                });
+                document.querySelectorAll('.nav-group').forEach(group => {
+                    let anyVisible = false;
+                    group.querySelectorAll('.nav-item').forEach(li => {
+                        const label = (li.querySelector('[data-label]')?.dataset.label || li.textContent || '').toLocaleLowerCase('tr');
+                        const match = label.includes(q);
+                        li.style.display = match ? '' : 'none';
+                        if (match) anyVisible = true;
+                    });
+                    group.style.display = anyVisible ? '' : 'none';
+                });
+            });
+
+            clear.addEventListener('click', () => {
+                input.value = '';
+                input.dispatchEvent(new Event('input'));
+                input.focus();
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initGroups();
+            initSearch();
+        });
+    })();
+    // ─────────────────────────────────────────────────────────────────────
+
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
