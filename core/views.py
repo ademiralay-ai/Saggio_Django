@@ -860,7 +860,8 @@ def sap_process_scan_buttons(request, process_id):
 	use_current_screen = bool(body.get('use_current_screen', True))
 	t_code = '' if use_current_screen else str(conn.get('t_code', '') or '').strip()
 
-	ok, payload = service.scan_screen(
+	# apply_to_screen ile bağlan — session'a erişerek tüm pencereleri (wnd[0]+wnd[1]+...) tarayabilelim
+	ok, payload = service.apply_to_screen(
 		sys_id=conn.get('sys_id', ''),
 		client=conn.get('client', ''),
 		user=conn.get('user', ''),
@@ -869,37 +870,63 @@ def sap_process_scan_buttons(request, process_id):
 		t_code=t_code,
 		root_id=conn.get('root_id', 'wnd[0]'),
 		extra_wait=conn.get('extra_wait', 0),
+		actions=[],
+		execute_f8=False,
 	)
 	if not ok:
 		return JsonResponse({'ok': False, 'error': payload}, status=500)
 
-	rows = payload if isinstance(payload, list) else []
+	session = getattr(service, 'session', None)
+	if session is None:
+		return JsonResponse({'ok': False, 'error': 'Aktif SAP session bulunamadı.'}, status=500)
+
 	buttons = []
 	seen_ids = set()
-	for row in rows:
-		if not isinstance(row, dict):
-			continue
-		raw_id = str(row.get('id', '') or '').strip()
-		if not raw_id:
-			continue
-		norm_id = _normalize_session_element_id(raw_id)
-		type_name = str(row.get('type', '') or '').strip()
-		name = str(row.get('name', '') or '').strip()
-		text = str(row.get('text', '') or '').strip()
 
-		is_button = ('button' in type_name.casefold()) or ('/btn[' in norm_id.casefold())
-		if not is_button:
-			continue
-		if norm_id in seen_ids:
-			continue
-		seen_ids.add(norm_id)
-		buttons.append({
-			'id': norm_id,
-			'type': type_name,
-			'name': name,
-			'text': text,
-			'label': f'{text or name or type_name or "Buton"} [{norm_id}]',
-		})
+	def _collect_buttons(node):
+		stack = [node] if node is not None else []
+		while stack:
+			current = stack.pop(0)
+			try:
+				node_id = str(getattr(current, 'Id', '') or '').strip()
+				node_type = str(getattr(current, 'Type', '') or '').strip()
+				norm_id = _normalize_session_element_id(node_id)
+				lower_type = node_type.casefold()
+				is_button = ('button' in lower_type) or ('/btn[' in norm_id.casefold())
+				if is_button and norm_id and norm_id not in seen_ids:
+					name = str(getattr(current, 'Name', '') or '').strip()
+					text = str(getattr(current, 'Text', '') or '').strip()
+					seen_ids.add(norm_id)
+					buttons.append({
+						'id': norm_id,
+						'type': node_type,
+						'name': name,
+						'text': text,
+						'label': f'{text or name or node_type or "Buton"} [{norm_id}]',
+					})
+			except Exception:
+				pass
+			stack.extend(_iter_children(current))
+
+	try:
+		children = getattr(session, 'Children', None)
+		wnd_count = int(getattr(children, 'Count', 0) or 0) if children is not None else 0
+		if wnd_count == 0:
+			_collect_buttons(session)
+		else:
+			for idx in range(wnd_count):
+				wnd = None
+				try:
+					wnd = children(idx)
+				except Exception:
+					try:
+						wnd = children.Item(idx)
+					except Exception:
+						wnd = None
+				if wnd is not None:
+					_collect_buttons(wnd)
+	except Exception as ex:
+		return JsonResponse({'ok': False, 'error': f'Buton tarama hatası: {ex}'}, status=500)
 
 	buttons.sort(key=lambda x: x['id'])
 	return JsonResponse({'ok': True, 'buttons': buttons, 'count': len(buttons)})
@@ -1690,6 +1717,25 @@ def sap_process_run_preview(request, process_id):
 		overlay.close()
 		return JsonResponse({'ok': False, 'error': conn_err}, status=400)
 
+	# Bildirim konfigürasyonu — ilk aktif bot+group ve mail hesabını kullan
+	_notify_cfg = {}
+	if proc.telegram_notifications_enabled:
+		_tg_bot = TelegramBot.objects.filter(is_active=True).order_by('pk').first()
+		_tg_group = TelegramGroup.objects.filter(is_active=True).order_by('pk').first()
+		if _tg_bot and _tg_group:
+			_notify_cfg['telegram_bot_id'] = _tg_bot.pk
+			_notify_cfg['telegram_group_id'] = _tg_group.pk
+	if proc.mail_notifications_enabled:
+		_mail_acc = MailAccount.objects.filter(is_active=True).order_by('pk').first()
+		if _mail_acc:
+			_notify_cfg['mail_account_id'] = _mail_acc.pk
+			_notify_cfg['mail_to'] = _mail_acc.email
+			_notify_cfg['mail_subject'] = f'Saggio RPA – {proc.name}'
+
+	# Başlangıç bildirimi
+	if _notify_cfg:
+		_notify_sap_event(_notify_cfg, 'start')
+
 	try:
 		upto_index = int(body.get('upto_index', len(steps) - 1))
 	except (TypeError, ValueError):
@@ -1748,6 +1794,20 @@ def sap_process_run_preview(request, process_id):
 				if not tpl_name:
 					return JsonResponse({'ok': False, 'error': f'{i + 1}. adımda şablon adı boş.', 'logs': logs, 'failed_at': i}, status=400)
 				tpl = SAPTemplateService.get_template(tpl_name)
+				# Şablon uygulamadan önce açık popup pencereleri (wnd[1]+) kapat
+				if service.session is not None:
+					try:
+						_children = getattr(service.session, 'Children', None)
+						_wnd_count = int(getattr(_children, 'Count', 0) or 0) if _children is not None else 0
+						for _wi in range(_wnd_count - 1, 0, -1):
+							try:
+								_wnd = _children(_wi)
+								_wnd.sendVKey(12)  # ESC
+								service._wait_until_idle(service.session, timeout_sec=3, stable_checks=1)
+							except Exception:
+								pass
+					except Exception:
+						pass
 				if not isinstance(tpl, dict):
 					return JsonResponse({'ok': False, 'error': f'Şablon bulunamadı: {tpl_name}', 'logs': logs, 'failed_at': i}, status=404)
 
@@ -2200,4 +2260,7 @@ def sap_process_run_preview(request, process_id):
 		i = next_i
 	overlay.push_log('Süreç tamamlandı')
 	overlay.close()
+	# Bitiş bildirimi
+	if _notify_cfg:
+		_notify_sap_event(_notify_cfg, 'end', logs)
 	return JsonResponse({'ok': True, 'logs': logs, 'ran_until': upto_index, 'connection_template': conn.get('template_name', '')})
