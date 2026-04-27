@@ -2335,6 +2335,32 @@ def _find_loop_next_step_index(steps, current_index):
 	return None
 
 
+def _advance_loop_runtime(steps, runtime_state, current_index):
+	"""loop değerini bir sonraki elemana taşır ve hedef adıma dönüş indexini hesaplar."""
+	loop_values = runtime_state.get('loop_values') or []
+	if not loop_values:
+		return False, 'Döngü değeri tanımlı değil', None
+	current_idx = int(runtime_state.get('loop_index', 0) or 0)
+	next_loop_idx = current_idx + 1
+	if next_loop_idx >= len(loop_values):
+		return False, 'Döngü değerleri tamamlandı', None
+
+	runtime_state['loop_index'] = next_loop_idx
+	runtime_state['loop_value'] = loop_values[next_loop_idx]
+
+	target_idx = None
+	for back_i in range(int(current_index) - 1, -1, -1):
+		st = str(steps[back_i].get('step_type', '') or '').strip()
+		if st == SapProcessStep.TYPE_SAP_FILL:
+			target_idx = back_i
+			break
+	if target_idx is None:
+		target_idx = 0
+
+	msg = f'Döngüde sonraki kayıt: {next_loop_idx + 1}/{len(loop_values)} ({runtime_state.get("loop_value", "")}) | adıma dön: {target_idx + 1}'
+	return True, msg, target_idx
+
+
 def _ftp_list_files(account, remote_path='.', file_pattern='*'):
 	remote_path = str(remote_path or '.').strip() or '.'
 	file_pattern = str(file_pattern or '*').strip() or '*'
@@ -2518,6 +2544,7 @@ def sap_process_run_preview(request, process_id):
 
 	# Bildirim konfigürasyonu — öncelik şablondaki notification alanı
 	_notify_cfg = {}
+	_notify_setup_notes = []
 	_template_notify = {}
 	try:
 		tpl_name = str(conn.get('template_name', '') or '').strip()
@@ -2548,6 +2575,16 @@ def sap_process_run_preview(request, process_id):
 				value = str(_template_notify.get(key, '') or '').strip()
 				if value:
 					_notify_cfg[key] = value
+		else:
+			groups = list(TelegramGroup.objects.filter(is_active=True, default_bot__isnull=False, default_bot__is_active=True).order_by('id'))
+			if groups:
+				grp = groups[0]
+				_notify_cfg['telegram_bot_id'] = int(grp.default_bot_id)
+				_notify_cfg['telegram_group_id'] = int(grp.id)
+				_notify_cfg['telegram_voice_enabled'] = bool(proc.telegram_voice_enabled)
+				_notify_setup_notes.append(f'Telegram fallback uygulandı: {grp.name}')
+			else:
+				_notify_setup_notes.append('Telegram bildirim atlandı: aktif/default botlu grup bulunamadı.')
 
 	if proc.mail_notifications_enabled:
 		mail_id = _as_int(_template_notify.get('mail_account_id'))
@@ -2557,10 +2594,20 @@ def sap_process_run_preview(request, process_id):
 				value = str(_template_notify.get(key, '') or '').strip()
 				if value:
 					_notify_cfg[key] = value
+		else:
+			mails = list(MailAccount.objects.filter(is_active=True).order_by('id'))
+			if len(mails) == 1:
+				_notify_cfg['mail_account_id'] = int(mails[0].id)
+				_notify_setup_notes.append(f'Mail fallback uygulandı: {mails[0].name}')
+			else:
+				_notify_setup_notes.append('Mail bildirimi atlandı: şablonda mail hesabı seçili değil.')
 
 	# Başlangıç bildirimi
 	if ('telegram_bot_id' in _notify_cfg and 'telegram_group_id' in _notify_cfg) or ('mail_account_id' in _notify_cfg):
-		_notify_sap_event(_notify_cfg, 'start')
+		start_notes = _notify_sap_event(_notify_cfg, 'start')
+		for n in (start_notes or []):
+			if not n.get('ok'):
+				_notify_setup_notes.append(f"{n.get('channel')}: {n.get('msg')}")
 
 	try:
 		upto_index = int(body.get('upto_index', len(steps) - 1))
@@ -2574,6 +2621,9 @@ def sap_process_run_preview(request, process_id):
 	service = SAPScanService()
 	logs = []
 	runtime_state = {}
+	for note in (_notify_setup_notes or []):
+		logs.append({'step': 0, 'type': 'notification', 'label': 'Bildirim', 'ok': False if 'atlandı' in str(note).casefold() else True, 'msg': str(note)})
+		overlay.push_log(str(note))
 
 	def _ensure_session_ready():
 		ok, payload = service.apply_to_screen(
@@ -2872,6 +2922,13 @@ def sap_process_run_preview(request, process_id):
 					loop_idx = _find_loop_next_step_index(steps, i)
 					if loop_idx is not None:
 						next_i = loop_idx
+					else:
+						advanced, loop_msg, target_idx = _advance_loop_runtime(steps, runtime_state, i)
+						if advanced:
+							next_i = target_idx
+							logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Popup sonrası loop_next adımı olmadan döngü ilerletildi: {loop_msg}'})
+						else:
+							logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Popup sonrası loop_next adımı bulunamadı ve döngü ilerletilemedi: {loop_msg}'})
 				elif on_match_action == 'stop':
 					overlay.push_log('Popup adımı sonrası süreç durduruldu')
 					overlay.close()
@@ -2930,7 +2987,12 @@ def sap_process_run_preview(request, process_id):
 								next_i = loop_idx
 								logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, döngüde sonraki elemana geçildi ({loop_idx + 1}. adım): {cfg.get("screen_title", "")}'})
 							else:
-								logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, loop_next adımı bulunamadı; sonraki adıma geçildi: {cfg.get("screen_title", "")}'})
+								advanced, loop_msg, target_idx = _advance_loop_runtime(steps, runtime_state, i)
+								if advanced:
+									next_i = target_idx
+									logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, loop_next adımı olmadan döngü ilerletildi: {loop_msg}'})
+								else:
+									logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, loop_next adımı bulunamadı ve döngü ilerletilemedi: {loop_msg}'})
 						else:
 							return JsonResponse({'ok': False, 'error': f'Beklenen ekran başlığı zaman aşımına uğradı: {cfg.get("screen_title", "")}', 'logs': logs, 'failed_at': i}, status=408)
 					else:
@@ -3084,35 +3146,18 @@ def sap_process_run_preview(request, process_id):
 				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'SAP kapatma komutu gönderildi'})
 
 			elif step_type == SapProcessStep.TYPE_LOOP_NEXT:
-				loop_values = runtime_state.get('loop_values') or []
-				if not loop_values:
-					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Döngü değeri tanımlı değil, adım atlandı'})
+				advanced, loop_msg, target_idx = _advance_loop_runtime(steps, runtime_state, i)
+				if not advanced:
+					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': loop_msg})
 				else:
-					current_idx = int(runtime_state.get('loop_index', 0) or 0)
-					next_loop_idx = current_idx + 1
-					if next_loop_idx >= len(loop_values):
-						logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': 'Döngü değerleri tamamlandı'})
-					else:
-						runtime_state['loop_index'] = next_loop_idx
-						runtime_state['loop_value'] = loop_values[next_loop_idx]
-
-						# Varsayılan davranış: bir önceki sap_fill adımına dön ve yeni loop değeriyle devam et.
-						target_idx = None
-						for back_i in range(i - 1, -1, -1):
-							st = str(steps[back_i].get('step_type', '') or '').strip()
-							if st == SapProcessStep.TYPE_SAP_FILL:
-								target_idx = back_i
-								break
-						if target_idx is None:
-							target_idx = 0
-						next_i = target_idx
-						logs.append({
-							'step': i + 1,
-							'type': step_type,
-							'label': step_name,
-							'ok': True,
-							'msg': f'Döngüde sonraki kayıt: {next_loop_idx + 1}/{len(loop_values)} ({runtime_state.get("loop_value", "")}) | adıma dön: {target_idx + 1}'
-						})
+					next_i = target_idx
+					logs.append({
+						'step': i + 1,
+						'type': step_type,
+						'label': step_name,
+						'ok': True,
+						'msg': loop_msg
+					})
 
 			elif step_type == SapProcessStep.TYPE_SAP_SCAN:
 				ok, payload = _ensure_session_ready()
