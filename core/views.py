@@ -2315,6 +2315,26 @@ def _resolve_connection_from_steps(steps):
 	return None, 'Bağlantı bilgisi çözümlemek için en az bir geçerli Şablon adımı gerekli.'
 
 
+def _find_loop_next_step_index(steps, current_index):
+	"""loop_next adımını bulur; önce ileri, yoksa baştan mevcut adıma kadar arar."""
+	try:
+		start_idx = int(current_index)
+	except Exception:
+		start_idx = -1
+
+	for k in range(start_idx + 1, len(steps)):
+		st = str(steps[k].get('step_type', '') or '').strip()
+		if st == SapProcessStep.TYPE_LOOP_NEXT:
+			return k
+
+	for k in range(0, max(0, start_idx + 1)):
+		st = str(steps[k].get('step_type', '') or '').strip()
+		if st == SapProcessStep.TYPE_LOOP_NEXT:
+			return k
+
+	return None
+
+
 def _ftp_list_files(account, remote_path='.', file_pattern='*'):
 	remote_path = str(remote_path or '.').strip() or '.'
 	file_pattern = str(file_pattern or '*').strip() or '*'
@@ -2849,12 +2869,7 @@ def sap_process_run_preview(request, process_id):
 					target_step_no = max(1, min(target_step_no, len(steps)))
 					next_i = target_step_no - 1
 				elif on_match_action == 'loop_next':
-					loop_idx = None
-					for k in range(i + 1, len(steps)):
-						st = str(steps[k].get('step_type', '') or '').strip()
-						if st == SapProcessStep.TYPE_LOOP_NEXT:
-							loop_idx = k
-							break
+					loop_idx = _find_loop_next_step_index(steps, i)
 					if loop_idx is not None:
 						next_i = loop_idx
 				elif on_match_action == 'stop':
@@ -2910,12 +2925,7 @@ def sap_process_run_preview(request, process_id):
 							next_i = target_step_no - 1
 							logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, {target_step_no}. adıma dönüldü: {cfg.get("screen_title", "")}'})
 						elif timeout_action == 'loop_next':
-							loop_idx = None
-							for k in range(i + 1, len(steps)):
-								st = str(steps[k].get('step_type', '') or '').strip()
-								if st == SapProcessStep.TYPE_LOOP_NEXT:
-									loop_idx = k
-									break
+							loop_idx = _find_loop_next_step_index(steps, i)
 							if loop_idx is not None:
 								next_i = loop_idx
 								logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': False, 'msg': f'Ekran gelmedi, döngüde sonraki elemana geçildi ({loop_idx + 1}. adım): {cfg.get("screen_title", "")}'})
