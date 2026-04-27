@@ -2969,14 +2969,18 @@ def sap_process_run_preview(request, process_id):
 				if not ok_select:
 					return JsonResponse({'ok': False, 'error': f'Grid satırı seçilemedi: {err_msg}', 'logs': logs, 'failed_at': i}, status=500)
 				service._wait_until_idle(service.session, timeout_sec=5)
-				# Seçilen satırın verilerini runtime_state'e kopyala
-				row_data = _read_grid_row_data(grid, applied_idx)
-				runtime_state.update(row_data)
+				copy_row_to_memory = bool(cfg.get('copy_row_to_memory', False))
 				select_hint = f'{applied_idx + 1} ({grid_source})'
 				if resolved_by == 'row_text_contains':
 					select_hint = f'{select_hint} | metin: {row_text_contains}'
-				row_data_hint = ', '.join(f'{k}={v}' for k, v in row_data.items()) if row_data else 'veri okunamadı'
-				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {select_hint} | {row_data_hint}'})
+				if copy_row_to_memory:
+					# Seçilen satırın verilerini runtime_state'e kopyala
+					row_data = _read_grid_row_data(grid, applied_idx)
+					runtime_state.update(row_data)
+					row_data_hint = ', '.join(f'{k}={v}' for k, v in row_data.items()) if row_data else 'veri okunamadı'
+					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {select_hint} | hafızaya kopyalandı | {row_data_hint}'})
+				else:
+					logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {select_hint}'})
 
 			elif step_type == SapProcessStep.TYPE_SAP_POPUP_DECIDE:
 				ok, payload = _ensure_session_ready()

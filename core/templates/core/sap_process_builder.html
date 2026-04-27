@@ -483,6 +483,12 @@
                     <label class="spb-field-label">Bulunma zaman aşımı (sn)</label>
                     <input type="number" class="spb-input" data-key="wait_timeout_sec" value="${esc(data.wait_timeout_sec||'25')}" min="1" max="60">
                 </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="copy_row_to_memory" ${data.copy_row_to_memory ? 'checked' : ''}>
+                        Seçili satırı hafızaya kopyala (sutun_1, sutun_2, ...)
+                    </label>
+                </div>
             </div>`;
 
         case 'ftp_list':
