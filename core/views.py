@@ -1794,8 +1794,6 @@ def find_alv_grid(root, candidate_id=None, grid_type='main'):
 				if grid_type == 'detail':
 					if 'wnd[1]' in node_id or 'alv_ht' in lower_id:
 						return node
-					if preferred is None:
-						preferred = node
 				else:
 					if 'wnd[0]' in node_id:
 						return node
@@ -1807,6 +1805,15 @@ def find_alv_grid(root, candidate_id=None, grid_type='main'):
 	if search_id:
 		return None
 	return preferred
+
+
+def _has_popup_window(session):
+	try:
+		children = getattr(session, 'Children', None)
+		count = int(getattr(children, 'Count', 0) or 0) if children is not None else 0
+		return count > 1
+	except Exception:
+		return False
 
 
 def _get_grid_row_count(grid):
@@ -2449,10 +2456,32 @@ def sap_process_run_preview(request, process_id):
 				if not ok:
 					return JsonResponse({'ok': False, 'error': payload, 'logs': logs, 'failed_at': i}, status=500)
 				grid_id = str(cfg.get('grid_id', '') or '').strip()
+				normalized_grid_id = _normalize_session_element_id(grid_id)
 				wait_timeout_sec = max(1, min(int(cfg.get('wait_timeout_sec') or 25), 60))
-				grid = _find_grid(service, grid_id=grid_id, timeout_sec=wait_timeout_sec, grid_type='detail' if 'wnd[1]' in grid_id else 'main')
+				grid = None
+				grid_source = ''
+				if normalized_grid_id:
+					grid = _find_grid(
+						service,
+						grid_id=normalized_grid_id,
+						timeout_sec=wait_timeout_sec,
+						grid_type='detail' if 'wnd[1]' in normalized_grid_id else 'main',
+					)
+					grid_source = normalized_grid_id
+				else:
+					# Grid ID yoksa önce popup detay tablosunu dene (VBS akışındaki wnd[1] senaryosu).
+					popup_first_timeout = min(10, max(2, wait_timeout_sec // 2))
+					if _has_popup_window(service.session):
+						grid = _find_grid(service, grid_id='', timeout_sec=popup_first_timeout, grid_type='detail')
+					if grid is None:
+						remain_timeout = max(1, wait_timeout_sec - popup_first_timeout)
+						grid = _find_grid(service, grid_id='', timeout_sec=remain_timeout, grid_type='main')
+						grid_source = 'auto-main'
+					else:
+						grid_source = 'auto-detail'
 				if not grid:
-					return JsonResponse({'ok': False, 'error': f'Grid bulunamadı: {grid_id}', 'logs': logs, 'failed_at': i}, status=404)
+					gid_msg = normalized_grid_id or 'auto-detect'
+					return JsonResponse({'ok': False, 'error': f'Grid bulunamadı: {gid_msg}', 'logs': logs, 'failed_at': i}, status=404)
 				try:
 					row_index = max(0, int(cfg.get('row_index') or 1) - 1)
 				except (TypeError, ValueError):
@@ -2461,7 +2490,7 @@ def sap_process_run_preview(request, process_id):
 				if not ok_select:
 					return JsonResponse({'ok': False, 'error': f'Grid satırı seçilemedi: {err_msg}', 'logs': logs, 'failed_at': i}, status=500)
 				service._wait_until_idle(service.session, timeout_sec=5)
-				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {applied_idx + 1}'})
+				logs.append({'step': i + 1, 'type': step_type, 'label': step_name, 'ok': True, 'msg': f'Grid satırı seçildi: {applied_idx + 1} ({grid_source})'})
 
 			elif step_type == SapProcessStep.TYPE_SAP_POPUP_DECIDE:
 				ok, payload = _ensure_session_ready()
