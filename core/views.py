@@ -5,6 +5,8 @@ import time
 import ftplib
 import socket
 import os
+import shutil
+import subprocess
 import fnmatch
 import tempfile
 import uuid
@@ -395,7 +397,7 @@ def _send_telegram_message(bot, chat_id, text):
 
 
 def _send_telegram_voice_message(bot, chat_id, text):
-	"""Windows SAPI ile ses dosyası üretip Telegram'a ses dosyası olarak gönderir."""
+	"""Windows SAPI ile ses üretip Telegram'a gerçek voice note olarak gönderir."""
 	if not bot or not bot.is_active:
 		return False, 'Telegram bot aktif degil veya secilmedi.'
 	if not chat_id:
@@ -408,14 +410,17 @@ def _send_telegram_voice_message(bot, chat_id, text):
 	if not voice_text:
 		return False, 'Sesli mesaj metni boş.'
 
-	tmp_path = None
+	tmp_wav_path = None
+	tmp_ogg_path = None
 	try:
 		import pythoncom
 		import win32com.client
 
 		pythoncom.CoInitialize()
 		with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmpf:
-			tmp_path = tmpf.name
+			tmp_wav_path = tmpf.name
+		with tempfile.NamedTemporaryFile(suffix='.ogg', delete=False) as tmpf:
+			tmp_ogg_path = tmpf.name
 
 		voice = win32com.client.Dispatch('SAPI.SpVoice')
 		# Türkçe sese öncelik ver (kuruluysa)
@@ -443,12 +448,32 @@ def _send_telegram_voice_message(bot, chat_id, text):
 			pass
 		stream = win32com.client.Dispatch('SAPI.SpFileStream')
 		# 3 = SSFMCreateForWrite
-		stream.Open(tmp_path, 3, False)
+		stream.Open(tmp_wav_path, 3, False)
 		voice.AudioOutputStream = stream
 		voice.Speak(voice_text)
 		stream.Close()
 
-		with open(tmp_path, 'rb') as fp:
+		ffmpeg_path = shutil.which('ffmpeg')
+		if not ffmpeg_path:
+			return False, 'ffmpeg bulunamadi. Telegram voice note icin ffmpeg gerekli.'
+
+		convert_cmd = [
+			ffmpeg_path,
+			'-y',
+			'-i',
+			tmp_wav_path,
+			'-c:a',
+			'libopus',
+			'-b:a',
+			'24k',
+			tmp_ogg_path,
+		]
+		convert_result = subprocess.run(convert_cmd, capture_output=True, text=True)
+		if convert_result.returncode != 0 or not os.path.exists(tmp_ogg_path) or os.path.getsize(tmp_ogg_path) <= 0:
+			err = (convert_result.stderr or convert_result.stdout or 'ffmpeg convert hatasi').strip()
+			return False, f'Voice donusum hatasi: {err}'
+
+		with open(tmp_ogg_path, 'rb') as fp:
 			file_data = fp.read()
 
 		boundary = f'----SaggioBoundary{uuid.uuid4().hex}'
@@ -464,8 +489,8 @@ def _send_telegram_voice_message(bot, chat_id, text):
 		_add_text('caption', 'Saggio RPA sesli bildirim')
 
 		parts.append(f'--{boundary}'.encode('utf-8'))
-		parts.append(b'Content-Disposition: form-data; name="audio"; filename="saggio_notification.wav"')
-		parts.append(b'Content-Type: audio/wav')
+		parts.append(b'Content-Disposition: form-data; name="voice"; filename="saggio_notification.ogg"')
+		parts.append(b'Content-Type: audio/ogg')
 		parts.append(b'')
 		parts.append(file_data)
 
@@ -474,7 +499,7 @@ def _send_telegram_voice_message(bot, chat_id, text):
 		body = b'\r\n'.join(parts)
 
 		req = Request(
-			f'https://api.telegram.org/bot{token}/sendAudio',
+			f'https://api.telegram.org/bot{token}/sendVoice',
 			data=body,
 			method='POST',
 			headers={'Content-Type': f'multipart/form-data; boundary={boundary}'},
@@ -487,9 +512,14 @@ def _send_telegram_voice_message(bot, chat_id, text):
 	except Exception as e:
 		return False, str(e)
 	finally:
-		if tmp_path and os.path.exists(tmp_path):
+		if tmp_wav_path and os.path.exists(tmp_wav_path):
 			try:
-				os.remove(tmp_path)
+				os.remove(tmp_wav_path)
+			except Exception:
+				pass
+		if tmp_ogg_path and os.path.exists(tmp_ogg_path):
+			try:
+				os.remove(tmp_ogg_path)
 			except Exception:
 				pass
 
