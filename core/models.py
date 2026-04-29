@@ -324,6 +324,12 @@ class SapProcessStep(models.Model):
 	TYPE_SAP_WAIT    = 'sap_wait'
 	TYPE_SAP_SCAN    = 'sap_scan'
 	TYPE_SAP_ACTION  = 'sap_action'
+	TYPE_SAP_KEY_PRESS = 'sap_key_press'
+	TYPE_SAP_SELECT_OPTION = 'sap_select_option'
+	TYPE_SAP_FILL_INPUT = 'sap_fill_input'
+	TYPE_CONVERT_SAP_EXPORT = 'convert_sap_export'
+	TYPE_WINDOWS_DIALOG_ACTION = 'windows_dialog_action'
+	TYPE_WINDOWS_SCAN_DIALOGS = 'windows_scan_dialogs'
 	TYPE_SAP_POPUP_DECIDE = 'sap_popup_decide'
 	TYPE_SAP_BRANCH_NO_DATA_GUARD = 'sap_branch_no_data_guard'
 	TYPE_SAP_PRESS_BUTTON = 'sap_press_button'
@@ -332,11 +338,16 @@ class SapProcessStep(models.Model):
 	TYPE_FTP_DOWNLOAD = 'ftp_download'
 	TYPE_FTP_UPLOAD  = 'ftp_upload'
 	TYPE_SAP_CLOSE   = 'sap_close'
+	TYPE_SHOW_MESSAGE = 'show_message'
+	TYPE_EXCEL_LOOP_NEXT = 'excel_loop_next'
 	TYPE_RUN_PROCESS = 'run_process'
 	TYPE_LOOP_NEXT   = 'loop_next'
 	TYPE_IF_ELSE     = 'if_else'
+	TYPE_IF_END      = 'if_end'
 	TYPE_LOOP_GENERIC = 'loop_generic'
 	TYPE_PY_SCRIPT   = 'py_script'
+	TYPE_EXCEL_ROW_LOG = 'excel_row_log'
+	TYPE_SEND_REPORT_MAIL = 'send_report_mail'
 
 	STEP_TYPE_CHOICES = [
 		(TYPE_SAP_FILL,   'SAP Ekranı Doldur (Şablon)'),
@@ -344,6 +355,12 @@ class SapProcessStep(models.Model):
 		(TYPE_SAP_WAIT,   'Ekranı Bekle'),
 		(TYPE_SAP_SCAN,   'Derin Tarama'),
 		(TYPE_SAP_ACTION, 'Aksiyon Yap'),
+		(TYPE_SAP_KEY_PRESS, 'Tuşa Bas (Klavye)'),
+		(TYPE_SAP_SELECT_OPTION, 'Radio/Checkbox Seç'),
+		(TYPE_SAP_FILL_INPUT, 'Input Doldur'),
+		(TYPE_CONVERT_SAP_EXPORT, 'SAP Export Dönüştür (XLSX)'),
+		(TYPE_WINDOWS_DIALOG_ACTION, 'Windows Popup İşle'),
+		(TYPE_WINDOWS_SCAN_DIALOGS, 'Windows Popup Tanı (Diagnostic)'),
 		(TYPE_SAP_POPUP_DECIDE, 'Popup Karar Ver'),
 		(TYPE_SAP_BRANCH_NO_DATA_GUARD, 'Şube Veri Kontrolü (Grid Yoksa Sonraki Şube)'),
 		(TYPE_SAP_PRESS_BUTTON, 'SAP Butonuna Bas'),
@@ -352,11 +369,16 @@ class SapProcessStep(models.Model):
 		(TYPE_FTP_DOWNLOAD, 'FTP İndir'),
 		(TYPE_FTP_UPLOAD, 'FTP Yükle'),
 		(TYPE_SAP_CLOSE,  'SAP Kapat'),
+		(TYPE_SHOW_MESSAGE, 'Mesaj Göster'),
+		(TYPE_EXCEL_LOOP_NEXT, 'Excel Satır Sonraki'),
 		(TYPE_RUN_PROCESS, 'Süreç Çalıştır (Alt Süreç)'),
 		(TYPE_LOOP_NEXT,  'Döngü – Sonraki Kayıt'),
 		(TYPE_IF_ELSE, 'IF / ELSE'),
+		(TYPE_IF_END, 'IF Sonu'),
 		(TYPE_LOOP_GENERIC, 'Döngü (Generic)'),
 		(TYPE_PY_SCRIPT, 'Python Script Çalıştır'),
+		(TYPE_EXCEL_ROW_LOG, 'Satır Sonucu Yaz'),
+		(TYPE_SEND_REPORT_MAIL, 'Rapor Oluştur ve Mail Gönder'),
 	]
 
 	process   = models.ForeignKey(SapProcess, on_delete=models.CASCADE, related_name='steps')
@@ -372,3 +394,43 @@ class SapProcessStep(models.Model):
 
 	def __str__(self):
 		return f"{self.process.name} – {self.order}. {self.get_step_type_display()}"
+
+
+class TelegramBotMenu(models.Model):
+	"""Bot için tanımlanmış klavye menüsü"""
+	bot = models.ForeignKey(TelegramBot, on_delete=models.CASCADE, related_name='menus')
+	name = models.CharField(max_length=120)
+	trigger_command = models.CharField(max_length=50, default='/start', help_text='Bu menüyü tetikleyen komut (örn. /start)')
+	welcome_message = models.TextField(default='Merhaba! Ne yapmamı istersiniz?', help_text='Butonlarla birlikte gönderilecek karşılama mesajı')
+	is_active = models.BooleanField(default=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		verbose_name = 'Telegram Bot Menüsü'
+		verbose_name_plural = 'Telegram Bot Menüleri'
+		ordering = ['bot', 'name']
+		unique_together = [('bot', 'trigger_command')]
+
+	def __str__(self):
+		return f"{self.bot.name} – {self.name}"
+
+
+class TelegramBotButton(models.Model):
+	"""Bir bot menüsündeki tek buton — bir SAP sürecine bağlıdır"""
+	menu = models.ForeignKey(TelegramBotMenu, on_delete=models.CASCADE, related_name='buttons')
+	label = models.CharField(max_length=200)
+	sap_process = models.ForeignKey(
+		SapProcess, on_delete=models.SET_NULL, null=True, blank=True,
+		related_name='telegram_buttons', help_text='Bu butona basınca tetiklenecek SAP süreci'
+	)
+	row = models.PositiveSmallIntegerField(default=0, help_text='Klavye satir numarasi (0dan baslar)')
+	col = models.PositiveSmallIntegerField(default=0, help_text='Satır içi sıralama')
+
+	class Meta:
+		verbose_name = 'Telegram Bot Butonu'
+		verbose_name_plural = 'Telegram Bot Butonları'
+		ordering = ['row', 'col']
+
+	def __str__(self):
+		return f"{self.menu} → {self.label}"

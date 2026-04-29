@@ -31,7 +31,7 @@
             <ul class="nav-menu" id="nav-menu">
 
                 <!-- GENEL -->
-                <li class="nav-group" data-group="genel">
+                <li class="nav-group {% if current == 'dashboard' %}nav-group-active{% endif %}" data-group="genel">
                     <button class="menu-group-btn" type="button" data-target="group-genel">
                         <span>Genel</span>
                         <i class="fas fa-chevron-down menu-group-arrow"></i>
@@ -47,7 +47,7 @@
                 </li>
 
                 <!-- ORKESTRASyon -->
-                <li class="nav-group" data-group="orkestrasyon">
+                <li class="nav-group {% if current == 'robots' or current == 'processes' or current == 'queues' or current == 'scheduler' or current == 'sap_scan' or current == 'sap_process_list' or current == 'sap_process_builder' or current == 'sap_process_delete' %}nav-group-active{% endif %}" data-group="orkestrasyon">
                     <button class="menu-group-btn" type="button" data-target="group-orkestrasyon">
                         <span>Orkestrasyon</span>
                         <i class="fas fa-chevron-down menu-group-arrow"></i>
@@ -84,7 +84,7 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link {% if current == 'sap_process' %}active{% endif %}" href="{% url 'sap_process_list' %}" data-label="SAP Süreçleri">
+                            <a class="nav-link {% if current == 'sap_process_list' or current == 'sap_process_builder' or current == 'sap_process_delete' %}active{% endif %}" href="{% url 'sap_process_list' %}" data-label="SAP Süreçleri">
                                 <i class="fas fa-project-diagram"></i>
                                 <span>SAP Süreçleri</span>
                             </a>
@@ -93,7 +93,7 @@
                 </li>
 
                 <!-- BİLDİRİM -->
-                <li class="nav-group" data-group="bildirim">
+                <li class="nav-group {% if current == 'telegram_bots_manage' or current == 'telegram_bot_studio' or current == 'telegram_groups_manage' or current == 'mail_accounts_manage' or current == 'ftp_accounts_manage' %}nav-group-active{% endif %}" data-group="bildirim">
                     <button class="menu-group-btn" type="button" data-target="group-bildirim">
                         <span>Bildirim</span>
                         <i class="fas fa-chevron-down menu-group-arrow"></i>
@@ -105,6 +105,12 @@
                                 <span>Telegram Botlari</span>
                             </a>
                         </li>
+                            <li class="nav-item">
+                                <a class="nav-link {% if current == 'telegram_bot_studio' %}active{% endif %}" href="{% url 'telegram_bot_studio' %}" data-label="Bot Stüdyo">
+                                    <i class="fas fa-sliders-h"></i>
+                                    <span>Bot Stüdyo</span>
+                                </a>
+                            </li>
                         <li class="nav-item">
                             <a class="nav-link {% if current == 'telegram_groups_manage' %}active{% endif %}" href="{% url 'telegram_groups_manage' %}" data-label="Telegram Gruplari">
                                 <i class="fas fa-users"></i>
@@ -127,7 +133,7 @@
                 </li>
 
                 <!-- İZLEME -->
-                <li class="nav-group" data-group="izleme">
+                <li class="nav-group {% if current == 'reports' or current == 'settings' %}nav-group-active{% endif %}" data-group="izleme">
                     <button class="menu-group-btn" type="button" data-target="group-izleme">
                         <span>Izleme</span>
                         <i class="fas fa-chevron-down menu-group-arrow"></i>

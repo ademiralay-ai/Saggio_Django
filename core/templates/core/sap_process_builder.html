@@ -18,10 +18,13 @@
     <div id="spb-live-status" class="spb-live-status">Durum: Hazır</div>
     <div class="spb-live-actions">
         <button id="spb-live-pause-btn" type="button" class="btn" title="Süreç duraklat/devam et">
-            <i class="fas fa-pause"></i> Duraklat
+            <i class="fas fa-pause"></i>
         </button>
         <button id="spb-live-stop-btn" type="button" class="btn btn-danger" title="Süreci tamamen durdur">
-            <i class="fas fa-stop"></i> Durdur
+            <i class="fas fa-stop"></i>
+        </button>
+        <button id="spb-live-force-stop-btn" type="button" class="btn btn-warning" title="Sıkışan runtime kaydını zorla temizle">
+            <i class="fas fa-broom"></i> Zorla Sıfırla
         </button>
     </div>
     <div id="spb-live-logs" class="spb-live-logs">
@@ -44,6 +47,7 @@
             <button id="spb-rename-btn" class="btn" type="button" title="Süreci yeniden adlandır"><i class="fas fa-pencil-alt"></i> Düzenle</button>
             <button id="spb-run-btn" class="btn" type="button" title="Süreci çalıştır"><i class="fas fa-play"></i> Çalıştır</button>
             <button id="spb-save-btn" class="btn btn-primary" type="button"><i class="fas fa-save"></i> Kaydet</button>
+            <a id="spb-backup-btn" href="{% url 'sap_process_backup' process.id %}" class="btn" title="Sürecin yedeğini indir"><i class="fas fa-file-download"></i> Yedek Al</a>
             <a href="{% url 'sap_process_list' %}" id="spb-back-btn" class="btn" title="Süreç listesine dön"><i class="fas fa-arrow-left"></i></a>
         </div>
     </div>
@@ -112,6 +116,12 @@
         <select id="spb-type-picker" class="spb-type-picker">
             <option value="sap_fill">📋 SAP Ekranı Doldur (Şablon)</option>
             <option value="sap_run">▶ F8 – Çalıştır</option>
+            <option value="sap_key_press">⌨ Tuşa Bas (Klavye)</option>
+            <option value="sap_select_option">☑ Radio/Checkbox Seç</option>
+            <option value="sap_fill_input">✍ Input Doldur</option>
+            <option value="convert_sap_export">🧹 SAP Export Dönüştür (XLSX)</option>
+            <option value="windows_dialog_action">🪟 Windows Popup İşle</option>
+            <option value="windows_scan_dialogs">🔎 Windows Popup Tanı (Diagnostic)</option>
             <option value="sap_wait">⏳ Ekranı Bekle</option>
             <option value="sap_scan">🔍 Derin Tarama</option>
             <option value="sap_action">⚡ Aksiyon Yap</option>
@@ -122,8 +132,14 @@
             <option value="ftp_download">📥 FTP İndir</option>
             <option value="ftp_upload">📤 FTP Yükle</option>
             <option value="sap_close">✖ SAP Kapat</option>
+            <option value="show_message">💬 Mesaj Göster</option>
+            <option value="excel_loop_next">📑 Excel Satır Sonraki</option>
             <option value="run_process">🧩 Süreç Çalıştır (Alt Süreç)</option>
             <option value="loop_next">🔄 Döngü – Sonraki Kayıt</option>
+            <option value="if_else">🔀 IF / ELSE (Mutlak Değer)</option>
+            <option value="if_end">🔚 IF Sonu</option>
+            <option value="excel_row_log">📝 Satır Sonucu Yaz</option>
+            <option value="send_report_mail">📧 Rapor Oluştur ve Mail Gönder</option>
         </select>
         <button id="spb-add-btn" class="btn btn-primary" type="button"><i class="fas fa-plus"></i> Adım Ekle</button>
     </div>
@@ -136,6 +152,7 @@
     <button class="btn" type="button" onclick="document.getElementById('spb-rename-btn').click()" title="Süreci düzenle"><i class="fas fa-pencil-alt"></i> Düzenle</button>
     <button class="btn" type="button" onclick="document.getElementById('spb-run-btn').click()" title="Süreci çalıştır"><i class="fas fa-play"></i> Çalıştır</button>
     <button class="btn btn-primary" type="button" onclick="document.getElementById('spb-save-btn').click()"><i class="fas fa-save"></i> Kaydet</button>
+    <button class="btn" type="button" onclick="document.getElementById('spb-backup-btn').click()" title="Sürecin yedeğini indir"><i class="fas fa-file-download"></i> Yedek Al</button>
     <a href="{% url 'sap_process_list' %}" class="btn" title="Geri"><i class="fas fa-arrow-left"></i></a>
 </div>
 
@@ -181,23 +198,86 @@
     const RUNTIME_CONTROL_URL = '{% url "sap_process_runtime_control" process.id %}';
     const RUNTIME_STATUS_URL  = '{% url "sap_process_runtime_status" process.id %}';
     const SCAN_BUTTONS_URL = '{% url "sap_process_scan_buttons" process.id %}';
+    const SCAN_SELECTABLES_URL = '{% url "sap_process_scan_selectables" process.id %}';
+    const SCAN_INPUTS_URL = '{% url "sap_process_scan_inputs" process.id %}';
+    const SCAN_WINDOWS_DIALOGS_URL = '{% url "sap_process_scan_windows_dialogs" process.id %}';
     const SCAN_GRIDS_URL   = '{% url "sap_process_scan_grids" process.id %}';
     const SCAN_SCREENS_URL = '{% url "sap_process_scan_screens" process.id %}';
     const SCAN_POPUPS_URL  = '{% url "sap_process_scan_popups" process.id %}';
+    const EXCEL_BROWSE_URL = '{% url "sap_process_excel_browse" process.id %}';
+    const EXCEL_SHEETS_URL = '{% url "sap_process_excel_sheets" process.id %}';
+    const EXCEL_COLUMNS_URL = '{% url "sap_process_excel_columns" process.id %}';
     const RUN_URL      = '{% url "sap_process_run_preview" process.id %}';
     const CSRF         = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
     const TEMPLATE_NAMES = {{ template_names|safe }};
     const FTP_ACCOUNTS = {{ ftp_accounts_json|safe }};
     const PROCESS_OPTIONS = {{ processes_json|safe }};
+    window.spbMailAccounts = {{ mail_accounts_json|safe }};
 
     let steps = {{ steps_json|safe }};   // [{id, order, step_type, label, config}]
     let _pendingDeleteIdx = null;
     const _popupScanCacheByStep = {};
+    const _windowsDialogScanCacheByStep = {};
+    const COLLAPSE_STORAGE_KEY = `spb_collapsed_${PROCESS_ID}`;
+
+    function stepCollapseKey(step, idx) {
+        if (step && step.id !== undefined && step.id !== null && String(step.id).trim() !== '') {
+            return `id:${step.id}`;
+        }
+        if (step && step.order !== undefined && step.order !== null && String(step.order).trim() !== '') {
+            return `order:${step.order}`;
+        }
+        return `idx:${idx}`;
+    }
+
+    function loadCollapsedState() {
+        try {
+            const raw = localStorage.getItem(COLLAPSE_STORAGE_KEY);
+            const parsed = raw ? JSON.parse(raw) : {};
+            return (parsed && typeof parsed === 'object') ? parsed : {};
+        } catch (_) {
+            return {};
+        }
+    }
+
+    function applyCollapsedState() {
+        const state = loadCollapsedState();
+        steps.forEach((s, i) => {
+            const key = stepCollapseKey(s, i);
+            if (Object.prototype.hasOwnProperty.call(state, key)) {
+                s._collapsed = !!state[key];
+            } else if (typeof s._collapsed !== 'boolean') {
+                s._collapsed = false;
+            }
+        });
+    }
+
+    function persistCollapsedState() {
+        const next = {};
+        steps.forEach((s, i) => {
+            if (s && s._collapsed) {
+                next[stepCollapseKey(s, i)] = true;
+            }
+        });
+        try {
+            localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify(next));
+        } catch (_) {
+            // localStorage erişimi yoksa sessiz geç
+        }
+    }
+
+    applyCollapsedState();
 
     // ── Step meta ─────────────────────────────────────────────────────────
     const STEP_META = {
         sap_fill:   { icon: 'fas fa-fill-drip',      label: 'SAP Ekranı Doldur (Şablon)',  color: '#00c4ff' },
         sap_run:    { icon: 'fas fa-play',            label: 'F8 – Çalıştır',               color: '#00e576' },
+        sap_key_press: { icon: 'fas fa-keyboard',     label: 'Tuşa Bas (Klavye)',           color: '#1fb6ff' },
+        sap_select_option: { icon: 'fas fa-check-square', label: 'Radio/Checkbox Seç',      color: '#30c997' },
+        sap_fill_input: { icon: 'fas fa-i-cursor',    label: 'Input Doldur',                color: '#ffa94d' },
+        convert_sap_export: { icon: 'fas fa-file-excel', label: 'SAP Export Dönüştür (XLSX)', color: '#22c55e' },
+        windows_dialog_action: { icon: 'fas fa-window-maximize', label: 'Windows Popup İşle', color: '#ff6b6b' },
+        windows_scan_dialogs: { icon: 'fas fa-search-plus', label: 'Windows Popup Tanı (Diagnostic)', color: '#e67e22' },
         sap_wait:   { icon: 'fas fa-hourglass-half',  label: 'Ekranı Bekle',                color: '#ffb347' },
         sap_scan:   { icon: 'fas fa-satellite-dish',  label: 'Derin Tarama',                color: '#b088ff' },
         sap_action: { icon: 'fas fa-bolt',            label: 'Aksiyon Yap',                 color: '#ff7f50' },
@@ -208,16 +288,94 @@
         ftp_download:{ icon: 'fas fa-file-download',  label: 'FTP İndir',                   color: '#37d67a' },
         ftp_upload: { icon: 'fas fa-file-upload',     label: 'FTP Yükle',                   color: '#ffb347' },
         sap_close:  { icon: 'fas fa-times-circle',    label: 'SAP Kapat',                   color: '#ff4c6a' },
+        show_message:{ icon: 'fas fa-message',        label: 'Mesaj Göster',                color: '#22d3ee' },
+        excel_loop_next:{ icon: 'fas fa-file-circle-plus', label: 'Excel Satır Sonraki',   color: '#10b981' },
         run_process:{ icon: 'fas fa-diagram-project', label: 'Süreç Çalıştır (Alt Süreç)', color: '#5b8def' },
         loop_next:  { icon: 'fas fa-redo',            label: 'Döngü – Sonraki Kayıt',       color: '#00f3ff' },
+        if_else:    { icon: 'fas fa-code-branch',     label: 'IF / ELSE (Mutlak Değer)',    color: '#f59e0b' },
+        if_end:     { icon: 'fas fa-turn-up',         label: 'IF Sonu',                     color: '#fbbf24' },
+        excel_row_log: { icon: 'fas fa-clipboard-check', label: 'Satır Sonucu Yaz',           color: '#84cc16' },
+        send_report_mail: { icon: 'fas fa-envelope-open-text', label: 'Rapor & Mail Gönder',  color: '#8b5cf6' },
     };
+
+    function getStepBlockDepth(index) {
+        let depth = 0;
+        for (let pos = 0; pos <= index && pos < steps.length; pos++) {
+            const stepType = String((steps[pos] || {}).step_type || '').trim();
+            if (pos === index) {
+                if (stepType === 'if_end') return Math.max(0, depth - 1);
+                return depth;
+            }
+            if (stepType === 'if_else') {
+                depth += 1;
+            } else if (stepType === 'if_end') {
+                depth = Math.max(0, depth - 1);
+            }
+        }
+        return depth;
+    }
 
     // ── Config alanları ───────────────────────────────────────────────────
     /**
      * Her step tipi için config editör HTML döndürür.
      * data: mevcut config objesi
      */
-    function renderConfigFields(stepType, data) {
+    function buildStepTargetOptions(stepIndex, selectedStepId, selectedStepNo, placeholder) {
+        const stepIdx = Number(stepIndex);
+        const hasSelectedId = String(selectedStepId || '').trim() !== '';
+        let selectedNo = '';
+        let selectedId = '';
+
+        if (hasSelectedId) {
+            const hitIdx = steps.findIndex(st => String(st?.id || '').trim() === String(selectedStepId).trim());
+            if (hitIdx >= 0) {
+                selectedNo = String(hitIdx + 1);
+                selectedId = String(selectedStepId).trim();
+            } else if (String(selectedStepNo || '').trim() !== '') {
+                // Kaydetme sonrası adım id'leri değişebildiği için stale id durumunda step_no'ya düş.
+                const n = Number(selectedStepNo);
+                if (Number.isFinite(n) && n >= 1 && n <= steps.length) {
+                    selectedNo = String(n);
+                    selectedId = String(steps[n - 1]?.id || '').trim();
+                }
+            }
+        } else if (String(selectedStepNo || '').trim() !== '') {
+            const n = Number(selectedStepNo);
+            if (Number.isFinite(n) && n >= 1 && n <= steps.length) {
+                selectedNo = String(n);
+                selectedId = String(steps[n - 1]?.id || '').trim();
+            }
+        }
+
+        const opts = [`<option value="">${esc(placeholder || '— Adım seçiniz —')}</option>`];
+        steps.forEach((st, idx) => {
+            if (!st) return;
+            const no = String(idx + 1);
+            const sid = String(st.id || '').trim();
+            const label = String(st.label || STEP_META[st.step_type]?.label || st.step_type || 'Adım');
+            const isSelected = (selectedId && sid && selectedId === sid) || (!selectedId && selectedNo === no);
+            const val = sid ? `id:${sid}` : `no:${no}`;
+            opts.push(`<option value="${esc(val)}" data-step-id="${esc(sid)}" data-step-no="${esc(no)}" ${isSelected ? 'selected' : ''}>${esc(no)}. ${esc(label)}</option>`);
+        });
+
+        return {
+            optionsHtml: opts.join(''),
+            selectedNo,
+            selectedId,
+        };
+    }
+
+    function renderStepTargetPicker(stepIndex, data, noKey, idKey, placeholder) {
+        const r = buildStepTargetOptions(stepIndex, data[idKey], data[noKey], placeholder);
+        return `
+            <input type="hidden" data-key="${esc(idKey)}" value="${esc(r.selectedId || '')}">
+            <input type="hidden" data-key="${esc(noKey)}" value="${esc(r.selectedNo || '')}">
+            <select class="spb-input spb-step-target-select" data-step-id-key="${esc(idKey)}" data-step-no-key="${esc(noKey)}" onchange="spbOnTargetStepChange(this)">
+                ${r.optionsHtml}
+            </select>`;
+    }
+
+    function renderConfigFields(stepType, data, stepIndex) {
         data = data || {};
         const ftpOptions = FTP_ACCOUNTS.map(a =>
             `<option value="${a.id}" ${String(data.ftp_account_id || '') === String(a.id) ? 'selected' : ''}>${esc(a.name)} (${esc(String(a.protocol || '').toUpperCase())} ${esc(a.host)}:${esc(String(a.port))})</option>`
@@ -262,6 +420,350 @@
                 </div>
             </div>`;
 
+        case 'sap_key_press': {
+            const keyOptions = [
+                ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+                ...'0123456789'.split(''),
+                'F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12',
+                'Enter','Tab','Escape','Space','Backspace','Delete','Insert',
+                'Home','End','PageUp','PageDown','Up','Down','Left','Right',
+                '+','-','*','/','.',','
+            ];
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Kombinasyon (opsiyonel, öncelikli)</label>
+                    <input type="text" class="spb-input" data-key="combo_text" value="${esc(data.combo_text||'')}" placeholder="Örn: CTRL+ALT+P veya SHIFT+F10">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Temel tuş</label>
+                    <select class="spb-input" data-key="key_name">
+                        <option value="">— Tuş Seçiniz —</option>
+                        ${keyOptions.map(k => `<option value="${k}" ${(String(data.key_name||'')===k)?'selected':''}>${k}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Tekrar</label>
+                    <input type="number" class="spb-input" data-key="repeat_count" value="${esc(data.repeat_count||'1')}" min="1" max="20">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Tekrar arası bekleme (ms)</label>
+                    <input type="number" class="spb-input" data-key="delay_between_ms" value="${esc(data.delay_between_ms||'120')}" min="0" max="5000" step="50">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Modifier tuşlar</label>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap">
+                        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-key="use_ctrl" ${data.use_ctrl ? 'checked' : ''}>Ctrl</label>
+                        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-key="use_alt" ${data.use_alt ? 'checked' : ''}>Alt</label>
+                        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-key="use_shift" ${data.use_shift ? 'checked' : ''}>Shift</label>
+                        <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" data-key="use_win" ${data.use_win ? 'checked' : ''}>Win</label>
+                    </div>
+                    <div class="spb-config-note"><i class="fas fa-info-circle"></i> Win tuşu SAP SendKeys tarafında sınırlı olabilir. Güvenilir kombinasyonlar: Ctrl/Alt/Shift + tuş.</div>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Hata olursa adımı logla ve akışa devam et
+                    </label>
+                </div>
+            </div>`;
+        }
+
+        case 'sap_select_option':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Element ID (radio/checkbox)</label>
+                    <input type="text" class="spb-input" data-key="element_id" value="${esc(data.element_id||'')}" placeholder="wnd[1]/usr/rad... veya wnd[0]/usr/chk...">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Seçilebilir alanları tara</label>
+                    <div class="spb-inline-tools">
+                        <button type="button" class="btn spb-scan-selectables-btn" data-idx="__IDX__" title="Radio/checkbox alanlarını tara">
+                            <i class="fas fa-search"></i> Seçilebilir Alanları Tara
+                        </button>
+                        <select class="spb-input spb-selectable-scan-select" data-idx="__IDX__">
+                            <option value="">— Tarama sonucu buraya gelir —</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Uygulama modu</label>
+                    <select class="spb-input" data-key="select_mode">
+                        <option value="auto" ${(data.select_mode||'auto')==='auto'?'selected':''}>Otomatik</option>
+                        <option value="toggle" ${(data.select_mode||'auto')==='toggle'?'selected':''}>Toggle</option>
+                        <option value="set_on" ${(data.select_mode||'auto')==='set_on'?'selected':''}>İşaretle (ON)</option>
+                        <option value="set_off" ${(data.select_mode||'auto')==='set_off'?'selected':''}>Kaldır (OFF)</option>
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Bulunma timeout (sn)</label>
+                    <input type="number" class="spb-input" data-key="wait_timeout_sec" value="${esc(data.wait_timeout_sec||'20')}" min="1" max="60">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Hata olursa adımı logla ve akışa devam et
+                    </label>
+                </div>
+            </div>`;
+
+        case 'sap_fill_input':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Input Element ID</label>
+                    <input type="text" class="spb-input" data-key="element_id" value="${esc(data.element_id||'')}" placeholder="wnd[1]/usr/ctxt... veya wnd[0]/usr/txt...">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Input alanlarını tara</label>
+                    <div class="spb-inline-tools">
+                        <button type="button" class="btn spb-scan-inputs-btn" data-idx="__IDX__" title="Input alanlarını tara">
+                            <i class="fas fa-search"></i> Input Alanlarını Tara
+                        </button>
+                        <select class="spb-input spb-input-scan-select" data-idx="__IDX__">
+                            <option value="">— Tarama sonucu buraya gelir —</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Yazılacak değer</label>
+                    <input type="text" class="spb-input" data-key="value_text" value="${esc(data.value_text||'')}">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Değer kaynağı</label>
+                    <select class="spb-input" data-key="value_source">
+                        <option value="static" ${(data.value_source||'static')==='static'?'selected':''}>Sabit değer</option>
+                        <option value="excel_column" ${(data.value_source||'static')==='excel_column'?'selected':''}>Excel sütunundan</option>
+                    </select>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Excel dosya yolu</label>
+                    <div class="spb-inline-tools">
+                        <input type="text" class="spb-input" data-key="excel_file_path" value="${esc(data.excel_file_path||'')}" placeholder="Excel dosyasını seçin" readonly>
+                        <button type="button" class="btn spb-excel-browse-btn" data-idx="__IDX__" title="Excel dosyası seç">
+                            <i class="fas fa-folder-open"></i> Dosya Seç
+                        </button>
+                    </div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Sayfa adı</label>
+                    <div class="spb-inline-tools">
+                        <select class="spb-input spb-excel-sheet-select" data-key="excel_sheet_name">
+                            <option value="${esc(data.excel_sheet_name||'')}">${esc(data.excel_sheet_name||'— Sekme seçiniz —')}</option>
+                        </select>
+                        <button type="button" class="btn spb-excel-sheets-btn" data-idx="__IDX__" title="Excel sekmelerini tara">
+                            <i class="fas fa-list"></i> Sekmeleri Tara
+                        </button>
+                    </div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Sütun</label>
+                    <div class="spb-inline-tools">
+                        <select class="spb-input spb-excel-column-select" data-key="excel_column">
+                            <option value="${esc(data.excel_column||'')}">${esc(data.excel_column||'— Sütun seçiniz —')}</option>
+                        </select>
+                        <button type="button" class="btn spb-excel-columns-btn" data-idx="__IDX__" title="Excel sütunlarını tara">
+                            <i class="fas fa-columns"></i> Sütunları Tara
+                        </button>
+                    </div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Başlık satırı</label>
+                    <input type="number" class="spb-input" data-key="excel_header_row" value="${esc(data.excel_header_row||'1')}" min="1" max="1000">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Satır ofseti</label>
+                    <input type="number" class="spb-input" data-key="excel_row_offset" value="${esc(data.excel_row_offset||'0')}" min="-10000" max="10000">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Satır indeks kaynağı</label>
+                    <select class="spb-input" data-key="excel_row_index_source">
+                        <option value="outer_loop" ${((data.excel_row_index_source || (data.excel_use_loop_index === false ? 'fixed' : 'outer_loop'))==='outer_loop')?'selected':''}>Cari döngüsü (loop_index + ofset)</option>
+                        <option value="excel_loop" ${((data.excel_row_index_source || '')==='excel_loop')?'selected':''}>Excel iç döngüsü (excel satır cursor + ofset)</option>
+                        <option value="fixed" ${((data.excel_row_index_source || (data.excel_use_loop_index === false ? 'fixed' : 'outer_loop'))==='fixed')?'selected':''}>Sabit satır (yalnızca ofset)</option>
+                    </select>
+                    <div class="spb-config-note"><i class="fas fa-info-circle"></i> İç içe kullanımda dış cari döngüsünü bozmadan Excel satırlarını ilerletmek için burada Excel iç döngüsü seçin.</div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Bulunma timeout (sn)</label>
+                    <input type="number" class="spb-input" data-key="wait_timeout_sec" value="${esc(data.wait_timeout_sec||'20')}" min="1" max="60">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Hata olursa adımı logla ve akışa devam et
+                    </label>
+                </div>
+            </div>`;
+
+        case 'convert_sap_export':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Girdi dosya yolu (ham SAP export)</label>
+                    <input type="text" class="spb-input" data-key="input_path" value="${esc(data.input_path||'')}" placeholder="Örn: H:\\Drive'ım\\aa\\zfi0501n.xls">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Çıktı dosya yolu (opsiyonel, boşsa .xlsx)</label>
+                    <input type="text" class="spb-input" data-key="output_path" value="${esc(data.output_path||'')}" placeholder="Örn: H:\\Drive'ım\\aa\\zfi0501n_clean.xlsx">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Delimiter</label>
+                    <input type="text" class="spb-input" data-key="delimiter" value="${esc(data.delimiter||'\\t')}" placeholder="\\t">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Encoding önceliği (virgülle)</label>
+                    <input type="text" class="spb-input" data-key="encodings" value="${esc(data.encodings||'utf-16,utf-16-le,cp1254,latin-1,utf-8')}">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Baştan silinecek satır</label>
+                    <input type="number" class="spb-input" data-key="drop_top_rows" value="${esc(data.drop_top_rows||'1')}" min="0" max="10000">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Soldan silinecek sütun</label>
+                    <input type="number" class="spb-input" data-key="drop_left_cols" value="${esc(data.drop_left_cols||'1')}" min="0" max="1000">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Özel satır silme (1-based)</label>
+                    <input type="text" class="spb-input" data-key="drop_rows" value="${esc(data.drop_rows||'')}" placeholder="Örn: 1,3,8-10">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Özel sütun silme (1-based)</label>
+                    <input type="text" class="spb-input" data-key="drop_cols" value="${esc(data.drop_cols||'')}" placeholder="Örn: 1,2,5">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="skip_empty_lines" ${data.skip_empty_lines !== false ? 'checked' : ''}>
+                        Boş satırları atla
+                    </label>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="trim_cells" ${data.trim_cells !== false ? 'checked' : ''}>
+                        Hücre boşluklarını temizle
+                    </label>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="strip_quotes" ${data.strip_quotes !== false ? 'checked' : ''}>
+                        Çift tırnakları kaldır
+                    </label>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Hata olursa adımı logla ve akışa devam et
+                    </label>
+                </div>
+            </div>`;
+
+        case 'windows_scan_dialogs':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <div class="spb-config-note" style="background:rgba(230,126,34,0.15);border-color:#e67e22;color:#e67e22">
+                        <i class="fas fa-info-circle"></i>
+                        Bu adım çalışınca ekrandaki <strong>tüm Windows popup'larını</strong> tarar ve log'a döker.
+                        Başlık, sınıf adı, butonlar, checkbox/radio metinleri listelenir. Gerçek bir işlem yapmaz.
+                    </div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Başlık filtresi (boş = hepsi)</label>
+                    <input type="text" class="spb-input" data-key="title_filter" value="${esc(data.title_filter||'')}" placeholder="Örn: SAP GUI (boş bırakılırsa hepsi taranır)">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Bekleme timeout (sn)</label>
+                    <input type="number" class="spb-input" data-key="scan_timeout_sec" value="${esc(data.scan_timeout_sec||'10')}" min="1" max="60">
+                </div>
+            </div>`;
+
+        case 'windows_dialog_action':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Açık Windows popup'larını tara</label>
+                    <div class="spb-inline-tools">
+                        <button type="button" class="btn spb-scan-win-dialogs-btn" data-idx="__IDX__" title="Açık Windows diyaloglarını tara">
+                            <i class="fas fa-search"></i> Windows Popup Tara
+                        </button>
+                        <select class="spb-input spb-win-dialog-select" data-idx="__IDX__">
+                            <option value="">— Pencere seçiniz —</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Pencere başlığı</label>
+                    <input type="text" class="spb-input" data-key="window_title" value="${esc(data.window_title||'')}" placeholder="Örn: SAP GUI güvenliği">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Başlık eşleşmesi</label>
+                    <select class="spb-input" data-key="title_match_mode">
+                        <option value="contains" ${(data.title_match_mode||'contains')==='contains'?'selected':''}>İçerir</option>
+                        <option value="exact" ${(data.title_match_mode||'contains')==='exact'?'selected':''}>Tam eşleşme</option>
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Timeout (sn)</label>
+                    <input type="number" class="spb-input" data-key="timeout_sec" value="${esc(data.timeout_sec||'25')}" min="1" max="120">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Tarama aralığı (ms)</label>
+                    <input type="number" class="spb-input" data-key="poll_ms" value="${esc(data.poll_ms||'250')}" min="50" max="5000" step="50">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">İşaretlenecek checkbox/radio (opsiyonel)</label>
+                    <div class="spb-inline-tools">
+                        <input type="text" class="spb-input" data-key="checkbox_text" value="${esc(data.checkbox_text||'')}" placeholder="Örn: Kararımı hatırla">
+                        <select class="spb-input spb-win-dialog-checkbox-select" data-idx="__IDX__">
+                            <option value="">— Checkbox/Radio seçiniz —</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="apply_checkbox" ${data.apply_checkbox ? 'checked' : ''}>
+                        Checkbox/radio uygula
+                    </label>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Checkbox hedef durumu</label>
+                    <select class="spb-input" data-key="checkbox_state">
+                        <option value="true" ${String(data.checkbox_state ?? true)==='true'?'selected':''}>İşaretli</option>
+                        <option value="false" ${String(data.checkbox_state ?? true)==='false'?'selected':''}>İşaretsiz</option>
+                    </select>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Basılacak buton (opsiyonel)</label>
+                    <div class="spb-inline-tools">
+                        <input type="text" class="spb-input" data-key="button_text" value="${esc(data.button_text||'')}" placeholder="Örn: İzin ver">
+                        <select class="spb-input spb-win-dialog-button-select" data-idx="__IDX__">
+                            <option value="">— Buton seçiniz —</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Buton eşleşmesi</label>
+                    <select class="spb-input" data-key="button_match_mode">
+                        <option value="contains" ${(data.button_match_mode||'contains')==='contains'?'selected':''}>İçerir</option>
+                        <option value="exact" ${(data.button_match_mode||'contains')==='exact'?'selected':''}>Tam eşleşme</option>
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Checkbox eşleşmesi</label>
+                    <select class="spb-input" data-key="checkbox_match_mode">
+                        <option value="contains" ${(data.checkbox_match_mode||'contains')==='contains'?'selected':''}>İçerir</option>
+                        <option value="exact" ${(data.checkbox_match_mode||'contains')==='exact'?'selected':''}>Tam eşleşme</option>
+                    </select>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Hata olursa adımı logla ve akışa devam et
+                    </label>
+                </div>
+            </div>`;
+
         case 'sap_wait':
             return `
             <div class="spb-config-grid">
@@ -298,8 +800,8 @@
                     </select>
                 </div>
                 <div class="spb-field spb-timeout-target-wrap">
-                    <label class="spb-field-label">Dönülecek adım no (1,2,3...)</label>
-                    <input type="number" class="spb-input" data-key="timeout_target_step" value="${esc(data.timeout_target_step||'1')}" min="1" max="999">
+                    <label class="spb-field-label">Dönülecek adım</label>
+                    ${renderStepTargetPicker(stepIndex, data, 'timeout_target_step', 'timeout_target_step_id', '— Hedef adım seçiniz —')}
                 </div>
             </div>`;
 
@@ -357,6 +859,8 @@
                         <option value="press_no" ${(data.popup_action||'close_enter')==='press_no'?'selected':''}>Hayır/No butonuna bas</option>
                         <option value="press_cancel" ${(data.popup_action||'close_enter')==='press_cancel'?'selected':''}>İptal/Cancel butonuna bas</option>
                         <option value="press_button_id" ${(data.popup_action||'close_enter')==='press_button_id'?'selected':''}>Belirli buton ID'sine bas</option>
+                        <option value="select_radio_id" ${(data.popup_action||'close_enter')==='select_radio_id'?'selected':''}>Belirli radio ID'sini seç</option>
+                        <option value="fill_input_id" ${(data.popup_action||'close_enter')==='fill_input_id'?'selected':''}>Belirli input ID'yi doldur</option>
                     </select>
                 </div>
                 <div class="spb-field spb-popup-buttonid-wrap">
@@ -369,6 +873,30 @@
                         <option value="">— Popup butonu seçiniz —</option>
                     </select>
                 </div>
+                <div class="spb-field spb-popup-radioid-wrap">
+                    <label class="spb-field-label">Popup radio ID</label>
+                    <input type="text" class="spb-input" data-key="popup_radio_id" value="${esc(data.popup_radio_id||'')}" placeholder="wnd[1]/usr/radSPOPLI-SELFLAG[0,0]">
+                </div>
+                <div class="spb-field spb-field-full spb-popup-radio-select-wrap">
+                    <label class="spb-field-label">Popup radioları (taramadan)</label>
+                    <select class="spb-input spb-popup-radio-select">
+                        <option value="">— Popup radiosu seçiniz —</option>
+                    </select>
+                </div>
+                <div class="spb-field spb-popup-inputid-wrap">
+                    <label class="spb-field-label">Popup input ID</label>
+                    <input type="text" class="spb-input" data-key="popup_input_id" value="${esc(data.popup_input_id||'')}" placeholder="wnd[1]/usr/ctxtDY_PATH">
+                </div>
+                <div class="spb-field spb-field-full spb-popup-input-select-wrap">
+                    <label class="spb-field-label">Popup inputları (taramadan)</label>
+                    <select class="spb-input spb-popup-input-select">
+                        <option value="">— Popup inputu seçiniz —</option>
+                    </select>
+                </div>
+                <div class="spb-field spb-field-full spb-popup-inputvalue-wrap">
+                    <label class="spb-field-label">Popup input değeri</label>
+                    <input type="text" class="spb-input" data-key="popup_input_value" value="${esc(data.popup_input_value||'')}" placeholder="Örn: C:/Users/.../Documents/SAP GUI/">
+                </div>
                 <div class="spb-field">
                     <label class="spb-field-label">Popup bulunma timeout (sn)</label>
                     <input type="number" class="spb-input" data-key="timeout_sec" value="${esc(data.timeout_sec||'8')}" min="1" max="60">
@@ -378,14 +906,19 @@
                     <select class="spb-input spb-popup-match-action" data-key="on_match_action">
                         <option value="next_step" ${(data.on_match_action||'next_step')==='next_step'?'selected':''}>Sonraki adıma geç</option>
                         <option value="goto_step" ${(data.on_match_action||'next_step')==='goto_step'?'selected':''}>Belirli adıma git</option>
+                        <option value="press_button" ${(data.on_match_action||'next_step')==='press_button'?'selected':''}>Butona bas</option>
                         <option value="loop_next" ${(data.on_match_action||'next_step')==='loop_next'?'selected':''}>Döngüde sonraki kayda geç</option>
                         <option value="stop" ${(data.on_match_action||'next_step')==='stop'?'selected':''}>Süreci başarıyla durdur</option>
                         <option value="fail" ${(data.on_match_action||'next_step')==='fail'?'selected':''}>Hata ver ve dur</option>
                     </select>
                 </div>
+                <div class="spb-field spb-popup-next-button-wrap">
+                    <label class="spb-field-label">Basılacak buton ID</label>
+                    <input type="text" class="spb-input" data-key="popup_next_button_id" value="${esc(data.popup_next_button_id||'')}" placeholder="wnd[0]/tbar[0]/btn[0]">
+                </div>
                 <div class="spb-field spb-popup-target-wrap">
-                    <label class="spb-field-label">Gidilecek adım no</label>
-                    <input type="number" class="spb-input" data-key="popup_target_step" value="${esc(data.popup_target_step||'1')}" min="1" max="999">
+                    <label class="spb-field-label">Gidilecek adım</label>
+                    ${renderStepTargetPicker(stepIndex, data, 'popup_target_step', 'popup_target_step_id', '— Hedef adım seçiniz —')}
                 </div>
                 <div class="spb-field spb-field-full">
                     <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
@@ -436,7 +969,7 @@
             <div class="spb-config-grid">
                 <div class="spb-field spb-field-full">
                     <label class="spb-field-label">Buton ID (seçim sonrası otomatik dolar)</label>
-                    <input type="text" class="spb-input" data-key="button_id" value="${esc(data.button_id||'')}" placeholder="wnd[0]/tbar[1]/btn[8]">
+                    <input type="text" class="spb-input" data-key="button_id" value="${esc(data.button_id||'')}" placeholder="wnd[0]/tbar[1]/btn[8] veya ctxbtn:wnd[0]/.../shell|&MB_EXPORT|&PC">
                 </div>
                 <div class="spb-field spb-field-full">
                     <label class="spb-field-label">Açık SAP ekranındaki butonlar</label>
@@ -448,11 +981,15 @@
                             <option value="">— Tarama sonucu buraya gelir —</option>
                         </select>
                     </div>
-                    <div class="spb-config-note"><i class="fas fa-info-circle"></i> Teknik ID yazmadan, listeden buton seçebilirsiniz.</div>
+                    <div class="spb-config-note"><i class="fas fa-info-circle"></i> Teknik ID yazmadan listeden seçebilirsiniz. Context toolbar komutları da listelenir. Alt menü seçmek için format: ctxbtn:shell_id|&MB_EXPORT|&PC</div>
                 </div>
                 <div class="spb-field">
                     <label class="spb-field-label">Bulunma zaman aşımı (sn)</label>
                     <input type="number" class="spb-input" data-key="wait_timeout_sec" value="${esc(data.wait_timeout_sec||'25')}" min="1" max="60">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Butona bastıktan sonra git (ops.)</label>
+                    ${renderStepTargetPicker(stepIndex, data, 'next_step_no', 'next_step_id', '— Boşsa normal akış —')}
                 </div>
                 <div class="spb-field">
                     <label class="spb-field-label" style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
@@ -517,6 +1054,169 @@
                     </label>
                 </div>
             </div>`;
+
+        case 'if_else': {
+            const condType = data.condition_type || 'element_value';
+            const isElem  = condType === 'element_value';
+            const isPopup = condType === 'popup_exists';
+            const isStatus = condType === 'status_message';
+            const rules = Array.isArray(data.popup_rules) ? data.popup_rules : [];
+            const rulesHtml = rules.map(r => `
+                <div class="spb-popup-rule-row">
+                    <input type="text" class="spb-input" data-rkey="keyword"
+                        placeholder="Popup metni içersin... (boşsa her popup eşleşir)"
+                        value="${esc(r.keyword||'')}" style="flex:2;min-width:140px">
+                    <input type="hidden" data-rkey="step_id" value="${esc(r.step_id||'')}">
+                    <input type="hidden" data-rkey="step_no" value="${esc(r.step_no||'')}">
+                    <select class="spb-input spb-popup-rule-target" style="flex:0 0 220px" data-rkey-step-id="step_id" data-rkey-step-no="step_no" onchange="spbOnRuleTargetStepChange(this)">
+                        ${buildStepTargetOptions(stepIndex, r.step_id, r.step_no, '— Git: adım seçin —').optionsHtml}
+                    </select>
+                    <input type="text" class="spb-input" data-rkey="label"
+                        placeholder="Etiket (rapor için)"
+                        value="${esc(r.label||'')}" style="flex:1.5;min-width:110px">
+                    <button type="button" class="btn btn-danger spb-popup-rule-remove"
+                        title="Kuralı sil"><i class="fas fa-times"></i></button>
+                </div>`).join('');
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Koşul Tipi</label>
+                    <select class="spb-input" data-key="condition_type" onchange="spbIfElseCondToggle(this)">
+                        <option value="element_value" ${isElem ?'selected':''}>📊 SAP Alan Değeri (sayısal karşılaştırma)</option>
+                        <option value="popup_exists"  ${isPopup?'selected':''}>🔔 SAP Popup Varlığı / İçeriği</option>
+                        <option value="status_message" ${isStatus?'selected':''}>🟨 SAP Durum Mesajı (sol alt)</option>
+                    </select>
+                </div>
+
+                <!-- ── Element Value Section ──────────────────────────── -->
+                <div class="spb-if-elem-section spb-field-full" style="grid-column:1/-1;display:${isElem?'':'none'}">
+                    <div class="spb-config-grid" style="padding:0;margin:0">
+                        <div class="spb-field spb-field-full">
+                            <label class="spb-field-label">Karşılaştırılacak SAP Alanı (Teknik ID)</label>
+                            <input type="text" class="spb-input" data-key="element_id"
+                                value="${esc(data.element_id||'')}" placeholder="wnd[0]/usr/txt...">
+                        </div>
+                        <div class="spb-field spb-field-full">
+                            <label class="spb-field-label">Alan Tarama (Input)</label>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <button type="button" class="btn spb-scan-inputs-btn" data-idx="__IDX__" title="Input alanlarını tara">
+                                    <i class="fas fa-magnifying-glass"></i> Tara
+                                </button>
+                                <select class="spb-input spb-input-scan-select" data-idx="__IDX__">
+                                    <option value="">Taramadan alan seç...</option>
+                                </select>
+                            </div>
+                            <small style="color:var(--text-dim)">Kural: |değer| > eşik ise bir dala, |değer| &lt; eşik ise diğer dala gider.</small>
+                        </div>
+                        <div class="spb-field">
+                            <label class="spb-field-label">Eşik Değer</label>
+                            <input type="number" class="spb-input" data-key="threshold"
+                                value="${esc(data.threshold||'1')}" step="0.0001">
+                        </div>
+                        <div class="spb-field">
+                            <label class="spb-field-label">|değer| > eşik → Adım No</label>
+                            ${renderStepTargetPicker(stepIndex, data, 'gt_step_no', 'gt_step_id', '— Boşsa sonraki adım —')}
+                        </div>
+                        <div class="spb-field">
+                            <label class="spb-field-label">|değer| &lt; eşik → Adım No</label>
+                            ${renderStepTargetPicker(stepIndex, data, 'lt_step_no', 'lt_step_id', '— Boşsa sonraki adım —')}
+                        </div>
+                        <div class="spb-field">
+                            <label class="spb-field-label">|değer| = eşik → Adım No (ops.)</label>
+                            ${renderStepTargetPicker(stepIndex, data, 'eq_step_no', 'eq_step_id', '— Boşsa sonraki adım —')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Popup Exists Section ───────────────────────────── -->
+                <div class="spb-if-popup-section spb-field-full" style="grid-column:1/-1;display:${isPopup?'':'none'}">
+                    <div class="spb-config-grid" style="padding:0;margin:0">
+                        <div class="spb-field spb-field-full">
+                            <label class="spb-field-label" style="margin-bottom:8px">
+                                Popup Kuralları
+                                <span style="font-weight:400;color:var(--text-dim);font-size:.8em;margin-left:6px">(sırayla kontrol edilir, ilk eşleşen uygulanır)</span>
+                            </label>
+                            <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">
+                                <div style="display:flex;gap:6px;padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:8px">
+                                    <span style="flex:2;font-size:.75em;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em">Popup metni içersin</span>
+                                    <span style="flex:0 0 110px;font-size:.75em;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em">Git: Adım No</span>
+                                    <span style="flex:1.5;font-size:.75em;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em">Etiket</span>
+                                    <span style="width:36px"></span>
+                                </div>
+                                <div class="spb-popup-rules-list">${rulesHtml}</div>
+                                <button type="button" class="btn" onclick="spbAddPopupRule(this)"
+                                    style="margin-top:6px;background:rgba(99,102,241,.15);color:#a5b4fc;border:1px dashed #6366f1">
+                                    <i class="fas fa-plus"></i> Kural Ekle
+                                </button>
+                            </div>
+                            <div class="spb-config-note" style="margin-top:0">
+                                <i class="fas fa-circle-info"></i>
+                                <b>Kural boş keyword:</b> her açık popup'la eşleşir (catch-all).
+                                Kural yoksa → popup var/yok ayrımı adımlarına göre yönlendirme yapılır.
+                            </div>
+                        </div>
+                        <div class="spb-field">
+                            <label class="spb-field-label">Popup var, kural eşleşmedi → Adım No</label>
+                            ${renderStepTargetPicker(stepIndex, data, 'popup_nomatch_step_no', 'popup_nomatch_step_id', '— Boşsa sonraki adım —')}
+                        </div>
+                        <div class="spb-field">
+                            <label class="spb-field-label">Popup yok → Adım No</label>
+                            ${renderStepTargetPicker(stepIndex, data, 'no_popup_step_no', 'no_popup_step_id', '— Boşsa sonraki adım —')}
+                        </div>
+                        <div class="spb-field spb-field-full">
+                            <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                                <input type="checkbox" data-key="save_popup_text" ${data.save_popup_text?'checked':''}>
+                                Popup metnini runtime'a kaydet
+                                <span style="color:var(--text-dim);font-size:.82em">(→ <code>{popup_text}</code> ile Satır Sonucu Yaz adımında kullanılabilir)</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Status Message Section ─────────────────────────── -->
+                <div class="spb-if-status-section spb-field-full" style="grid-column:1/-1;display:${isStatus?'':'none'}">
+                    <div class="spb-config-grid" style="padding:0;margin:0">
+                        <div class="spb-field">
+                            <label class="spb-field-label">Mesaj tipi</label>
+                            <select class="spb-input" data-key="status_category">
+                                <option value="any" ${String(data.status_category||'any')==='any'?'selected':''}>Herhangi</option>
+                                <option value="positive" ${data.status_category==='positive'?'selected':''}>Olumlu (yeşil)</option>
+                                <option value="negative" ${data.status_category==='negative'?'selected':''}>Olumsuz (kırmızı)</option>
+                                <option value="info" ${data.status_category==='info'?'selected':''}>Bilgi/Uyarı (sarı)</option>
+                            </select>
+                        </div>
+                        <div class="spb-field spb-field-full">
+                            <label class="spb-field-label">Mesaj metni içersin (ops.)</label>
+                            <input type="text" class="spb-input" data-key="status_text_contains" value="${esc(data.status_text_contains||'')}" placeholder="örn: irsaliye ya da servis giriş sayfası">
+                        </div>
+                        <div class="spb-field">
+                            <label class="spb-field-label">Eşleşirse → Adım</label>
+                            ${renderStepTargetPicker(stepIndex, data, 'status_match_step_no', 'status_match_step_id', '— Boşsa sonraki adım —')}
+                        </div>
+                        <div class="spb-field">
+                            <label class="spb-field-label">Eşleşmezse → Adım</label>
+                            ${renderStepTargetPicker(stepIndex, data, 'status_nomatch_step_no', 'status_nomatch_step_id', '— Boşsa sonraki adım —')}
+                        </div>
+                        <div class="spb-field spb-field-full">
+                            <div class="spb-config-note"><i class="fas fa-circle-info"></i>
+                                SAP sol alt durum mesajı wnd[0]/sbar üzerinden okunur. Mesajı raporda kullanmak için Satır Sonucu Yaz adımında <code>{status_text}</code> ve <code>{status_type}</code> yer tutucularını kullanabilirsiniz.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Ortak ──────────────────────────────────────────── -->
+                <div class="spb-field spb-field-full">
+                    <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0">
+                        <input type="checkbox" data-key="continue_on_error" ${data.continue_on_error ? 'checked' : ''}>
+                        Alan okunamaz / parse edilemezse adımı logla ve akışa devam et
+                    </label>
+                </div>
+            </div>`;
+        }
+
+        case 'if_end':
+            return `<div class="spb-config-note"><i class="fas fa-code-branch"></i> IF bloğunu burada kapatır. Bu adım blok sınırını belirlemek ve görsel girinti için kullanılır.</div>`;
 
         case 'ftp_list':
             return `
@@ -604,8 +1304,118 @@
         case 'sap_close':
             return `<div class="spb-config-note"><i class="fas fa-info-circle"></i> SAP oturumu kapatılır. Ek yapılandırma gerekmez.</div>`;
 
+        case 'show_message':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Mesaj Başlığı</label>
+                    <input type="text" class="spb-input" data-key="title" value="${esc(data.title||'Bilgi')}" maxlength="200" placeholder="Örn: Kontrol Mesajı">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Mesaj İçeriği</label>
+                    <textarea class="spb-input" data-key="message" rows="4" maxlength="4000" placeholder="Gösterilecek metin...">${esc(data.message||'')}</textarea>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <div class="spb-config-note"><i class="fas fa-info-circle"></i> Bu adımda ekrana Tamam butonlu bir mesaj çıkar. Kullanıcı kapatana kadar süreç bu adımda bekler, ardından devam eder.</div>
+                </div>
+            </div>`;
+
+        case 'excel_loop_next':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Excel dosya yolu</label>
+                    <div class="spb-inline-tools">
+                        <input type="text" class="spb-input" data-key="excel_file_path" value="${esc(data.excel_file_path||'')}" placeholder="Excel dosyasını seçin" readonly>
+                        <button type="button" class="btn spb-excel-browse-btn" data-idx="__IDX__" title="Excel dosyası seç">
+                            <i class="fas fa-folder-open"></i> Dosya Seç
+                        </button>
+                    </div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Sayfa adı</label>
+                    <div class="spb-inline-tools">
+                        <select class="spb-input spb-excel-sheet-select" data-key="excel_sheet_name">
+                            <option value="${esc(data.excel_sheet_name||'')}">${esc(data.excel_sheet_name||'— Sekme seçiniz —')}</option>
+                        </select>
+                        <button type="button" class="btn spb-excel-sheets-btn" data-idx="__IDX__" title="Excel sekmelerini tara">
+                            <i class="fas fa-list"></i> Sekmeleri Tara
+                        </button>
+                    </div>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Başlık satırı</label>
+                    <input type="number" class="spb-input" data-key="excel_header_row" value="${esc(data.excel_header_row||'1')}" min="1" max="1000">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Satır varsa dönülecek adım no</label>
+                    ${renderStepTargetPicker(stepIndex, data, 'target_step_no', 'target_step_id', '— Hedef adım seçiniz —')}
+                </div>
+                <div class="spb-field spb-field-full">
+                    <div class="spb-config-note"><i class="fas fa-info-circle"></i> Bu adım, aynı caride Excel'in bir sonraki satırına geçer. Satır varsa belirtilen adıma döner; satır bittiyse normal akışa devam eder ve dış cari döngüsü bozulmaz.</div>
+                </div>
+            </div>`;
+
         case 'loop_next':
             return `<div class="spb-config-note"><i class="fas fa-info-circle"></i> Döngüdeki bir sonraki kayda geçilir. Ek yapılandırma gerekmez.</div>`;
+
+        case 'excel_row_log':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field">
+                    <label class="spb-field-label">Durum</label>
+                    <select class="spb-input" data-key="status">
+                        <option value="ok" ${(data.status||'ok')==='ok'?'selected':''}>✅ Başarılı (ok)</option>
+                        <option value="skip" ${data.status==='skip'?'selected':''}>⏭ Atlandı (skip)</option>
+                        <option value="error" ${data.status==='error'?'selected':''}>❌ Hatalı (error)</option>
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Neden / Açıklama</label>
+                    <input type="text" class="spb-input" data-key="reason" value="${esc(data.reason||'')}"
+                        placeholder="{cari} {excel_satir} gibi yer tutucular kullanabilirsiniz">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <div class="spb-config-note"><i class="fas fa-info-circle"></i>
+                        Bu adım, işlenen satırın sonucunu hafızaya yazar. Yer tutucular: <code>{cari}</code> <code>{excel_satir}</code> <code>{loop_index}</code>.
+                        Rapor Oluştur adımı çalışınca bu kayıtlar Excel dosyasına aktarılır.
+                    </div>
+                </div>
+            </div>`;
+
+        case 'send_report_mail':
+            return `
+            <div class="spb-config-grid">
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Mail Hesabı</label>
+                    <select class="spb-input" data-key="mail_account_id">
+                        <option value="">— Hesap seçin (boş bırakılırsa sadece xlsx üretilir) —</option>
+                        ${(window.spbMailAccounts||[]).map(a=>`<option value="${a.id}" ${String(data.mail_account_id||'')==String(a.id)?'selected':''}>${esc(a.name)} &lt;${esc(a.email)}&gt;</option>`).join('')}
+                    </select>
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Alıcı (e-posta)</label>
+                    <input type="text" class="spb-input" data-key="to" value="${esc(data.to||'')}" placeholder="ornek@firma.com">
+                </div>
+                <div class="spb-field">
+                    <label class="spb-field-label">Konu</label>
+                    <input type="text" class="spb-input" data-key="subject" value="${esc(data.subject||'')}" placeholder="Saggio RPA Raporu">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Mail metni (boş bırakılırsa otomatik oluşturulur)</label>
+                    <textarea class="spb-input" data-key="body" rows="4" placeholder="Merhaba,\n\nSüreç tamamlandı.\n\n{cari} gibi yer tutucular kullanabilirsiniz.">${esc(data.body||'')}</textarea>
+                </div>
+                <div class="spb-field spb-field-full">
+                    <label class="spb-field-label">Rapor xlsx kayıt klasörü (boş = geçici klasör)</label>
+                    <input type="text" class="spb-input" data-key="output_dir" value="${esc(data.output_dir||'')}" placeholder="C:\\Raporlar\\">
+                </div>
+                <div class="spb-field spb-field-full">
+                    <div class="spb-config-note"><i class="fas fa-info-circle"></i>
+                        Bu adım, akışta o ana kadar yazılan tüm "Satır Sonucu Yaz" kayıtlarından bir xlsx rapor üretir
+                        ve seçili mail hesabından ek olarak gönderir. Mail hesabı seçilmezse yalnızca dosya kaydedilir.
+                    </div>
+                </div>
+            </div>`;
 
         default:
             return '';
@@ -665,10 +1475,12 @@
 
     function renderStepCard(s, i) {
         const m = STEP_META[s.step_type] || {icon:'fas fa-question', label: s.step_type, color:'#888'};
-        const configHtml = renderConfigFields(s.step_type, s.config);
+        const configHtml = renderConfigFields(s.step_type, s.config, i);
         const isDisabled = !!(s.config && s.config.disabled);
+        const blockDepth = getStepBlockDepth(i);
+        const blockClass = s.step_type === 'if_else' ? 'spb-step-if-open' : (s.step_type === 'if_end' ? 'spb-step-if-end' : '');
         return `
-        <div class="spb-step-card ${isDisabled ? 'spb-step-disabled' : ''}" data-idx="${i}" draggable="true">
+        <div class="spb-step-card ${isDisabled ? 'spb-step-disabled' : ''} ${blockClass}" data-idx="${i}" data-block-depth="${blockDepth}" draggable="true" style="--spb-block-depth:${blockDepth}">
             <div class="spb-step-header">
                 <div class="spb-step-drag" title="Sürükleyerek yeniden sırala"><i class="fas fa-grip-vertical"></i></div>
                 <div class="spb-step-badge" style="--step-color:${m.color}">
@@ -682,11 +1494,13 @@
                            value="${esc(s.label||'')}">
                 </div>
                 <div class="spb-step-actions">
-                    <button class="btn spb-step-run" data-idx="${i}" title="Bu adıma kadar çalıştır"><i class="fas fa-play"></i></button>
-                    <button class="btn spb-step-up" data-idx="${i}" title="Yukarı taşı" ${i===0?'disabled':''}><i class="fas fa-chevron-up"></i></button>
-                    <button class="btn spb-step-down" data-idx="${i}" title="Aşağı taşı" ${i===steps.length-1?'disabled':''}><i class="fas fa-chevron-down"></i></button>
-                    <button class="btn spb-step-collapse" data-idx="${i}" title="Daralt/Genişlet"><i class="fas fa-chevron-${s._collapsed?'down':'up'}"></i></button>
-                    <button class="btn btn-danger spb-step-delete" data-idx="${i}" title="Adımı sil"><i class="fas fa-trash"></i></button>
+                    <button class="btn spb-step-run" data-idx="${i}" title="Bu adıma kadar çalıştır" aria-label="Bu adıma kadar çalıştır"><i class="fas fa-play"></i></button>
+                    <button class="btn spb-step-run-single" data-idx="${i}" title="Sadece bu adımı çalıştır" aria-label="Sadece bu adımı çalıştır"><i class="fas fa-bolt"></i></button>
+                    <button class="btn spb-step-run-from" data-idx="${i}" title="Bu adımdan itibaren çalıştır" aria-label="Bu adımdan itibaren çalıştır" style="background:#0d9488"><i class="fas fa-play"></i><i class="fas fa-forward" style="font-size:0.7em;margin-left:2px"></i></button>
+                    <button class="btn spb-step-up" data-idx="${i}" title="Yukarı taşı" aria-label="Yukarı taşı" ${i===0?'disabled':''}><i class="fas fa-chevron-up"></i></button>
+                    <button class="btn spb-step-down" data-idx="${i}" title="Aşağı taşı" aria-label="Aşağı taşı" ${i===steps.length-1?'disabled':''}><i class="fas fa-chevron-down"></i></button>
+                    <button class="btn spb-step-collapse" data-idx="${i}" title="${s._collapsed?'Genişlet':'Daralt'}" aria-label="${s._collapsed?'Genişlet':'Daralt'}"><i class="fas fa-${s._collapsed?'plus':'minus'}"></i></button>
+                    <button class="btn btn-danger spb-step-delete" data-idx="${i}" title="Adımı sil" aria-label="Adımı sil"><i class="fas fa-trash"></i></button>
                 </div>
             </div>
             <div class="spb-step-body ${s._collapsed?'spb-collapsed':''}">
@@ -734,6 +1548,7 @@
                 const i = +btn.dataset.idx;
                 syncConfigFromDOM(i);
                 steps[i]._collapsed = !steps[i]._collapsed;
+                persistCollapsedState();
                 renderSteps();
             });
         });
@@ -751,6 +1566,22 @@
             btn.addEventListener('click', async () => {
                 const i = +btn.dataset.idx;
                 await runProcessToStep(i, btn);
+            });
+        });
+
+        // Sadece bu adımı çalıştır
+        list.querySelectorAll('.spb-step-run-single').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await runProcessToStep(i, btn, i);
+            });
+        });
+
+        // Bu adımdan itibaren sonuna kadar çalıştır
+        list.querySelectorAll('.spb-step-run-from').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await runProcessToStep(null, btn, i);
             });
         });
 
@@ -798,6 +1629,100 @@
                 const card = sel.closest('.spb-step-card');
                 const idInput = card?.querySelector('[data-key="button_id"]');
                 if (idInput && sel.value) idInput.value = sel.value;
+            });
+        });
+
+        // Selectable (radio/checkbox) tara
+        list.querySelectorAll('.spb-scan-selectables-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await scanSapSelectablesForStep(i, btn);
+            });
+        });
+
+        // Selectable listesinden seçimi element_id alanına yaz
+        list.querySelectorAll('.spb-selectable-scan-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const idInput = card?.querySelector('[data-key="element_id"]');
+                if (idInput && sel.value) idInput.value = sel.value;
+            });
+        });
+
+        // Input alanlarını tara
+        list.querySelectorAll('.spb-scan-inputs-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await scanSapInputsForStep(i, btn);
+            });
+        });
+
+        // Input listesinden seçimi element_id alanına yaz
+        list.querySelectorAll('.spb-input-scan-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const idInput = card?.querySelector('[data-key="element_id"]');
+                if (idInput && sel.value) idInput.value = sel.value;
+            });
+        });
+
+        // Excel dosya/sekme/sütun seçim araçları
+        list.querySelectorAll('.spb-excel-browse-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await browseExcelFileForStep(i, btn);
+            });
+        });
+        list.querySelectorAll('.spb-excel-sheets-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await scanExcelSheetsForStep(i, btn);
+            });
+        });
+        list.querySelectorAll('.spb-excel-columns-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await scanExcelColumnsForStep(i, btn);
+            });
+        });
+        list.querySelectorAll('.spb-excel-sheet-select').forEach(sel => {
+            sel.addEventListener('change', async () => {
+                const card = sel.closest('.spb-step-card');
+                const i = +(card?.dataset?.idx || '-1');
+                if (i >= 0) await scanExcelColumnsForStep(i);
+            });
+        });
+
+        list.querySelectorAll('.spb-scan-win-dialogs-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const i = +btn.dataset.idx;
+                await scanWindowsDialogsForStep(i, btn);
+            });
+        });
+
+        list.querySelectorAll('.spb-win-dialog-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const i = +(sel.dataset.idx || card?.dataset.idx || '-1');
+                const titleInput = card?.querySelector('[data-key="window_title"]');
+                if (titleInput && sel.value) titleInput.value = sel.value;
+                fillWindowsDialogControlsForCard(card, _windowsDialogScanCacheByStep[i] || [], sel.value);
+            });
+        });
+
+        list.querySelectorAll('.spb-win-dialog-checkbox-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const input = card?.querySelector('[data-key="checkbox_text"]');
+                if (input && sel.value) input.value = sel.value;
+            });
+        });
+
+        list.querySelectorAll('.spb-win-dialog-button-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const input = card?.querySelector('[data-key="button_text"]');
+                if (input && sel.value) input.value = sel.value;
             });
         });
 
@@ -856,6 +1781,24 @@
             });
         });
 
+        // Popup radio listesi seçilince popup_radio_id alanına yaz
+        list.querySelectorAll('.spb-popup-radio-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const idInput = card?.querySelector('[data-key="popup_radio_id"]');
+                if (idInput && sel.value) idInput.value = sel.value;
+            });
+        });
+
+        // Popup input listesi seçilince popup_input_id alanına yaz
+        list.querySelectorAll('.spb-popup-input-select').forEach(sel => {
+            sel.addEventListener('change', () => {
+                const card = sel.closest('.spb-step-card');
+                const idInput = card?.querySelector('[data-key="popup_input_id"]');
+                if (idInput && sel.value) idInput.value = sel.value;
+            });
+        });
+
         // Ekran seçilince screen_title alanına yaz
         list.querySelectorAll('.spb-wait-screen-select').forEach(sel => {
             sel.addEventListener('change', () => {
@@ -869,6 +1812,7 @@
         list.querySelectorAll('.spb-step-card').forEach(card => {
             bindWaitTimeoutMode(card);
             bindPopupMode(card);
+            bindFillInputMode(card);
         });
 
         // Drag & Drop
@@ -898,20 +1842,59 @@
         const popupAction = card.querySelector('.spb-popup-action');
         const popupBtnWrap = card.querySelector('.spb-popup-buttonid-wrap');
         const popupBtnSelectWrap = card.querySelector('.spb-popup-button-select-wrap');
+        const popupRadioWrap = card.querySelector('.spb-popup-radioid-wrap');
+        const popupRadioSelectWrap = card.querySelector('.spb-popup-radio-select-wrap');
+        const popupInputWrap = card.querySelector('.spb-popup-inputid-wrap');
+        const popupInputSelectWrap = card.querySelector('.spb-popup-input-select-wrap');
+        const popupInputValueWrap = card.querySelector('.spb-popup-inputvalue-wrap');
         const popupMatchAction = card.querySelector('.spb-popup-match-action');
         const popupTargetWrap = card.querySelector('.spb-popup-target-wrap');
+        const popupNextButtonWrap = card.querySelector('.spb-popup-next-button-wrap');
 
         const refreshPopupUI = () => {
             const actionVal = String(popupAction?.value || '');
             if (popupBtnWrap) popupBtnWrap.style.display = actionVal === 'press_button_id' ? '' : 'none';
             if (popupBtnSelectWrap) popupBtnSelectWrap.style.display = actionVal === 'press_button_id' ? '' : 'none';
+            if (popupRadioWrap) popupRadioWrap.style.display = actionVal === 'select_radio_id' ? '' : 'none';
+            if (popupRadioSelectWrap) popupRadioSelectWrap.style.display = actionVal === 'select_radio_id' ? '' : 'none';
+            if (popupInputWrap) popupInputWrap.style.display = actionVal === 'fill_input_id' ? '' : 'none';
+            if (popupInputSelectWrap) popupInputSelectWrap.style.display = actionVal === 'fill_input_id' ? '' : 'none';
+            if (popupInputValueWrap) popupInputValueWrap.style.display = actionVal === 'fill_input_id' ? '' : 'none';
             const matchVal = String(popupMatchAction?.value || 'next_step');
             if (popupTargetWrap) popupTargetWrap.style.display = matchVal === 'goto_step' ? '' : 'none';
+            if (popupNextButtonWrap) popupNextButtonWrap.style.display = matchVal === 'press_button' ? '' : 'none';
         };
 
         popupAction?.addEventListener('change', refreshPopupUI);
         popupMatchAction?.addEventListener('change', refreshPopupUI);
         refreshPopupUI();
+    }
+
+    function bindFillInputMode(card) {
+        if (!card) return;
+        const sourceSel = card.querySelector('[data-key="value_source"]');
+        const staticWrap = card.querySelector('[data-key="value_text"]')?.closest('.spb-field');
+        const excelPathWrap = card.querySelector('[data-key="excel_file_path"]')?.closest('.spb-field');
+        const excelSheetWrap = card.querySelector('[data-key="excel_sheet_name"]')?.closest('.spb-field');
+        const excelColumnWrap = card.querySelector('[data-key="excel_column"]')?.closest('.spb-field');
+        const excelHeaderWrap = card.querySelector('[data-key="excel_header_row"]')?.closest('.spb-field');
+        const excelOffsetWrap = card.querySelector('[data-key="excel_row_offset"]')?.closest('.spb-field');
+        const excelLoopWrap = card.querySelector('[data-key="excel_row_index_source"]')?.closest('.spb-field');
+
+        const refresh = () => {
+            const src = String(sourceSel?.value || 'static');
+            const isExcel = src === 'excel_column';
+            if (staticWrap) staticWrap.style.display = isExcel ? 'none' : '';
+            if (excelPathWrap) excelPathWrap.style.display = isExcel ? '' : 'none';
+            if (excelSheetWrap) excelSheetWrap.style.display = isExcel ? '' : 'none';
+            if (excelColumnWrap) excelColumnWrap.style.display = isExcel ? '' : 'none';
+            if (excelHeaderWrap) excelHeaderWrap.style.display = isExcel ? '' : 'none';
+            if (excelOffsetWrap) excelOffsetWrap.style.display = isExcel ? '' : 'none';
+            if (excelLoopWrap) excelLoopWrap.style.display = isExcel ? '' : 'none';
+        };
+
+        sourceSel?.addEventListener('change', refresh);
+        refresh();
     }
 
     // ── DOM → state senkronizasyonu ───────────────────────────────────────
@@ -939,6 +1922,25 @@
                 });
             });
             steps[idx].config = {actions, disabled: isDisabled};
+        } else if (stepType === 'if_else') {
+            // Genel alanları topla
+            const cfg = {};
+            card.querySelectorAll('[data-key]').forEach(el => {
+                if (el.type === 'checkbox') cfg[el.dataset.key] = !!el.checked;
+                else cfg[el.dataset.key] = el.value;
+            });
+            // Popup kural satırlarını topla
+            const rules = [];
+            card.querySelectorAll('.spb-popup-rule-row').forEach(row => {
+                rules.push({
+                    keyword: row.querySelector('[data-rkey="keyword"]')?.value || '',
+                    step_id: row.querySelector('[data-rkey="step_id"]')?.value || '',
+                    step_no: row.querySelector('[data-rkey="step_no"]')?.value  || '',
+                    label:   row.querySelector('[data-rkey="label"]')?.value    || '',
+                });
+            });
+            cfg.popup_rules = rules;
+            steps[idx].config = cfg;
         } else {
             // Genel input/select → data-key
             const cfg = {};
@@ -949,6 +1951,82 @@
             steps[idx].config = cfg;
         }
     }
+
+    // ── IF/ELSE Popup Kuralları ───────────────────────────────────────────
+    function spbIfElseCondToggle(sel) {
+        const card = sel.closest('.spb-step-card');
+        const v = sel.value;
+        const es = card.querySelector('.spb-if-elem-section');
+        const ps = card.querySelector('.spb-if-popup-section');
+        const ss = card.querySelector('.spb-if-status-section');
+        if (es) es.style.display = v === 'element_value' ? '' : 'none';
+        if (ps) ps.style.display = v === 'popup_exists'  ? '' : 'none';
+        if (ss) ss.style.display = v === 'status_message' ? '' : 'none';
+    }
+
+    function spbOnTargetStepChange(sel) {
+        const card = sel.closest('.spb-step-card');
+        if (!card) return;
+        const idKey = sel.dataset.stepIdKey;
+        const noKey = sel.dataset.stepNoKey;
+        const opt = sel.options[sel.selectedIndex];
+        const stepId = String(opt?.dataset?.stepId || '').trim();
+        const stepNo = String(opt?.dataset?.stepNo || '').trim();
+        if (idKey) {
+            const idInp = card.querySelector(`[data-key="${idKey}"]`);
+            if (idInp) idInp.value = stepId;
+        }
+        if (noKey) {
+            const noInp = card.querySelector(`[data-key="${noKey}"]`);
+            if (noInp) noInp.value = stepNo;
+        }
+    }
+
+    function spbOnRuleTargetStepChange(sel) {
+        const row = sel.closest('.spb-popup-rule-row');
+        if (!row) return;
+        const opt = sel.options[sel.selectedIndex];
+        const stepId = String(opt?.dataset?.stepId || '').trim();
+        const stepNo = String(opt?.dataset?.stepNo || '').trim();
+        const idInp = row.querySelector('[data-rkey="step_id"]');
+        const noInp = row.querySelector('[data-rkey="step_no"]');
+        if (idInp) idInp.value = stepId;
+        if (noInp) noInp.value = stepNo;
+    }
+
+    function spbAddPopupRule(btn) {
+        const list = btn.closest('.spb-config-grid, .spb-if-popup-section')?.querySelector('.spb-popup-rules-list');
+        if (!list) return;
+        const row = document.createElement('div');
+        row.className = 'spb-popup-rule-row';
+        row.innerHTML = `
+            <input type="text" class="spb-input" data-rkey="keyword"
+                placeholder="Popup metni içersin... (boşsa her popup eşleşir)"
+                style="flex:2;min-width:140px">
+            <input type="hidden" data-rkey="step_id" value="">
+            <input type="hidden" data-rkey="step_no" value="">
+            <select class="spb-input spb-popup-rule-target" style="flex:0 0 220px" data-rkey-step-id="step_id" data-rkey-step-no="step_no" onchange="spbOnRuleTargetStepChange(this)">
+                ${buildStepTargetOptions(-1, '', '', '— Git: adım seçin —').optionsHtml}
+            </select>
+            <input type="text" class="spb-input" data-rkey="label"
+                placeholder="Etiket (rapor için)" style="flex:1.5;min-width:110px">
+            <button type="button" class="btn btn-danger spb-popup-rule-remove"
+                title="Kuralı sil"><i class="fas fa-times"></i></button>`;
+        list.appendChild(row);
+    }
+
+    // IIFE içinde tanımlı oldukları için inline onclick/onchange erişebilsin diye global'e aç.
+    window.spbIfElseCondToggle = spbIfElseCondToggle;
+    window.spbAddPopupRule = spbAddPopupRule;
+    window.spbOnTargetStepChange = spbOnTargetStepChange;
+    window.spbOnRuleTargetStepChange = spbOnRuleTargetStepChange;
+
+    // Popup kural silme – event delegation
+    document.addEventListener('click', e => {
+        if (e.target.closest('.spb-popup-rule-remove')) {
+            e.target.closest('.spb-popup-rule-row')?.remove();
+        }
+    });
 
     // ── Drag & Drop ───────────────────────────────────────────────────────
     let _dragIdx = null;
@@ -987,6 +2065,20 @@
     // ── Kaydet ────────────────────────────────────────────────────────────
     async function saveSteps() {
         syncAllFromDOM();
+        const invalidLoopStepNos = [];
+        steps.forEach((s, i) => {
+            if (!s || s.step_type !== 'excel_loop_next') return;
+            const cfg = s.config || {};
+            const hasTargetNo = String(cfg.target_step_no || '').trim() !== '';
+            const hasTargetId = String(cfg.target_step_id || '').trim() !== '';
+            if (!hasTargetNo && !hasTargetId) invalidLoopStepNos.push(i + 1);
+        });
+        if (invalidLoopStepNos.length > 0) {
+            if (typeof showToast === 'function') {
+                showToast(`Kaydetme iptal: Excel Satır Sonraki adımlarında hedef boş. Adım(lar): ${invalidLoopStepNos.join(', ')}`, 'error');
+            }
+            return;
+        }
         const btn = document.getElementById('spb-save-btn');
         const orig = btn?.innerHTML;
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Kaydediliyor...'; }
@@ -1012,6 +2104,7 @@
             if (data.ok) {
                 // Kaydedilen DB id'lerini steps'e yaz
                 data.steps.forEach((ds, i) => { if (steps[i]) steps[i].id = ds.id; });
+                persistCollapsedState();
                 if (typeof showToast === 'function') showToast(`${data.saved} adım kaydedildi.`, 'success');
             } else {
                 if (typeof showToast === 'function') showToast('Kayıt hatası: ' + data.error, 'error');
@@ -1048,6 +2141,41 @@
 
     let _runtimePollTimer = null;
     let _runtimeRunActive = false;
+    let _runtimeSawRunning = false;
+
+    function clearRuntimeStepHighlight() {
+        document.querySelectorAll('.spb-step-card').forEach(card => {
+            card.classList.remove('spb-step-active-runtime', 'spb-step-completed-runtime');
+            card.style.removeProperty('--spb-runtime-hue');
+        });
+    }
+
+    function applyRuntimeStepHighlight(state) {
+        const s = state || {};
+        const running = !!s.running || _runtimeRunActive;
+        const currentNum = Number(s.current_step || 0);
+        const activeIdx = Number.isFinite(currentNum) ? (currentNum - 1) : -1;
+
+        if (!running || activeIdx < 0) {
+            clearRuntimeStepHighlight();
+            return;
+        }
+
+        document.querySelectorAll('.spb-step-card').forEach(card => {
+            const idx = Number(card.dataset.idx);
+            card.classList.remove('spb-step-active-runtime', 'spb-step-completed-runtime');
+            card.style.removeProperty('--spb-runtime-hue');
+            if (!Number.isFinite(idx)) return;
+
+            if (idx < activeIdx) {
+                card.classList.add('spb-step-completed-runtime');
+            } else if (idx === activeIdx) {
+                const hue = (22 + (idx * 47)) % 360;
+                card.classList.add('spb-step-active-runtime');
+                card.style.setProperty('--spb-runtime-hue', String(hue));
+            }
+        });
+    }
 
     function renderLiveRuntimePanel(state) {
         const statusEl = document.getElementById('spb-live-status');
@@ -1076,26 +2204,45 @@
 
         const logs = Array.isArray(s.logs) ? s.logs : [];
         logsEl.innerHTML = logs.length
-            ? logs.slice(-18).map(l => `<div class="spb-live-log-item">${esc(String(l || ''))}</div>`).join('')
+            ? logs.slice(-18).map(l => {
+                if (l && typeof l === 'object') {
+                    const stepNo = Number(l.step || 0);
+                    const text = String(l.msg || '').trim();
+                    const prefix = stepNo > 0 ? `Adım ${stepNo}: ` : '';
+                    return `<div class="spb-live-log-item">${esc(prefix + text)}</div>`;
+                }
+                return `<div class="spb-live-log-item">${esc(String(l || ''))}</div>`;
+            }).join('')
             : '<div class="spb-live-log-item">Henüz log yok.</div>';
         logsEl.scrollTop = logsEl.scrollHeight;
 
         if (pauseBtn) {
             pauseBtn.disabled = !running && !paused;
             pauseBtn.innerHTML = paused
-                ? '<i class="fas fa-play"></i> Devam Et'
-                : '<i class="fas fa-pause"></i> Duraklat';
+                ? '<i class="fas fa-play"></i>'
+                : '<i class="fas fa-pause"></i>';
         }
         if (stopBtn) {
             stopBtn.disabled = !running || stopped;
         }
+
+        applyRuntimeStepHighlight(s);
     }
 
     async function pollRuntimeStatus() {
         try {
             const resp = await fetch(RUNTIME_STATUS_URL, {cache: 'no-store'});
             const data = await resp.json();
-            if (data?.ok) renderLiveRuntimePanel(data.state || {});
+            if (data?.ok) {
+                const state = data.state || {};
+                renderLiveRuntimePanel(state);
+                if (state.running) _runtimeSawRunning = true;
+                if (_runtimeRunActive && _runtimeSawRunning && !state.running) {
+                    _runtimeRunActive = false;
+                    _runtimeSawRunning = false;
+                    stopRuntimePolling();
+                }
+            }
         } catch (_) {
             // Sessiz geç: panel son state'i korur.
         }
@@ -1131,7 +2278,7 @@
         }
     }
 
-    async function runProcessToStep(uptoIndex = null, sourceBtn = null) {
+    async function runProcessToStep(uptoIndex = null, sourceBtn = null, startIndex = null) {
         syncAllFromDOM();
         const hasTemplate = steps.some(s => s.step_type === 'sap_fill' && String((s.config || {}).template_name || '').trim());
         if (!hasTemplate) {
@@ -1141,6 +2288,7 @@
 
         const isFullRun = (uptoIndex === null || uptoIndex === undefined);
         const targetIndex = isFullRun ? (steps.length - 1) : uptoIndex;
+        const firstIndex = (startIndex === null || startIndex === undefined) ? 0 : Number(startIndex);
         if (targetIndex < 0) {
             if (typeof showToast === 'function') showToast('Çalıştırılacak adım yok.', 'info');
             return;
@@ -1153,11 +2301,16 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Çalışıyor...';
         }
         _runtimeRunActive = true;
+        _runtimeSawRunning = false;
         startRuntimePolling();
+        let keepPolling = false;
         try {
             const payload = {
+                async_mode: true,
+                start_index: firstIndex,
                 upto_index: targetIndex,
                 steps: steps.map((s, i) => ({
+                    id: s.id || null,
                     step_type: s.step_type,
                     order: i,
                     label: s.label || '',
@@ -1170,14 +2323,49 @@
                 body: JSON.stringify(payload),
             });
             const data = await resp.json();
-            renderRunLog(data);
+            if (Array.isArray(data?.logs)) renderRunLog(data);
+            if (data?.started) {
+                keepPolling = true;
+                if (typeof showToast === 'function') showToast('Süreç arka planda başlatıldı.', 'success');
+                return;
+            }
+            // 409: süreç zaten çalışıyor — kullanıcıya force-reset teklif et
+            if (resp.status === 409 && data?.can_force_reset) {
+                if (confirm((data.error || 'Bu süreç zaten çalışıyor.') + '\n\nSıkışmış olabilir. Zorla sıfırlayıp tekrar başlatılsın mı?')) {
+                    try {
+                        await fetch(RUNTIME_CONTROL_URL, {
+                            method: 'POST',
+                            headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                            body: JSON.stringify({action: 'force_stop'}),
+                        });
+                    } catch (_) { /* ignore */ }
+                    payload._force_reset = true;
+                    const retryResp = await fetch(RUN_URL, {
+                        method: 'POST',
+                        headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                        body: JSON.stringify(payload),
+                    });
+                    const retryData = await retryResp.json();
+                    if (retryData?.started) {
+                        keepPolling = true;
+                        if (typeof showToast === 'function') showToast('Süreç zorla sıfırlandı ve yeniden başlatıldı.', 'success');
+                        return;
+                    }
+                    if (typeof showToast === 'function') showToast('Yeniden başlatma başarısız: ' + (retryData?.error || 'Bilinmeyen hata'), 'error');
+                    return;
+                }
+            }
             if (data.ok) {
                 if (typeof showToast === 'function') {
                     const tplInfo = data.connection_template ? ` (${data.connection_template})` : '';
-                    showToast(
-                        (isFullRun ? 'Süreç adımları çalıştırıldı' : `${targetIndex + 1}. adıma kadar çalıştırıldı`) + tplInfo + '.',
-                        'success'
-                    );
+                    const isSingle = !isFullRun && firstIndex === targetIndex;
+                    const isFromStep = isFullRun && firstIndex > 0;
+                    let msg;
+                    if (isSingle) msg = `${targetIndex + 1}. adım çalıştırıldı`;
+                    else if (isFromStep) msg = `${firstIndex + 1}. adımdan itibaren süreç çalıştırıldı`;
+                    else if (isFullRun) msg = 'Süreç adımları çalıştırıldı';
+                    else msg = `${targetIndex + 1}. adıma kadar çalıştırıldı`;
+                    showToast(msg + tplInfo + '.', 'success');
                 }
             } else {
                 if (typeof showToast === 'function') showToast('Çalıştırma hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
@@ -1185,9 +2373,12 @@
         } catch (e) {
             if (typeof showToast === 'function') showToast('Bağlantı hatası: ' + e.message, 'error');
         } finally {
-            _runtimeRunActive = false;
-            await pollRuntimeStatus();
-            stopRuntimePolling();
+            if (!keepPolling) {
+                _runtimeRunActive = false;
+                _runtimeSawRunning = false;
+                await pollRuntimeStatus();
+                stopRuntimePolling();
+            }
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = orig;
@@ -1241,6 +2432,246 @@
         selectEl.innerHTML = opts.join('');
     }
 
+    function fillSelectableSelectForCard(card, controls) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-selectable-scan-select');
+        const idInput = card.querySelector('[data-key="element_id"]');
+        if (!selectEl || !idInput) return;
+        const selectedId = String(idInput.value || '').trim();
+
+        const opts = ['<option value="">— Seçilebilir alan seçiniz —</option>'];
+        (controls || []).forEach(c => {
+            const id = esc(String(c.id || ''));
+            const label = esc(String(c.label || c.id || 'Seçilebilir Alan'));
+            const selected = selectedId && selectedId === String(c.id || '') ? ' selected' : '';
+            opts.push(`<option value="${id}"${selected}>${label}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+    }
+
+    function fillInputControlSelectForCard(card, controls) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-input-scan-select');
+        const idInput = card.querySelector('[data-key="element_id"]');
+        if (!selectEl || !idInput) return;
+        const selectedId = String(idInput.value || '').trim();
+
+        const opts = ['<option value="">— Input alanı seçiniz —</option>'];
+        (controls || []).forEach(c => {
+            const id = esc(String(c.id || ''));
+            const label = esc(String(c.label || c.id || 'Input Alanı'));
+            const selected = selectedId && selectedId === String(c.id || '') ? ' selected' : '';
+            opts.push(`<option value="${id}"${selected}>${label}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+    }
+
+    function fillExcelSheetSelectForCard(card, sheets) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-excel-sheet-select');
+        const current = String(card.querySelector('[data-key="excel_sheet_name"]')?.value || '').trim();
+        if (!selectEl) return;
+        const opts = ['<option value="">— Sekme seçiniz —</option>'];
+        (sheets || []).forEach(name => {
+            const s = String(name || '').trim();
+            if (!s) return;
+            const selected = current && current === s ? ' selected' : '';
+            opts.push(`<option value="${esc(s)}"${selected}>${esc(s)}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+        if (!selectEl.value && current) {
+            selectEl.insertAdjacentHTML('beforeend', `<option value="${esc(current)}" selected>${esc(current)}</option>`);
+        }
+    }
+
+    function fillExcelColumnSelectForCard(card, columns) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-excel-column-select');
+        const current = String(card.querySelector('[data-key="excel_column"]')?.value || '').trim();
+        if (!selectEl) return;
+        const opts = ['<option value="">— Sütun seçiniz —</option>'];
+        (columns || []).forEach(col => {
+            const value = String(col?.value || '').trim();
+            const label = String(col?.label || value || '').trim();
+            if (!value) return;
+            const selected = current && current === value ? ' selected' : '';
+            opts.push(`<option value="${esc(value)}"${selected}>${esc(label)}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+        if (!selectEl.value && current) {
+            selectEl.insertAdjacentHTML('beforeend', `<option value="${esc(current)}" selected>${esc(current)}</option>`);
+        }
+    }
+
+    async function browseExcelFileForStep(stepIdx, sourceBtn) {
+        const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
+        if (!card) return;
+        const btn = sourceBtn || card.querySelector('.spb-excel-browse-btn');
+        const pathInput = card.querySelector('[data-key="excel_file_path"]');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Seçiliyor...';
+        }
+        try {
+            const resp = await fetch(EXCEL_BROWSE_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({ initial_path: String(pathInput?.value || '').trim() }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast('Excel dosya seçimi hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+                return;
+            }
+            const picked = String(data.path || '').trim();
+            if (!picked) return;
+            if (pathInput) pathInput.value = picked;
+            await scanExcelSheetsForStep(stepIdx);
+            await scanExcelColumnsForStep(stepIdx);
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Excel dosya seçimi bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+    }
+
+    async function scanExcelSheetsForStep(stepIdx, sourceBtn) {
+        const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
+        if (!card) return;
+        const btn = sourceBtn || card.querySelector('.spb-excel-sheets-btn');
+        const pathInput = card.querySelector('[data-key="excel_file_path"]');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taranıyor...';
+        }
+        try {
+            const excelFilePath = String(pathInput?.value || '').trim();
+            if (!excelFilePath) {
+                if (typeof showToast === 'function') showToast('Önce Excel dosyası seçin.', 'info');
+                return;
+            }
+            const resp = await fetch(EXCEL_SHEETS_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({ excel_file_path: excelFilePath }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast('Excel sekme tarama hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+                return;
+            }
+            fillExcelSheetSelectForCard(card, data.sheets || []);
+            if (!card.querySelector('[data-key="excel_sheet_name"]')?.value && Array.isArray(data.sheets) && data.sheets.length > 0) {
+                card.querySelector('[data-key="excel_sheet_name"]').value = String(data.sheets[0] || '');
+            }
+            if (typeof showToast === 'function') showToast(`${data.count || 0} sekme bulundu.`, 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Excel sekme tarama bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+    }
+
+    async function scanExcelColumnsForStep(stepIdx, sourceBtn) {
+        const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
+        if (!card) return;
+        const btn = sourceBtn || card.querySelector('.spb-excel-columns-btn');
+        const pathInput = card.querySelector('[data-key="excel_file_path"]');
+        const sheetInput = card.querySelector('[data-key="excel_sheet_name"]');
+        const headerInput = card.querySelector('[data-key="excel_header_row"]');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taranıyor...';
+        }
+        try {
+            const excelFilePath = String(pathInput?.value || '').trim();
+            if (!excelFilePath) {
+                if (typeof showToast === 'function') showToast('Önce Excel dosyası seçin.', 'info');
+                return;
+            }
+            const resp = await fetch(EXCEL_COLUMNS_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({
+                    excel_file_path: excelFilePath,
+                    excel_sheet_name: String(sheetInput?.value || '').trim(),
+                    excel_header_row: Number(headerInput?.value || 1),
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast('Excel sütun tarama hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+                return;
+            }
+            fillExcelColumnSelectForCard(card, data.columns || []);
+            if (typeof showToast === 'function') showToast(`${data.count || 0} sütun bulundu.`, 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Excel sütun tarama bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+    }
+
+    function fillWindowsDialogSelectForCard(card, dialogs) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-win-dialog-select');
+        const titleInput = card.querySelector('[data-key="window_title"]');
+        if (!selectEl || !titleInput) return;
+        const selectedTitle = String(titleInput.value || '').trim();
+        const opts = ['<option value="">— Pencere seçiniz —</option>'];
+        (dialogs || []).forEach(d => {
+            const title = String(d.title || '').trim();
+            const selected = selectedTitle && selectedTitle === title ? ' selected' : '';
+            opts.push(`<option value="${esc(title)}"${selected}>${esc(d.label || title || ('Pencere #' + d.hwnd))}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+    }
+
+    function fillWindowsDialogControlsForCard(card, dialogs, dialogTitle) {
+        if (!card) return;
+        const checkboxSelect = card.querySelector('.spb-win-dialog-checkbox-select');
+        const buttonSelect = card.querySelector('.spb-win-dialog-button-select');
+        const checkboxInput = card.querySelector('[data-key="checkbox_text"]');
+        const buttonInput = card.querySelector('[data-key="button_text"]');
+        if (!checkboxSelect || !buttonSelect || !checkboxInput || !buttonInput) return;
+
+        const title = String(dialogTitle || card.querySelector('[data-key="window_title"]')?.value || '').trim();
+        const dialog = (dialogs || []).find(d => String(d.title || '').trim() === title) || null;
+        const selectedCheckbox = String(checkboxInput.value || '').trim();
+        const selectedButton = String(buttonInput.value || '').trim();
+
+        const checkboxOpts = ['<option value="">— Checkbox/Radio seçiniz —</option>'];
+        const buttonOpts = ['<option value="">— Buton seçiniz —</option>'];
+
+        if (dialog) {
+            [...(dialog.checkboxes || []), ...(dialog.radios || [])].forEach(ctrl => {
+                const text = String(ctrl.text || '').trim();
+                const selected = selectedCheckbox && selectedCheckbox === text ? ' selected' : '';
+                checkboxOpts.push(`<option value="${esc(text)}"${selected}>${esc(ctrl.label || text || ('Kontrol #' + ctrl.hwnd))}</option>`);
+            });
+            (dialog.buttons || []).forEach(ctrl => {
+                const text = String(ctrl.text || '').trim();
+                const selected = selectedButton && selectedButton === text ? ' selected' : '';
+                buttonOpts.push(`<option value="${esc(text)}"${selected}>${esc(ctrl.label || text || ('Buton #' + ctrl.hwnd))}</option>`);
+            });
+        }
+
+        checkboxSelect.innerHTML = checkboxOpts.join('');
+        buttonSelect.innerHTML = buttonOpts.join('');
+    }
+
     function fillGridSelectForCard(card, grids) {
         if (!card) return;
         const selectEl = card.querySelector('.spb-grid-scan-select');
@@ -1289,6 +2720,40 @@
         selectEl.innerHTML = opts.join('');
     }
 
+    function fillPopupRadioSelectForCard(card, radios) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-popup-radio-select');
+        const idInput = card.querySelector('[data-key="popup_radio_id"]');
+        if (!selectEl) return;
+        const selectedId = String(idInput?.value || '').trim();
+
+        const opts = ['<option value="">— Popup radiosu seçiniz —</option>'];
+        (radios || []).forEach(r => {
+            const id = esc(String(r.id || ''));
+            const label = esc(String(r.label || r.id || 'Popup Radio'));
+            const selected = selectedId && selectedId === String(r.id || '') ? ' selected' : '';
+            opts.push(`<option value="${id}"${selected}>${label}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+    }
+
+    function fillPopupInputSelectForCard(card, inputs) {
+        if (!card) return;
+        const selectEl = card.querySelector('.spb-popup-input-select');
+        const idInput = card.querySelector('[data-key="popup_input_id"]');
+        if (!selectEl) return;
+        const selectedId = String(idInput?.value || '').trim();
+
+        const opts = ['<option value="">— Popup inputu seçiniz —</option>'];
+        (inputs || []).forEach(inp => {
+            const id = esc(String(inp.id || ''));
+            const label = esc(String(inp.label || inp.id || 'Popup Input'));
+            const selected = selectedId && selectedId === String(inp.id || '') ? ' selected' : '';
+            opts.push(`<option value="${id}"${selected}>${label}</option>`);
+        });
+        selectEl.innerHTML = opts.join('');
+    }
+
     function applyScannedPopupToCard(card, popup) {
         if (!card || !popup) return;
         const titleInput = card.querySelector('[data-key="popup_title_contains"]');
@@ -1296,6 +2761,8 @@
         if (titleInput) titleInput.value = String(popup.title || '');
         if (textInput) textInput.value = String(popup.text || '').slice(0, 4000);
         fillPopupButtonSelectForCard(card, popup.buttons || []);
+        fillPopupRadioSelectForCard(card, popup.radios || []);
+        fillPopupInputSelectForCard(card, popup.inputs || []);
     }
 
     function bindWaitTimeoutMode(card) {
@@ -1415,6 +2882,133 @@
         }
     }
 
+    async function scanSapSelectablesForStep(stepIdx, sourceBtn) {
+        syncAllFromDOM();
+        const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
+        if (!card) return;
+
+        const btn = sourceBtn || card.querySelector('.spb-scan-selectables-btn');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taranıyor...';
+        }
+
+        try {
+            const resp = await fetch(SCAN_SELECTABLES_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({
+                    use_current_screen: true,
+                    steps: steps.map((s, i) => ({
+                        step_type: s.step_type,
+                        order: i,
+                        label: s.label || '',
+                        config: s.config || {},
+                    })),
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast('Seçilebilir alan tarama hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+                return;
+            }
+            fillSelectableSelectForCard(card, data.controls || []);
+            if (typeof showToast === 'function') showToast(`${data.count || 0} seçilebilir alan bulundu.`, 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Seçilebilir alan tarama bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+    }
+
+    async function scanSapInputsForStep(stepIdx, sourceBtn) {
+        syncAllFromDOM();
+        const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
+        if (!card) return;
+
+        const btn = sourceBtn || card.querySelector('.spb-scan-inputs-btn');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taranıyor...';
+        }
+
+        try {
+            const resp = await fetch(SCAN_INPUTS_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({
+                    use_current_screen: true,
+                    steps: steps.map((s, i) => ({
+                        step_type: s.step_type,
+                        order: i,
+                        label: s.label || '',
+                        config: s.config || {},
+                    })),
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast('Input alan tarama hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+                return;
+            }
+            fillInputControlSelectForCard(card, data.controls || []);
+            if (typeof showToast === 'function') showToast(`${data.count || 0} input alanı bulundu.`, 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Input alan tarama bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+    }
+
+    async function scanWindowsDialogsForStep(stepIdx, sourceBtn) {
+        const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
+        if (!card) return;
+
+        const btn = sourceBtn || card.querySelector('.spb-scan-win-dialogs-btn');
+        const orig = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Taranıyor...';
+        }
+
+        try {
+            const titleFilter = String(card.querySelector('[data-key="window_title"]')?.value || '').trim();
+            const resp = await fetch(SCAN_WINDOWS_DIALOGS_URL, {
+                method: 'POST',
+                headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+                body: JSON.stringify({ title_filter: titleFilter }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                if (typeof showToast === 'function') showToast('Windows popup tarama hatası: ' + (data.error || 'Bilinmeyen hata'), 'error');
+                return;
+            }
+            const dialogs = data.dialogs || [];
+            const effectiveTitle = titleFilter || String(dialogs[0]?.title || '').trim();
+            _windowsDialogScanCacheByStep[stepIdx] = dialogs;
+            const titleInput = card.querySelector('[data-key="window_title"]');
+            if (titleInput && effectiveTitle) titleInput.value = effectiveTitle;
+            fillWindowsDialogSelectForCard(card, dialogs);
+            fillWindowsDialogControlsForCard(card, dialogs, effectiveTitle);
+            if (typeof showToast === 'function') showToast(`${data.count || 0} Windows popup bulundu.`, 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('Windows popup tarama bağlantı hatası: ' + e.message, 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+    }
+
     async function scanSapGridsForStep(stepIdx, sourceBtn) {
         syncAllFromDOM();
         const card = document.querySelector(`.spb-step-card[data-idx="${stepIdx}"]`);
@@ -1521,6 +3115,12 @@
         });
         document.getElementById('spb-live-stop-btn')?.addEventListener('click', async () => {
             await sendRuntimeControl('stop');
+        });
+        document.getElementById('spb-live-force-stop-btn')?.addEventListener('click', async () => {
+            if (!confirm('Sıkışmış runtime kaydı zorla temizlenecek. Devam edilsin mi?')) return;
+            await sendRuntimeControl('force_stop');
+            if (typeof showToast === 'function') showToast('Runtime durumu temizlendi. Şimdi yeniden başlatabilirsiniz.', 'success');
+            await pollRuntimeStatus();
         });
         pollRuntimeStatus();
 

@@ -41,3 +41,6 @@ frontend/node_modules/
 
 # Build outputs (kaynak kodunu koru, build'i dışla)
 # frontend/build/   <-- bunu dahil ediyoruz (deploy için gerekli)
+
+# Live DB restore yedekleri (lokal)
+db_live_before_*.sqlite3

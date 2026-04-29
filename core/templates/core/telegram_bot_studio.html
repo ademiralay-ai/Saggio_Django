@@ -1,0 +1,767 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<section class="sap-page-head">
+    <div class="sap-head-chip"><i class="fab fa-telegram"></i> Telegram Bot Stüdyo</div>
+    <p>Botlarınıza inline klavye menüleri ekleyin, her butonu bir SAP süreciyle ilişkilendirin ve sohbet simülatörüyle test edin.</p>
+</section>
+
+<div id="tbs-wrap" class="tbs-wrap">
+
+    <!-- ── SOL: Editor ────────────────────────────────────────────────── -->
+    <div class="tbs-editor-panel">
+
+        <!-- Bot Seç -->
+        <div class="tbs-section">
+            <label class="tbs-label"><i class="fab fa-telegram"></i> Bot Seç</label>
+            <select id="tbs-bot-select" class="tbs-select">
+                <option value="">-- Bot seçin --</option>
+            </select>
+        </div>
+
+        <!-- Menü Listesi + Yeni Menü -->
+        <div class="tbs-section" id="tbs-menu-bar" style="display:none">
+            <div class="tbs-row-between">
+                <label class="tbs-label"><i class="fas fa-list"></i> Menüler</label>
+                <button id="tbs-new-menu-btn" class="btn btn-primary btn-sm" type="button"><i class="fas fa-plus"></i> Yeni Menü</button>
+            </div>
+            <div id="tbs-menu-chips" class="tbs-menu-chips"></div>
+        </div>
+
+        <!-- Menü Düzenleyici -->
+        <div id="tbs-menu-editor" style="display:none">
+
+            <div class="tbs-section">
+                <label class="tbs-label">Menü Adı *</label>
+                <input id="tbs-menu-name" type="text" class="tbs-input" maxlength="120" placeholder="Örn: Ana Menü">
+            </div>
+
+            <div class="tbs-section">
+                <label class="tbs-label">Tetikleme Komutu</label>
+                <input id="tbs-menu-trigger" type="text" class="tbs-input" maxlength="50" placeholder="/start">
+                <small style="color:var(--text-muted)">Kullanıcı bu komutu yazdığında menü açılır.</small>
+            </div>
+
+            <div class="tbs-section">
+                <label class="tbs-label">Karşılama Mesajı</label>
+                <textarea id="tbs-menu-welcome" class="tbs-input" rows="3" maxlength="1000" placeholder="Merhaba! Ne yapmamı istersiniz?"></textarea>
+            </div>
+
+            <!-- Buton Klavyesi -->
+            <div class="tbs-section">
+                <div class="tbs-row-between" style="margin-bottom:8px">
+                    <label class="tbs-label" style="margin:0"><i class="fas fa-th"></i> Klavye Düzeni</label>
+                    <div style="display:flex;gap:6px">
+                        <button id="tbs-add-row-btn" class="btn btn-sm" type="button"><i class="fas fa-plus"></i> Satır Ekle</button>
+                    </div>
+                </div>
+                <div id="tbs-keyboard-builder" class="tbs-keyboard-builder">
+                    <!-- JS render -->
+                </div>
+                <div id="tbs-keyboard-empty" class="tbs-keyboard-empty" style="display:none">
+                    <i class="fas fa-keyboard"></i><br>Henüz buton eklenmedi.<br>"Satır Ekle" ile başlayın.
+                </div>
+            </div>
+
+            <div class="tbs-section tbs-save-bar">
+                <button id="tbs-save-btn" class="btn btn-primary" type="button"><i class="fas fa-save"></i> Kaydet</button>
+                <button id="tbs-delete-menu-btn" class="btn btn-danger" type="button" style="display:none"><i class="fas fa-trash"></i> Menüyü Sil</button>
+                <button id="tbs-cancel-btn" class="btn" type="button">Vazgeç</button>
+            </div>
+        </div>
+
+        <div id="tbs-no-bot-hint" class="tbs-hint">
+            <i class="fab fa-telegram fa-2x"></i><br>Başlamak için bir bot seçin.
+        </div>
+    </div>
+
+    <!-- ── SAĞ: Chat Simülatör ────────────────────────────────────────── -->
+    <div class="tbs-chat-panel">
+        <div class="tbs-chat-header">
+            <div class="tbs-chat-avatar"><i class="fas fa-robot"></i></div>
+            <div>
+                <div id="tbs-chat-bot-name" class="tbs-chat-bot-name">Bot Seçilmedi</div>
+                <div class="tbs-chat-online">simülatör modu</div>
+            </div>
+        </div>
+
+        <div id="tbs-chat-messages" class="tbs-chat-messages">
+            <div class="tbs-chat-system">Bir bot seçin ve komut gönderin ya da menü butonlarını test edin.</div>
+        </div>
+
+        <div class="tbs-chat-input-row">
+            <input id="tbs-chat-input" type="text" class="tbs-chat-input" placeholder="/start yazın veya mesaj gönderin..." autocomplete="off">
+            <button id="tbs-chat-send-btn" class="tbs-chat-send-btn" type="button"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+</div>
+
+<!-- Buton Düzenleme Modal -->
+<div id="tbs-btn-modal" class="contact-confirm-modal" role="dialog" aria-modal="true">
+    <div class="contact-confirm-card" style="width:min(480px,calc(100% - 24px))">
+        <div class="contact-confirm-head">Buton Düzenle</div>
+        <div class="contact-confirm-body">
+            <label class="tbs-label" style="margin-top:0">Buton Etiketi *</label>
+            <input id="tbs-btn-label" type="text" class="tbs-input" maxlength="200" placeholder="Örn: Fatura İşle">
+            <label class="tbs-label" style="margin-top:12px">Bağlı SAP Süreci</label>
+            <select id="tbs-btn-process" class="tbs-select">
+                <option value="">-- Süreç seçin (isteğe bağlı) --</option>
+            </select>
+        </div>
+        <div class="contact-confirm-actions">
+            <button id="tbs-btn-modal-cancel" type="button" class="btn">Vazgeç</button>
+            <button id="tbs-btn-modal-ok" type="button" class="btn btn-primary">Tamam</button>
+        </div>
+    </div>
+</div>
+
+<!-- Silme Onay Modal -->
+<div id="tbs-menu-delete-modal" class="contact-confirm-modal" role="dialog" aria-modal="true">
+    <div class="contact-confirm-card">
+        <div class="contact-confirm-head">Menüyü Sil</div>
+        <div class="contact-confirm-body">Bu menüyü ve tüm butonlarını kalıcı olarak silmek istediğinize emin misiniz?</div>
+        <div class="contact-confirm-actions">
+            <button id="tbs-menu-delete-cancel" type="button" class="btn">Vazgeç</button>
+            <button id="tbs-menu-delete-ok" type="button" class="btn btn-danger">Sil</button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ── Telegram Bot Studio Layout ─────────────────────────────────── */
+.tbs-wrap {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 20px;
+    align-items: start;
+}
+@media (max-width: 900px) {
+    .tbs-wrap { grid-template-columns: 1fr; }
+}
+
+/* ── Editor Panel ─── */
+.tbs-editor-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.tbs-section { margin-bottom: 16px; }
+.tbs-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+.tbs-select, .tbs-input {
+    width: 100%;
+    background: var(--input-bg, var(--sidebar-bg));
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    transition: border-color .2s;
+    box-sizing: border-box;
+}
+.tbs-select:focus, .tbs-input:focus { outline: none; border-color: var(--accent); }
+textarea.tbs-input { resize: vertical; }
+
+.tbs-row-between { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.tbs-menu-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.tbs-menu-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+}
+.tbs-menu-chip:hover { border-color: var(--accent); }
+.tbs-menu-chip.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+
+/* ── Keyboard Builder ─── */
+.tbs-keyboard-builder { display: flex; flex-direction: column; gap: 8px; }
+.tbs-keyboard-row {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.tbs-keyboard-row-header {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;
+}
+.tbs-keyboard-buttons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tbs-bot-button-preview {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color .2s;
+}
+.tbs-bot-button-preview:hover { border-color: var(--accent); }
+.tbs-bot-button-preview .tbs-btn-edit { color: var(--accent); font-size: 0.7rem; }
+.tbs-bot-button-preview .tbs-btn-remove { color: var(--danger, #e74c3c); font-size: 0.7rem; margin-left: 2px; }
+.tbs-bot-button-preview.has-process { border-color: color-mix(in srgb, var(--success, #2ecc71) 60%, transparent); }
+.tbs-add-btn-in-row {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: transparent; border: 1px dashed var(--border);
+    border-radius: 8px; padding: 5px 10px; font-size: 0.8rem;
+    color: var(--text-muted); cursor: pointer; transition: border-color .2s, color .2s;
+}
+.tbs-add-btn-in-row:hover { border-color: var(--accent); color: var(--accent); }
+
+.tbs-keyboard-empty {
+    text-align: center; color: var(--text-muted); padding: 24px;
+    font-size: 0.88rem; line-height: 1.7;
+}
+
+.tbs-save-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+.tbs-hint { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 0.9rem; line-height: 1.8; }
+
+/* ── Chat Panel ─── */
+.tbs-chat-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    height: 640px;
+    position: sticky;
+    top: 20px;
+    overflow: hidden;
+}
+.tbs-chat-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--sidebar-bg);
+}
+.tbs-chat-avatar {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, #0088cc 0%, #005fa3 100%);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 1rem; flex-shrink: 0;
+}
+.tbs-chat-bot-name { font-weight: 600; font-size: 0.95rem; }
+.tbs-chat-online { font-size: 0.72rem; color: var(--success, #2ecc71); }
+
+.tbs-chat-messages {
+    flex: 1; overflow-y: auto; padding: 14px 14px 8px;
+    display: flex; flex-direction: column; gap: 10px;
+}
+.tbs-chat-system {
+    text-align: center; color: var(--text-muted); font-size: 0.78rem;
+    background: var(--sidebar-bg); border-radius: 8px; padding: 8px 12px;
+}
+.tbs-msg-row { display: flex; gap: 8px; }
+.tbs-msg-row.out { flex-direction: row-reverse; }
+.tbs-msg-bubble {
+    max-width: 82%;
+    padding: 8px 12px;
+    border-radius: 14px;
+    font-size: 0.87rem;
+    line-height: 1.5;
+    word-break: break-word;
+}
+.tbs-msg-row.in  .tbs-msg-bubble { background: var(--sidebar-bg); border-bottom-left-radius: 4px; }
+.tbs-msg-row.out .tbs-msg-bubble { background: #0088cc; color: #fff; border-bottom-right-radius: 4px; }
+.tbs-msg-row.in  .tbs-msg-bubble.process-ok { background: color-mix(in srgb, var(--success, #2ecc71) 18%, var(--sidebar-bg)); border: 1px solid color-mix(in srgb, var(--success, #2ecc71) 40%, transparent); }
+
+.tbs-inline-keyboard { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.tbs-inline-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.tbs-inline-btn {
+    flex: 1; min-width: 80px;
+    padding: 7px 10px; border-radius: 8px;
+    background: color-mix(in srgb, #0088cc 15%, transparent);
+    border: 1px solid color-mix(in srgb, #0088cc 50%, transparent);
+    color: var(--text-primary); font-size: 0.82rem;
+    cursor: pointer; transition: background .2s, border-color .2s;
+    text-align: center;
+}
+.tbs-inline-btn:hover { background: color-mix(in srgb, #0088cc 30%, transparent); border-color: #0088cc; }
+
+.tbs-chat-input-row {
+    display: flex; gap: 8px; padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--sidebar-bg);
+}
+.tbs-chat-input {
+    flex: 1;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 20px; padding: 8px 14px;
+    color: var(--text-primary); font-size: 0.88rem;
+}
+.tbs-chat-input:focus { outline: none; border-color: #0088cc; }
+.tbs-chat-send-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: #0088cc; border: none; color: #fff;
+    font-size: 0.9rem; cursor: pointer; flex-shrink: 0;
+    transition: background .2s;
+}
+.tbs-chat-send-btn:hover { background: #006aaa; }
+
+.btn-sm { padding: 5px 10px; font-size: 0.8rem; }
+</style>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+'use strict';
+
+const CSRF          = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+const BOTS          = {{ bots_json|safe }};
+const SAP_PROCESSES = {{ sap_processes_json|safe }};
+
+const MENUS_URL   = '{% url "telegram_bot_studio_menus" %}';
+const SAVE_URL    = '{% url "telegram_bot_studio_menu_save" %}';
+const DELETE_URL  = '{% url "telegram_bot_studio_menu_delete" %}';
+const SIM_URL     = '{% url "telegram_bot_studio_simulate" %}';
+
+// ── State ───────────────────────────────────────────────────────────
+let state = {
+    botId: null,
+    menus: [],
+    activeMenuId: null,   // null = yeni menü
+    editName: '',
+    editTrigger: '/start',
+    editWelcome: 'Merhaba! Ne yapmamı istersiniz?',
+    editRows: [],         // [{buttons: [{label, sap_process_id, sap_process_name}]}]
+    editingBtnAddr: null, // {rowIdx, btnIdx} — modal için
+};
+
+// ── DOM refs ────────────────────────────────────────────────────────
+const $botSelect   = document.getElementById('tbs-bot-select');
+const $menuBar     = document.getElementById('tbs-menu-bar');
+const $menuChips   = document.getElementById('tbs-menu-chips');
+const $menuEditor  = document.getElementById('tbs-menu-editor');
+const $noBotHint   = document.getElementById('tbs-no-bot-hint');
+const $menuName    = document.getElementById('tbs-menu-name');
+const $menuTrigger = document.getElementById('tbs-menu-trigger');
+const $menuWelcome = document.getElementById('tbs-menu-welcome');
+const $kbBuilder   = document.getElementById('tbs-keyboard-builder');
+const $kbEmpty     = document.getElementById('tbs-keyboard-empty');
+const $saveBtn     = document.getElementById('tbs-save-btn');
+const $deleteMenuBtn = document.getElementById('tbs-delete-menu-btn');
+
+const $btnModal       = document.getElementById('tbs-btn-modal');
+const $btnLabel       = document.getElementById('tbs-btn-label');
+const $btnProcess     = document.getElementById('tbs-btn-process');
+const $btnModalOk     = document.getElementById('tbs-btn-modal-ok');
+const $btnModalCancel = document.getElementById('tbs-btn-modal-cancel');
+
+const $deleteModal  = document.getElementById('tbs-menu-delete-modal');
+const $deleteOk     = document.getElementById('tbs-menu-delete-ok');
+const $deleteCancel = document.getElementById('tbs-menu-delete-cancel');
+
+const $chatMessages = document.getElementById('tbs-chat-messages');
+const $chatInput    = document.getElementById('tbs-chat-input');
+const $chatSend     = document.getElementById('tbs-chat-send-btn');
+const $chatBotName  = document.getElementById('tbs-chat-bot-name');
+
+// ── Init ─────────────────────────────────────────────────────────────
+function init() {
+    // Bot listesini doldur
+    BOTS.forEach(b => {
+        const o = document.createElement('option');
+        o.value = b.id; o.textContent = b.name + (b.bot_username ? ` (@${b.bot_username})` : '');
+        $botSelect.appendChild(o);
+    });
+
+    // Süreç seçimini doldur
+    SAP_PROCESSES.forEach(p => {
+        const o = document.createElement('option');
+        o.value = p.id; o.textContent = p.name;
+        $btnProcess.appendChild(o);
+    });
+
+    $botSelect.addEventListener('change', onBotChange);
+    document.getElementById('tbs-new-menu-btn').addEventListener('click', openNewMenu);
+    document.getElementById('tbs-add-row-btn').addEventListener('click', addRow);
+    $saveBtn.addEventListener('click', saveMenu);
+    $deleteMenuBtn.addEventListener('click', () => { $deleteModal.classList.add('active'); });
+    document.getElementById('tbs-cancel-btn').addEventListener('click', cancelEdit);
+
+    $btnModalOk.addEventListener('click', btnModalOk);
+    $btnModalCancel.addEventListener('click', () => $btnModal.classList.remove('active'));
+
+    $deleteOk.addEventListener('click', deleteMenu);
+    $deleteCancel.addEventListener('click', () => $deleteModal.classList.remove('active'));
+
+    $chatSend.addEventListener('click', sendChat);
+    $chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+}
+
+// ── Bot change ───────────────────────────────────────────────────────
+async function onBotChange() {
+    state.botId = $botSelect.value || null;
+    cancelEdit();
+    if (!state.botId) {
+        $menuBar.style.display = 'none';
+        $noBotHint.style.display = '';
+        $chatBotName.textContent = 'Bot Seçilmedi';
+        return;
+    }
+    const bot = BOTS.find(b => String(b.id) === String(state.botId));
+    $chatBotName.textContent = bot ? bot.name : '?';
+    $noBotHint.style.display = 'none';
+    $menuBar.style.display = '';
+    await loadMenus();
+    addChatSystem('Bot değiştirildi. Komutlarını test etmeye başlayabilirsiniz.');
+}
+
+async function loadMenus() {
+    try {
+        const r = await fetch(`${MENUS_URL}?bot_id=${state.botId}`);
+        const d = await r.json();
+        state.menus = d.menus || [];
+        renderMenuChips();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+// ── Menu Chips ───────────────────────────────────────────────────────
+function renderMenuChips() {
+    $menuChips.innerHTML = '';
+    state.menus.forEach(m => {
+        const chip = document.createElement('span');
+        chip.className = 'tbs-menu-chip' + (state.activeMenuId === m.id ? ' active' : '');
+        chip.dataset.menuId = m.id;
+        chip.innerHTML = `<i class="fas fa-keyboard" style="font-size:.7rem"></i> ${esc(m.name)} <span style="opacity:.5">${esc(m.trigger_command)}</span>`;
+        chip.addEventListener('click', () => openMenu(m));
+        $menuChips.appendChild(chip);
+    });
+    if (state.menus.length === 0) {
+        $menuChips.innerHTML = '<span style="color:var(--text-muted);font-size:.82rem">Henüz menü yok.</span>';
+    }
+}
+
+// ── Open / Edit Menu ──────────────────────────────────────────────────
+function openNewMenu() {
+    state.activeMenuId = null;
+    state.editName    = '';
+    state.editTrigger = '/start';
+    state.editWelcome = 'Merhaba! Ne yapmamı istersiniz?';
+    state.editRows    = [];
+    showEditor();
+}
+
+function openMenu(m) {
+    state.activeMenuId = m.id;
+    state.editName    = m.name;
+    state.editTrigger = m.trigger_command;
+    state.editWelcome = m.welcome_message;
+
+    // Butonları satır yapısına dönüştür
+    const rowMap = {};
+    (m.buttons || []).forEach(b => {
+        if (!rowMap[b.row]) rowMap[b.row] = [];
+        rowMap[b.row][b.col] = {label: b.label, sap_process_id: b.sap_process_id, sap_process_name: b.sap_process_name};
+    });
+    state.editRows = Object.keys(rowMap).sort((a,b)=>a-b).map(r => ({buttons: rowMap[r].filter(Boolean)}));
+
+    showEditor();
+    renderMenuChips();
+}
+
+function showEditor() {
+    $menuEditor.style.display = '';
+    $menuName.value    = state.editName;
+    $menuTrigger.value = state.editTrigger;
+    $menuWelcome.value = state.editWelcome;
+    $deleteMenuBtn.style.display = state.activeMenuId ? '' : 'none';
+    renderKeyboard();
+}
+
+function cancelEdit() {
+    $menuEditor.style.display = 'none';
+    state.activeMenuId = null;
+    renderMenuChips();
+}
+
+// ── Keyboard Render ───────────────────────────────────────────────────
+function renderKeyboard() {
+    $kbBuilder.innerHTML = '';
+    if (state.editRows.length === 0) {
+        $kbEmpty.style.display = '';
+        return;
+    }
+    $kbEmpty.style.display = 'none';
+    state.editRows.forEach((row, ri) => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'tbs-keyboard-row';
+        rowEl.innerHTML = `
+          <div class="tbs-keyboard-row-header">
+            <span>Satır ${ri + 1}</span>
+            <button class="btn btn-sm btn-danger tbs-del-row" data-row="${ri}" type="button" style="padding:2px 8px;font-size:.72rem">
+              <i class="fas fa-times"></i> Satırı Sil
+            </button>
+          </div>
+          <div class="tbs-keyboard-buttons" id="tbs-row-btns-${ri}"></div>`;
+        $kbBuilder.appendChild(rowEl);
+
+        const btnsEl = rowEl.querySelector(`#tbs-row-btns-${ri}`);
+        row.buttons.forEach((btn, bi) => {
+            btnsEl.appendChild(makeBtnPreview(ri, bi, btn));
+        });
+        const addBtn = document.createElement('button');
+        addBtn.className = 'tbs-add-btn-in-row';
+        addBtn.type = 'button';
+        addBtn.dataset.row = ri;
+        addBtn.innerHTML = '<i class="fas fa-plus"></i> Buton';
+        addBtn.addEventListener('click', () => openBtnModal(ri, null));
+        btnsEl.appendChild(addBtn);
+
+        rowEl.querySelector('.tbs-del-row').addEventListener('click', () => deleteRow(ri));
+    });
+}
+
+function makeBtnPreview(ri, bi, btn) {
+    const el = document.createElement('span');
+    el.className = 'tbs-bot-button-preview' + (btn.sap_process_id ? ' has-process' : '');
+    el.title = btn.sap_process_name ? `Süreç: ${btn.sap_process_name}` : 'Süreç atanmamış';
+    el.innerHTML = `${esc(btn.label)}
+      ${btn.sap_process_name ? `<span class="tbs-btn-edit" title="${esc(btn.sap_process_name)}"><i class="fas fa-link"></i></span>` : ''}
+      <i class="tbs-btn-edit fas fa-pen" title="Düzenle"></i>
+      <i class="tbs-btn-remove fas fa-times" title="Sil"></i>`;
+    el.querySelector('.fa-pen').addEventListener('click', (e) => { e.stopPropagation(); openBtnModal(ri, bi); });
+    el.querySelector('.fa-times').addEventListener('click', (e) => { e.stopPropagation(); deleteBtn(ri, bi); });
+    if (el.querySelectorAll('.fa-link').length) {
+        el.querySelectorAll('.fa-link').forEach(i => i.addEventListener('click', e => { e.stopPropagation(); openBtnModal(ri, bi); }));
+    }
+    return el;
+}
+
+// ── Row / Button ops ──────────────────────────────────────────────────
+function addRow() {
+    state.editRows.push({buttons: []});
+    renderKeyboard();
+}
+
+function deleteRow(ri) {
+    state.editRows.splice(ri, 1);
+    renderKeyboard();
+}
+
+function deleteBtn(ri, bi) {
+    state.editRows[ri].buttons.splice(bi, 1);
+    renderKeyboard();
+}
+
+function openBtnModal(ri, bi) {
+    state.editingBtnAddr = {ri, bi};
+    if (bi !== null && bi !== undefined) {
+        const btn = state.editRows[ri].buttons[bi];
+        $btnLabel.value    = btn.label || '';
+        $btnProcess.value  = btn.sap_process_id || '';
+    } else {
+        $btnLabel.value   = '';
+        $btnProcess.value = '';
+    }
+    $btnModal.classList.add('active');
+    setTimeout(() => $btnLabel.focus(), 80);
+}
+
+function btnModalOk() {
+    const label = $btnLabel.value.trim();
+    if (!label) { $btnLabel.focus(); return; }
+    const proc_id   = $btnProcess.value || null;
+    const proc_name = proc_id ? (SAP_PROCESSES.find(p => String(p.id) === String(proc_id))?.name || null) : null;
+    const {ri, bi} = state.editingBtnAddr;
+    if (bi !== null && bi !== undefined) {
+        state.editRows[ri].buttons[bi] = {label, sap_process_id: proc_id, sap_process_name: proc_name};
+    } else {
+        state.editRows[ri].buttons.push({label, sap_process_id: proc_id, sap_process_name: proc_name});
+    }
+    $btnModal.classList.remove('active');
+    renderKeyboard();
+}
+
+// ── Save ──────────────────────────────────────────────────────────────
+async function saveMenu() {
+    const name    = $menuName.value.trim();
+    const trigger = $menuTrigger.value.trim() || '/start';
+    const welcome = $menuWelcome.value.trim();
+    if (!name) { $menuName.focus(); return; }
+
+    // Butonları düzleştir
+    const buttons = [];
+    state.editRows.forEach((row, ri) => {
+        row.buttons.forEach((btn, ci) => {
+            buttons.push({label: btn.label, sap_process_id: btn.sap_process_id || null, row: ri, col: ci});
+        });
+    });
+
+    $saveBtn.disabled = true;
+    try {
+        const r = await fetch(SAVE_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+            body: JSON.stringify({
+                bot_id: state.botId,
+                menu_id: state.activeMenuId || null,
+                name, trigger_command: trigger, welcome_message: welcome, buttons,
+            }),
+        });
+        const d = await r.json();
+        if (d.ok) {
+            state.activeMenuId = d.menu_id;
+            await loadMenus();
+            renderMenuChips();
+            $deleteMenuBtn.style.display = '';
+            addChatSystem(`✅ "${name}" menüsü kaydedildi.`);
+        } else {
+            alert('Hata: ' + (d.error || 'Bilinmeyen hata'));
+        }
+    } catch (e) {
+        alert('Kayıt sırasında hata: ' + e.message);
+    } finally {
+        $saveBtn.disabled = false;
+    }
+}
+
+// ── Delete ────────────────────────────────────────────────────────────
+async function deleteMenu() {
+    $deleteModal.classList.remove('active');
+    try {
+        const r = await fetch(DELETE_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+            body: JSON.stringify({menu_id: state.activeMenuId}),
+        });
+        const d = await r.json();
+        if (d.ok) {
+            cancelEdit();
+            await loadMenus();
+            addChatSystem('Menü silindi.');
+        } else {
+            alert('Hata: ' + (d.error || 'Bilinmeyen hata'));
+        }
+    } catch (e) {
+        alert('Silme sırasında hata: ' + e.message);
+    }
+}
+
+// ── Chat Simulator ────────────────────────────────────────────────────
+function sendChat() {
+    const text = $chatInput.value.trim();
+    if (!text) return;
+    $chatInput.value = '';
+    if (!state.botId) { addChatSystem('Önce bir bot seçin.'); return; }
+
+    addChatMsg('out', text);
+    if (text.startsWith('/')) {
+        simulateCommand(text);
+    } else {
+        addChatSystem('Bot yalnızca komutlara ve klavye butonlarına tepki verir.');
+    }
+}
+
+async function simulateCommand(command) {
+    try {
+        const r = await fetch(SIM_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+            body: JSON.stringify({type: 'command', bot_id: state.botId, command}),
+        });
+        const d = await r.json();
+        if (d.ok) renderBotResponse(d.response);
+        else addChatSystem('Hata: ' + (d.error || '?'));
+    } catch (e) {
+        addChatSystem('Bağlantı hatası: ' + e.message);
+    }
+}
+
+async function simulateButton(buttonId) {
+    try {
+        const r = await fetch(SIM_URL, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+            body: JSON.stringify({type: 'button', bot_id: state.botId, button_id: buttonId}),
+        });
+        const d = await r.json();
+        if (d.ok) renderBotResponse(d.response);
+        else addChatSystem('Hata: ' + (d.error || '?'));
+    } catch (e) {
+        addChatSystem('Bağlantı hatası: ' + e.message);
+    }
+}
+
+function renderBotResponse(resp) {
+    if (!resp) return;
+    if (resp.type === 'menu') {
+        const bubble = document.createElement('div');
+        bubble.className = 'tbs-msg-row in';
+        let html = `<div class="tbs-msg-bubble">${esc(resp.text)}<div class="tbs-inline-keyboard">`;
+        (resp.keyboard || []).forEach(row => {
+            html += '<div class="tbs-inline-row">';
+            row.forEach(btn => {
+                html += `<button class="tbs-inline-btn" data-btn-id="${btn.id}" type="button">${esc(btn.label)}</button>`;
+            });
+            html += '</div>';
+        });
+        html += '</div></div>';
+        bubble.innerHTML = html;
+        bubble.querySelectorAll('.tbs-inline-btn').forEach(b => {
+            b.addEventListener('click', () => {
+                addChatMsg('out', b.textContent.trim());
+                simulateButton(b.dataset.btnId);
+            });
+        });
+        $chatMessages.appendChild(bubble);
+    } else if (resp.type === 'process_trigger') {
+        const bubble = document.createElement('div');
+        bubble.className = 'tbs-msg-row in';
+        bubble.innerHTML = `<div class="tbs-msg-bubble process-ok">${resp.text}</div>`;
+        $chatMessages.appendChild(bubble);
+    } else {
+        addChatMsg('in', resp.text || '');
+    }
+    $chatMessages.scrollTop = $chatMessages.scrollHeight;
+}
+
+function addChatMsg(dir, text) {
+    const row = document.createElement('div');
+    row.className = `tbs-msg-row ${dir}`;
+    row.innerHTML = `<div class="tbs-msg-bubble">${esc(text)}</div>`;
+    $chatMessages.appendChild(row);
+    $chatMessages.scrollTop = $chatMessages.scrollHeight;
+}
+
+function addChatSystem(text) {
+    const el = document.createElement('div');
+    el.className = 'tbs-chat-system';
+    el.textContent = text;
+    $chatMessages.appendChild(el);
+    $chatMessages.scrollTop = $chatMessages.scrollHeight;
+}
+
+function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+})();
+</script>
+{% endblock %}

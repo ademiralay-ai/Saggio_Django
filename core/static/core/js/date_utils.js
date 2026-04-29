@@ -7,6 +7,7 @@
 const SAP_DATE_OPTIONS = [
     { value: '',                label: '— Seçiniz —',          disabled: true },
     { value: 'today',           label: 'Bugün' },
+    { value: 'yesterday',       label: 'Dün (1 gün öncesi)' },
     { value: 'year_start',      label: 'Bu yılın başı' },
     { value: 'month_start',     label: 'Bu ayın başı' },
     { value: 'year_end',        label: 'Bu yılın sonu' },
@@ -35,6 +36,7 @@ function calcDynamicDate(key) {
 
     switch (key) {
         case 'today':           d = new Date(y, m, now.getDate()); break;
+        case 'yesterday':        d = new Date(now - 86400000); break;
         case 'year_start':       d = new Date(y, 0, 1); break;
         case 'month_start':      d = new Date(y, m, 1); break;
         case 'year_end':         d = new Date(y, 11, 31); break;
