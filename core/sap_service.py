@@ -441,6 +441,44 @@ class SAPScanService:
         self._scan_recursive(root, found, level=0)
         return True, found
 
+    def close_all_sap_windows(self):
+        """Açık tüm SAP pencerelerini kapatıp oturumu sonlandırır."""
+        if self.session is None:
+            return
+        
+        try:
+            # /nex komutu ile SAP'tan çık
+            okcd = self._safe_find(self.session, "wnd[0]/tbar[0]/okcd")
+            if okcd:
+                okcd.text = "/nex"
+                self.session.findById("wnd[0]").sendVKey(0)
+                time.sleep(1)
+        except Exception:
+            pass
+        
+        try:
+            # Kalan pencere varsa ALT+F4 gönder
+            children = getattr(self.session, "Children", None)
+            if children is not None:
+                count = int(getattr(children, "Count", 0) or 0)
+                for idx in range(count):
+                    try:
+                        wnd = children(idx)
+                        if wnd:
+                            wnd.sendKey(4)  # ALT+F4
+                    except Exception:
+                        try:
+                            wnd = children.Item(idx)
+                            if wnd:
+                                wnd.sendKey(4)
+                        except Exception:
+                            pass
+            time.sleep(0.5)
+        except Exception:
+            pass
+        
+        self.session = None
+
     def apply_to_screen(self, sys_id, client, user, pwd, actions, t_code="", root_id="wnd[0]", extra_wait=0, lang="TR", execute_f8=False):
         """
         actions: [{"element_id": "wnd[0]/...", "action_type": "sabit|dinamik|radio|chk|secilecek|selectbox", "value": "..."}]

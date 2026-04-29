@@ -6463,6 +6463,12 @@ def sap_process_run_preview(request, process_id):
 			_runtime_finish(process_id)
 		except Exception:
 			pass
+		# Tüm SAP ekranlarını kapat ve oturumu sonlandır
+		try:
+			if 'service' in locals() and service is not None:
+				service.close_all_sap_windows()
+		except Exception:
+			pass
 
 
 # ─── Telegram Bot Studio ─────────────────────────────────────────────────────
