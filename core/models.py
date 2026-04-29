@@ -304,6 +304,9 @@ class SapProcess(models.Model):
 	telegram_notifications_enabled = models.BooleanField(default=True, help_text='Süreç bildirimlerinde Telegram mesajı gönder')
 	telegram_voice_enabled = models.BooleanField(default=True, help_text='Telegram bildirimi yanında sesli mesaj da gönder')
 	mail_notifications_enabled = models.BooleanField(default=True, help_text='Süreç bildirimlerinde mail gönder')
+	sap_retry_enabled = models.BooleanField(default=True, help_text='SAP bağlantısı yoksa periyodik tekrar dene')
+	sap_retry_interval_minutes = models.PositiveIntegerField(default=10, help_text='SAP bağlantı denemeleri arası bekleme (dakika)')
+	sap_retry_max_duration_minutes = models.PositiveIntegerField(default=180, help_text='Toplam SAP bağlantı bekleme süresi (dakika). 0 = sınırsız')
 	created_at = models.DateTimeField(auto_now_add=True)
 	updated_at = models.DateTimeField(auto_now=True)
 

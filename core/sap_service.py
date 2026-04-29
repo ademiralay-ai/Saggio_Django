@@ -441,6 +441,70 @@ class SAPScanService:
         self._scan_recursive(root, found, level=0)
         return True, found
 
+    def probe_connection(self, sys_id):
+        """SAP'a tek seferlik bağlantı testi yapar. (ok: bool, error: str|None)
+        Hiçbir GUI etkileşimi yapmaz, sadece application + connection açabiliyor mu kontrol eder."""
+        application, err = self._get_application()
+        if err or application is None:
+            return False, err or "SAP application alınamadı"
+        if not sys_id:
+            return False, "SAP sys_id boş"
+        # Mevcut açık bağlantı varsa, doğrudan başarılı say (network testi gerek yok)
+        try:
+            for conn in application.Children:
+                if str(getattr(conn, "Description", "") or "") == sys_id:
+                    return True, None
+        except Exception:
+            pass
+        # Yeni bağlantı denemesi
+        try:
+            connection = application.OpenConnection(sys_id, True)
+            if connection is None:
+                return False, f"OpenConnection None döndü: {sys_id}"
+            return True, None
+        except Exception as ex:
+            return False, str(ex)
+
+    def wait_for_sap_available(self, sys_id, retry_interval_sec=600, max_duration_sec=10800,
+                                stop_check=None, on_attempt=None):
+        """SAP bağlantısı kurulana kadar belirli aralıklarla yeniden dener.
+        - retry_interval_sec: denemeler arası bekleme (sn)
+        - max_duration_sec: toplam max bekleme (sn). 0 = sınırsız
+        - stop_check: kullanıcı durdurma kontrolü için callable() -> bool
+        - on_attempt: her denemede çağrılır: callable(attempt_no, ok, err_msg, next_wait_sec)
+        Dönüş: (ok: bool, attempts: int, last_error: str|None)
+        """
+        attempt = 0
+        deadline = time.time() + max_duration_sec if max_duration_sec and max_duration_sec > 0 else None
+        last_error = None
+        while True:
+            attempt += 1
+            ok, err = self.probe_connection(sys_id)
+            last_error = err
+            if callable(on_attempt):
+                try:
+                    on_attempt(attempt, ok, err, retry_interval_sec)
+                except Exception:
+                    pass
+            if ok:
+                return True, attempt, None
+            if deadline is not None and time.time() >= deadline:
+                return False, attempt, last_error
+            # Bekleme döngüsü (her saniye stop kontrolü)
+            slept = 0
+            while slept < retry_interval_sec:
+                if callable(stop_check):
+                    try:
+                        if stop_check():
+                            return False, attempt, "Kullanıcı tarafından durduruldu"
+                    except Exception:
+                        pass
+                if deadline is not None and time.time() >= deadline:
+                    return False, attempt, last_error
+                step = min(1, retry_interval_sec - slept)
+                time.sleep(step)
+                slept += step
+
     def close_all_sap_windows(self):
         """Açık tüm SAP pencerelerini kapatıp oturumu sonlandırır."""
         if self.session is None:

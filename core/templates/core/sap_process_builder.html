@@ -103,6 +103,36 @@
                     <small>Kapalıysa süreçte mail gönderimleri atlanır.</small>
                 </span>
             </label>
+
+            <label class="spb-runtime-option" for="spb-sap-retry-enabled">
+                <input id="spb-sap-retry-enabled" type="checkbox" {% if process.sap_retry_enabled %}checked{% endif %}>
+                <span>
+                    <strong>SAP bağlantısı yoksa tekrar dene</strong>
+                    <small>SAP'a ulaşılamazsa süreç hata vermez; belirli aralıklarla tekrar dener (gece bakım/koparma için ideal).</small>
+                </span>
+            </label>
+
+            <div class="spb-runtime-option" style="flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="display:flex;flex-direction:column;flex:1;min-width:220px;">
+                    <strong>SAP yeniden deneme aralığı</strong>
+                    <small>Bağlantı yoksa kaç dakikada bir tekrar denesin?</small>
+                </span>
+                <input id="spb-sap-retry-interval" type="number" min="1" max="1440" step="1"
+                       value="{{ process.sap_retry_interval_minutes|default:10 }}"
+                       style="width:90px;padding:6px 8px;border:1px solid var(--border,#cbd5e1);border-radius:6px;">
+                <span style="color:var(--muted,#64748b);font-size:0.85rem;">dakika</span>
+            </div>
+
+            <div class="spb-runtime-option" style="flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="display:flex;flex-direction:column;flex:1;min-width:220px;">
+                    <strong>Toplam SAP bekleme limiti</strong>
+                    <small>Maksimum kaç dakika boyunca yeniden denesin? (0 = sınırsız bekle)</small>
+                </span>
+                <input id="spb-sap-retry-max" type="number" min="0" max="10080" step="1"
+                       value="{{ process.sap_retry_max_duration_minutes|default:180 }}"
+                       style="width:90px;padding:6px 8px;border:1px solid var(--border,#cbd5e1);border-radius:6px;">
+                <span style="color:var(--muted,#64748b);font-size:0.85rem;">dakika</span>
+            </div>
         </div>
     </div>
 
@@ -2392,6 +2422,9 @@
         const telegramEnabled = !!document.getElementById('spb-telegram-enabled')?.checked;
         const telegramVoiceEnabled = !!document.getElementById('spb-telegram-voice-enabled')?.checked;
         const mailEnabled = !!document.getElementById('spb-mail-enabled')?.checked;
+        const sapRetryEnabled = !!document.getElementById('spb-sap-retry-enabled')?.checked;
+        const sapRetryInterval = parseInt(document.getElementById('spb-sap-retry-interval')?.value || '10', 10);
+        const sapRetryMax = parseInt(document.getElementById('spb-sap-retry-max')?.value || '180', 10);
         try {
             const resp = await fetch(RUNTIME_SETTINGS_URL, {
                 method: 'POST',
@@ -2402,6 +2435,9 @@
                     telegram_notifications_enabled: telegramEnabled,
                     telegram_voice_enabled: telegramVoiceEnabled,
                     mail_notifications_enabled: mailEnabled,
+                    sap_retry_enabled: sapRetryEnabled,
+                    sap_retry_interval_minutes: isNaN(sapRetryInterval) ? 10 : sapRetryInterval,
+                    sap_retry_max_duration_minutes: isNaN(sapRetryMax) ? 180 : sapRetryMax,
                 }),
             });
             const data = await resp.json();
@@ -3129,6 +3165,9 @@
         document.getElementById('spb-telegram-enabled')?.addEventListener('change', saveRuntimeSettings);
         document.getElementById('spb-telegram-voice-enabled')?.addEventListener('change', saveRuntimeSettings);
         document.getElementById('spb-mail-enabled')?.addEventListener('change', saveRuntimeSettings);
+        document.getElementById('spb-sap-retry-enabled')?.addEventListener('change', saveRuntimeSettings);
+        document.getElementById('spb-sap-retry-interval')?.addEventListener('change', saveRuntimeSettings);
+        document.getElementById('spb-sap-retry-max')?.addEventListener('change', saveRuntimeSettings);
 
         document.getElementById('spb-add-btn')?.addEventListener('click', () => {
             const picker = document.getElementById('spb-type-picker');

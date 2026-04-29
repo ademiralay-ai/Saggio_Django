@@ -1444,6 +1444,19 @@ def sap_process_runtime_settings_save(request, process_id):
 	proc.telegram_notifications_enabled = _as_bool(body.get('telegram_notifications_enabled', proc.telegram_notifications_enabled), proc.telegram_notifications_enabled)
 	proc.telegram_voice_enabled = _as_bool(body.get('telegram_voice_enabled', proc.telegram_voice_enabled), proc.telegram_voice_enabled)
 	proc.mail_notifications_enabled = _as_bool(body.get('mail_notifications_enabled', proc.mail_notifications_enabled), proc.mail_notifications_enabled)
+	proc.sap_retry_enabled = _as_bool(body.get('sap_retry_enabled', proc.sap_retry_enabled), proc.sap_retry_enabled)
+	try:
+		_ri = int(body.get('sap_retry_interval_minutes', proc.sap_retry_interval_minutes))
+		if _ri >= 1:
+			proc.sap_retry_interval_minutes = _ri
+	except (TypeError, ValueError):
+		pass
+	try:
+		_md = int(body.get('sap_retry_max_duration_minutes', proc.sap_retry_max_duration_minutes))
+		if _md >= 0:
+			proc.sap_retry_max_duration_minutes = _md
+	except (TypeError, ValueError):
+		pass
 
 	proc.save(update_fields=[
 		'ghost_overlay_enabled',
@@ -1451,6 +1464,9 @@ def sap_process_runtime_settings_save(request, process_id):
 		'telegram_notifications_enabled',
 		'telegram_voice_enabled',
 		'mail_notifications_enabled',
+		'sap_retry_enabled',
+		'sap_retry_interval_minutes',
+		'sap_retry_max_duration_minutes',
 		'updated_at',
 	])
 
@@ -1461,6 +1477,9 @@ def sap_process_runtime_settings_save(request, process_id):
 		'telegram_notifications_enabled': proc.telegram_notifications_enabled,
 		'telegram_voice_enabled': proc.telegram_voice_enabled,
 		'mail_notifications_enabled': proc.mail_notifications_enabled,
+		'sap_retry_enabled': proc.sap_retry_enabled,
+		'sap_retry_interval_minutes': proc.sap_retry_interval_minutes,
+		'sap_retry_max_duration_minutes': proc.sap_retry_max_duration_minutes,
 	})
 
 
@@ -4712,6 +4731,54 @@ def sap_process_run_preview(request, process_id):
 		for note in (_notify_setup_notes or []):
 			logs.append({'step': 0, 'type': 'notification', 'label': 'Bildirim', 'ok': False if 'atlandı' in str(note).casefold() else True, 'msg': str(note)})
 			overlay.push_log(str(note))
+
+		# ─── SAP Bağlantı Hazırlık (Retry) ───────────────────────────────
+		# Süreç ayarlarında "SAP bağlantı yoksa tekrar dene" açıksa, ana
+		# döngüye girmeden önce SAP'ın gerçekten ulaşılabilir olduğundan
+		# emin oluruz. Aksi halde verilen aralıkta tekrar tekrar deneriz.
+		if bool(getattr(proc, 'sap_retry_enabled', True)):
+			_target_sys_id = str(conn.get('sys_id', '') or '').strip()
+			if _target_sys_id:
+				_retry_interval_min = max(1, int(getattr(proc, 'sap_retry_interval_minutes', 10) or 10))
+				_retry_max_min = int(getattr(proc, 'sap_retry_max_duration_minutes', 180) or 0)
+				_retry_interval_sec = _retry_interval_min * 60
+				_retry_max_sec = _retry_max_min * 60 if _retry_max_min > 0 else 0
+
+				def _retry_stop_check():
+					_st = _runtime_get(process_id) or {}
+					if bool(_st.get('stop_requested')):
+						return True
+					if getattr(overlay, 'stop_requested', False):
+						return True
+					return False
+
+				def _retry_on_attempt(attempt_no, ok_attempt, err_attempt, next_wait_sec):
+					if ok_attempt:
+						_msg = f'SAP bağlantısı kuruldu (deneme #{attempt_no}).'
+						overlay.push_log(_msg)
+						logs.append({'step': 0, 'type': 'sap_retry', 'label': 'SAP Bağlantı', 'ok': True, 'msg': _msg})
+					else:
+						_min = max(1, int(round(next_wait_sec / 60)))
+						_msg = f'SAP bağlantı denemesi #{attempt_no} başarısız: {err_attempt or "bilinmeyen hata"}. {_min} dk sonra tekrar denenecek.'
+						overlay.push_log(_msg)
+						logs.append({'step': 0, 'type': 'sap_retry', 'label': 'SAP Bağlantı', 'ok': False, 'msg': _msg})
+
+				overlay.push_log(f'SAP bağlantısı kontrol ediliyor: {_target_sys_id}')
+				_ok_conn, _attempts, _last_err = service.wait_for_sap_available(
+					_target_sys_id,
+					retry_interval_sec=_retry_interval_sec,
+					max_duration_sec=_retry_max_sec,
+					stop_check=_retry_stop_check,
+					on_attempt=_retry_on_attempt,
+				)
+				if not _ok_conn:
+					_err_summary = _last_err or 'Bilinmeyen SAP bağlantı hatası'
+					return JsonResponse({
+						'ok': False,
+						'error': f'SAP bağlantısı sağlanamadı ({_attempts} deneme). Son hata: {_err_summary}',
+						'logs': logs,
+						'failed_at': 0,
+					}, status=503)
 
 		_end_notify_sent = False
 		def _send_end_notify_once():
