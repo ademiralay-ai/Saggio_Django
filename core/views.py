@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404, redirect, render
 import json
+import secrets
 import smtplib
 import time
 import ftplib
@@ -13,19 +14,36 @@ import tempfile
 import uuid
 import threading
 import sys
+import zipfile
 from email.mime.text import MIMEText
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal, InvalidOperation
 from django.http import JsonResponse, HttpRequest, HttpResponse
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.conf import settings
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from django.db import transaction
+from django.db.models import Q
+from django.utils import timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from django.views.decorators.http import require_POST
 from .firebase_service import ContactConfigService, RobotService, ProcessService, QueueService, ReportService, ScheduleService, SAPTemplateService
 from .forms import FTPAccountForm, MailAccountForm, TelegramBotForm, TelegramGroupForm
-from .models import FTPAccount, MailAccount, TelegramBot, TelegramGroup, SapProcess, SapProcessStep
-from .models import FTPAccount, MailAccount, TelegramBot, TelegramGroup, SapProcess, SapProcessStep, TelegramBotMenu, TelegramBotButton
+from .models import (
+	FTPAccount,
+	MailAccount,
+	RobotAgent,
+	RobotAgentEvent,
+	RobotAgentRelease,
+	RobotJob,
+	SapProcess,
+	SapProcessStep,
+	TelegramBot,
+	TelegramBotButton,
+	TelegramBotMenu,
+	TelegramGroup,
+)
 from .sap_service import SAPScanService
 from .sap_keyboard_utils import build_sendkeys_from_config
 from .sap_popup_utils import collect_popup_controls, select_popup_radio_by_id, fill_popup_input_value
@@ -274,6 +292,29 @@ def settings_page(request):
 			'page_title': 'Ayarlar',
 			'page_subtitle': 'Sistem konfigrasyonlari ve entegrasyonlar',
 			'section_type': 'settings',
+		},
+	)
+
+
+def robot_control_center(request):
+	"""Robot ajanları ve iş kuyruğunu yönetmek için operasyon ekranı."""
+	agents = list(RobotAgent.objects.all().order_by('code').values('code', 'name'))
+	processes = list(SapProcess.objects.all().order_by('name').values('id', 'name'))
+	releases = list(
+		RobotAgentRelease.objects.all().order_by('-created_at').values(
+			'version', 'is_active', 'is_mandatory', 'download_url', 'setup_file', 'install_command', 'created_at'
+		)
+	)
+	return render(
+		request,
+		'core/robot_control_center.html',
+		{
+			'current': 'robot_control_center',
+			'page_title': 'Robot Operasyon Merkezi',
+			'page_subtitle': 'Ajan durumlarını izle, kuyruk işlerini yönet ve yeni iş ata',
+			'agents_json': json.dumps(agents, ensure_ascii=False),
+			'processes_json': json.dumps(processes, ensure_ascii=False),
+			'releases_json': json.dumps(releases, ensure_ascii=False, default=str),
 		},
 	)
 
@@ -3288,8 +3329,18 @@ class _GhostOverlayWindow:
 		self.current_step = f'{step_no}/{total_steps} - {step_name}'
 		self._render()
 
+	def _stamp_log_message(self, msg):
+		"""Log mesajını üretildiği anın saatiyle etiketle."""
+		text = str(msg or '').strip()
+		if not text:
+			return ''
+		stamp = datetime.now().strftime('%H:%M:%S')
+		return f'[{stamp}] {text}'
+
 	def push_log(self, text):
 		msg = str(text or '').strip()
+		if msg:
+			msg = self._stamp_log_message(msg)
 		if self.process_id is not None and msg:
 			_runtime_push_log(self.process_id, msg)
 		if not self.enabled:
@@ -6542,7 +6593,17 @@ def sap_process_run_preview(request, process_id):
 
 def telegram_bot_studio(request):
     """Bot menü yönetimi + sohbet simülatörü ana sayfası."""
-    bots = list(TelegramBot.objects.filter(is_active=True).values('id', 'name', 'bot_username'))
+    bots_qs = TelegramBot.objects.filter(is_active=True).order_by('name')
+    bots = []
+    for b in bots_qs:
+        bots.append({
+            'id': b.pk,
+            'name': b.name,
+            'bot_username': b.bot_username,
+            'allowed_user_ids': b.allowed_user_ids or '',
+            'webhook_secret': b.webhook_secret or '',
+            'webhook_registered_url': b.webhook_registered_url or '',
+        })
     sap_processes = list(SapProcess.objects.order_by('name').values('id', 'name'))
     return render(request, 'core/telegram_bot_studio.html', {
         'page_title': 'Telegram Bot Stüdyo',
@@ -6690,3 +6751,1464 @@ def telegram_bot_studio_simulate(request):
             return JsonResponse({'ok': True, 'response': {'type': 'text', 'text': '⚠️ Bu butona henüz bir süreç bağlanmamış.'}})
 
     return JsonResponse({'ok': False, 'error': 'Geçersiz type parametresi.'}, status=400)
+
+
+# ─── Telegram Webhook + Yetkilendirme ─────────────────────────────────────────
+
+def _normalize_allowed_user_ids(text):
+    """Serbest metni (satır/virgül/boşluk ayrılmış) numerik user ID set'ine çevirir."""
+    if not text:
+        return set()
+    out = set()
+    for chunk in str(text).replace(',', '\n').replace(';', '\n').split('\n'):
+        token = chunk.strip()
+        if not token:
+            continue
+        # Sadece rakamları al (negatif chat_id de olabilir, başında '-')
+        sign = ''
+        if token.startswith('-'):
+            sign = '-'
+            token = token[1:]
+        digits = ''.join(c for c in token if c.isdigit())
+        if digits:
+            try:
+                out.add(int(sign + digits))
+            except ValueError:
+                pass
+    return out
+
+
+def _is_user_allowed_for_bot(bot, user_id):
+    """Telegram user_id (int) izinli listesinde mi?"""
+    if user_id is None:
+        return False
+    allowed = _normalize_allowed_user_ids(bot.allowed_user_ids or '')
+    if not allowed:
+        return False  # boş liste = kapalı bot (güvenlik öncelikli)
+    try:
+        return int(user_id) in allowed
+    except (TypeError, ValueError):
+        return False
+
+
+def _telegram_api_call(token, method, payload):
+    """Telegram Bot API'sini JSON POST ile çağırır."""
+    if not token:
+        return False, {'description': 'token_missing'}
+    try:
+        req = Request(
+            f'https://api.telegram.org/bot{token}/{method}',
+            data=json.dumps(payload).encode('utf-8'),
+            method='POST',
+            headers={'Content-Type': 'application/json'},
+        )
+        with urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8') or '{}')
+        return bool(data.get('ok')), data
+    except HTTPError as e:
+        try:
+            body = json.loads(e.read().decode('utf-8') or '{}')
+        except Exception:
+            body = {'description': str(e)}
+        return False, body
+    except URLError as e:
+        return False, {'description': f'baglanti_hatasi: {e.reason}'}
+    except Exception as e:
+        return False, {'description': str(e)}
+
+
+def _telegram_send_with_keyboard(token, chat_id, text, inline_keyboard=None, parse_mode=None):
+    payload = {'chat_id': chat_id, 'text': text or ''}
+    if parse_mode:
+        payload['parse_mode'] = parse_mode
+    if inline_keyboard:
+        payload['reply_markup'] = {'inline_keyboard': inline_keyboard}
+    return _telegram_api_call(token, 'sendMessage', payload)
+
+
+def _telegram_answer_callback(token, callback_id, text='', show_alert=False):
+    payload = {'callback_query_id': callback_id, 'text': text or '', 'show_alert': bool(show_alert)}
+    return _telegram_api_call(token, 'answerCallbackQuery', payload)
+
+
+def _render_menu_inline_keyboard(menu):
+    """TelegramBotMenu -> Telegram inline_keyboard listesi."""
+    rows = {}
+    for b in menu.buttons.all().order_by('row', 'col'):
+        rows.setdefault(b.row, []).append({
+            'text': b.label,
+            'callback_data': f'btn:{b.pk}',
+        })
+    return [rows[r] for r in sorted(rows)]
+
+
+def _trigger_sap_process_for_telegram(process_id, source_label=''):
+    """
+    Telegram callback'inden tetiklenen SAP süreci için arka plan başlatma.
+    Mevcut runtime endpoint'ini iç HTTP isteği ile çalıştırır; CSRF/auth'tan etkilenmez
+    çünkü Django test client kullanıyoruz.
+    """
+    import threading
+
+    def _runner():
+        try:
+            from django.test import Client
+            client = Client(enforce_csrf_checks=False)
+            client.post(f'/sap-process/{process_id}/run/', data={}, content_type='application/json')
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_runner, name=f'tg-trigger-{process_id}', daemon=True)
+    t.start()
+
+
+@csrf_exempt
+@require_POST
+def telegram_bot_webhook(request, bot_id, secret):
+    """Telegram'ın gönderdiği update'leri işler. URL: /tg/webhook/<bot_id>/<secret>/"""
+    bot = TelegramBot.objects.filter(pk=bot_id, is_active=True).first()
+    if not bot:
+        return JsonResponse({'ok': False}, status=404)
+    if not bot.webhook_secret or secret != bot.webhook_secret:
+        return JsonResponse({'ok': False}, status=403)
+
+    try:
+        update = json.loads(request.body.decode('utf-8') or '{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'ok': False}, status=400)
+
+    process_telegram_update(bot, update)
+    return JsonResponse({'ok': True})
+
+
+def process_telegram_update(bot, update):
+    """Tek bir Telegram update'ini (webhook veya polling) tutarlı şekilde işler."""
+    token = bot.get_bot_token()
+
+    # 1) Inline buton tıklaması
+    cb = update.get('callback_query')
+    if cb:
+        from_user = (cb.get('from') or {})
+        user_id = from_user.get('id')
+        chat_id = (((cb.get('message') or {}).get('chat')) or {}).get('id')
+        callback_id = cb.get('id')
+        data = str(cb.get('data') or '')
+
+        if not _is_user_allowed_for_bot(bot, user_id):
+            _telegram_answer_callback(token, callback_id, 'Yetkiniz yok.', show_alert=True)
+            return
+
+        if data.startswith('btn:'):
+            try:
+                btn_pk = int(data.split(':', 1)[1])
+            except (ValueError, IndexError):
+                btn_pk = 0
+            btn = TelegramBotButton.objects.select_related('sap_process', 'menu').filter(
+                pk=btn_pk, menu__bot=bot
+            ).first()
+            if not btn:
+                _telegram_answer_callback(token, callback_id, 'Buton bulunamadı.')
+                return
+            if not btn.sap_process:
+                _telegram_answer_callback(token, callback_id, 'Bu butona süreç bağlanmamış.')
+                return
+            _telegram_answer_callback(token, callback_id, 'Süreç başlatılıyor…')
+            _telegram_send_with_keyboard(
+                token, chat_id,
+                f'✅ Süreç başlatma talebi alındı:\n<b>{btn.sap_process.name}</b>\n\nİstek: {from_user.get("first_name") or from_user.get("username") or user_id}',
+                parse_mode='HTML',
+            )
+            _trigger_sap_process_for_telegram(btn.sap_process.pk, source_label=str(user_id))
+            return
+
+        _telegram_answer_callback(token, callback_id, '')
+        return
+
+    # 2) Mesaj (komut)
+    msg = update.get('message') or update.get('edited_message')
+    if msg:
+        from_user = (msg.get('from') or {})
+        user_id = from_user.get('id')
+        chat_id = ((msg.get('chat') or {}).get('id'))
+        text = str(msg.get('text') or '').strip()
+
+        if not _is_user_allowed_for_bot(bot, user_id):
+            if chat_id:
+                _telegram_send_with_keyboard(
+                    token, chat_id,
+                    'Bu botu kullanmaya yetkiniz yok.\nKullanıcı ID\'niz: <code>' + str(user_id) + '</code>',
+                    parse_mode='HTML',
+                )
+            return
+
+        if text:
+            menu = TelegramBotMenu.objects.filter(
+                bot=bot, trigger_command=text, is_active=True
+            ).prefetch_related('buttons').first()
+            if menu:
+                kb = _render_menu_inline_keyboard(menu)
+                _telegram_send_with_keyboard(token, chat_id, menu.welcome_message, inline_keyboard=kb)
+                return
+            _telegram_send_with_keyboard(
+                token, chat_id,
+                'Bu komut için tanımlı bir menü yok. Kullanılabilir komutları yöneticinizden öğrenin.'
+            )
+
+
+@require_POST
+def telegram_bot_studio_bot_save(request):
+    """Bot bazlı erişim ayarları (allowed_user_ids) kaydeder."""
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+    bot_id = body.get('bot_id')
+    bot = TelegramBot.objects.filter(pk=bot_id).first()
+    if not bot:
+        return JsonResponse({'ok': False, 'error': 'Bot bulunamadı.'}, status=404)
+
+    raw = str(body.get('allowed_user_ids', '') or '')
+    parsed = sorted(_normalize_allowed_user_ids(raw))
+    bot.allowed_user_ids = '\n'.join(str(x) for x in parsed)
+    bot.save()
+    return JsonResponse({'ok': True, 'allowed_user_ids': bot.allowed_user_ids, 'count': len(parsed)})
+
+
+@require_POST
+def telegram_bot_studio_set_webhook(request):
+    """Bu bot için Telegram'a setWebhook çağrısı yapar.
+    Body: { bot_id, base_url } - base_url örn 'https://example.com' (sondaki / olmadan).
+    """
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+    bot_id = body.get('bot_id')
+    base_url = str(body.get('base_url') or '').strip().rstrip('/')
+    if not base_url:
+        return JsonResponse({'ok': False, 'error': 'base_url gerekli (örn https://alanim.com).'}, status=400)
+    if not (base_url.startswith('https://') or base_url.startswith('http://')):
+        return JsonResponse({'ok': False, 'error': 'base_url http(s):// ile başlamalı.'}, status=400)
+
+    bot = TelegramBot.objects.filter(pk=bot_id).first()
+    if not bot:
+        return JsonResponse({'ok': False, 'error': 'Bot bulunamadı.'}, status=404)
+    if not bot.webhook_secret:
+        import secrets as _sec
+        bot.webhook_secret = _sec.token_urlsafe(32)
+        bot.save()
+
+    webhook_url = f"{base_url}/tg/webhook/{bot.pk}/{bot.webhook_secret}/"
+    token = bot.get_bot_token()
+    ok, data = _telegram_api_call(token, 'setWebhook', {
+        'url': webhook_url,
+        'allowed_updates': ['message', 'edited_message', 'callback_query'],
+        'drop_pending_updates': True,
+    })
+    if ok:
+        bot.webhook_registered_url = webhook_url
+        bot.save()
+        return JsonResponse({'ok': True, 'webhook_url': webhook_url, 'telegram': data})
+    return JsonResponse({'ok': False, 'error': data.get('description') or 'telegram_api_error', 'telegram': data}, status=502)
+
+
+def telegram_bot_studio_webhook_info(request):
+    """Telegram'dan getWebhookInfo döner (durum kontrolü)."""
+    bot_id = request.GET.get('bot_id')
+    bot = TelegramBot.objects.filter(pk=bot_id).first()
+    if not bot:
+        return JsonResponse({'ok': False, 'error': 'Bot bulunamadı.'}, status=404)
+    token = bot.get_bot_token()
+    ok, data = _telegram_api_call(token, 'getWebhookInfo', {})
+    if ok:
+        return JsonResponse({'ok': True, 'info': data.get('result') or {}, 'expected_url': bot.webhook_registered_url})
+    return JsonResponse({'ok': False, 'error': data.get('description') or 'telegram_api_error'}, status=502)
+
+
+@require_POST
+def telegram_bot_studio_delete_webhook(request):
+    """Telegram'da deleteWebhook çağrısı yapar."""
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+    bot = TelegramBot.objects.filter(pk=body.get('bot_id')).first()
+    if not bot:
+        return JsonResponse({'ok': False, 'error': 'Bot bulunamadı.'}, status=404)
+    token = bot.get_bot_token()
+    ok, data = _telegram_api_call(token, 'deleteWebhook', {'drop_pending_updates': True})
+    if ok:
+        bot.webhook_registered_url = ''
+        bot.save()
+        return JsonResponse({'ok': True})
+    return JsonResponse({'ok': False, 'error': data.get('description') or 'telegram_api_error'}, status=502)
+
+
+def _read_json_body(request):
+	try:
+		return json.loads(request.body or b'{}')
+	except (json.JSONDecodeError, TypeError):
+		return None
+
+
+def _request_ip(request):
+	forwarded = str(request.META.get('HTTP_X_FORWARDED_FOR', '') or '').strip()
+	if forwarded:
+		return forwarded.split(',')[0].strip()
+	return str(request.META.get('REMOTE_ADDR', '') or '').strip()
+
+
+def _authenticate_agent(request, body):
+	agent_code = str(
+		body.get('agent_code')
+		or request.headers.get('X-Agent-Code')
+		or ''
+	).strip()
+	token = str(
+		body.get('token')
+		or request.headers.get('X-Agent-Token')
+		or ''
+	).strip()
+
+	if not agent_code or not token:
+		return None, JsonResponse({'ok': False, 'error': 'agent_code ve token gerekli.'}, status=401)
+
+	agent = RobotAgent.objects.filter(code=agent_code, is_enabled=True).first()
+	if not agent:
+		return None, JsonResponse({'ok': False, 'error': 'Ajan bulunamadı veya pasif.'}, status=404)
+
+	if not agent.verify_token(token):
+		return None, JsonResponse({'ok': False, 'error': 'Token doğrulaması başarısız.'}, status=401)
+
+	return agent, None
+
+
+def _serialize_job(job):
+	return {
+		'job_id': job.pk,
+		'command_type': job.command_type,
+		'sap_process_id': job.sap_process_id,
+		'priority': job.priority,
+		'payload': job.payload or {},
+		'created_at': job.created_at.isoformat() if job.created_at else None,
+	}
+
+
+def _safe_release_version(version):
+	return re.sub(r'[^0-9A-Za-z._-]+', '_', str(version or '')).strip('_') or 'release'
+
+
+def _package_zip_path(version):
+	safe_version = _safe_release_version(version)
+	package_dir = os.path.join(str(settings.MEDIA_ROOT), 'robot_agent', 'packages')
+	os.makedirs(package_dir, exist_ok=True)
+	file_name = f'SaggioRobotAgentPackage_{safe_version}.zip'
+	full_path = os.path.join(package_dir, file_name)
+	return full_path, file_name
+
+
+def _create_agent_event(agent, level, message, *, job=None, extra=None):
+	level_norm = str(level or 'info').strip().lower()
+	if level_norm not in {'info', 'warning', 'error'}:
+		level_norm = 'info'
+	RobotAgentEvent.objects.create(
+		agent=agent,
+		job=job,
+		level=level_norm,
+		message=str(message or '').strip()[:2000],
+		extra=extra if isinstance(extra, dict) else {},
+	)
+
+
+@csrf_exempt
+@require_POST
+def agent_register(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	agent, err = _authenticate_agent(request, body)
+	if err:
+		return err
+
+	agent.name = str(body.get('name') or agent.name or agent.code).strip()[:180]
+	agent.machine_name = str(body.get('machine_name') or '').strip()[:120]
+	agent.host_name = str(body.get('host_name') or request.get_host() or '').strip()[:180]
+	agent.os_user = str(body.get('os_user') or '').strip()[:120]
+	agent.agent_version = str(body.get('agent_version') or '').strip()[:40]
+	agent.ip_address = _request_ip(request)[:64]
+	capabilities = body.get('capabilities')
+	if isinstance(capabilities, dict):
+		agent.capabilities = capabilities
+	agent.status = 'online'
+	agent.mark_seen(startup=True)
+	agent.save()
+
+	pending = RobotJob.objects.filter(status='queued').filter(
+		Q(target_agent__isnull=True) | Q(target_agent=agent)
+	).count()
+	return JsonResponse({
+		'ok': True,
+		'agent': {
+			'code': agent.code,
+			'name': agent.name,
+			'status': agent.status,
+			'last_seen_at': agent.last_seen_at.isoformat() if agent.last_seen_at else None,
+		},
+		'pending_jobs': pending,
+	})
+
+
+@csrf_exempt
+@require_POST
+def agent_heartbeat(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	agent, err = _authenticate_agent(request, body)
+	if err:
+		return err
+
+	if agent.status != 'busy':
+		agent.status = 'online'
+	agent_version = str(body.get('agent_version') or '').strip()
+	if agent_version:
+		agent.agent_version = agent_version[:40]
+	agent.ip_address = _request_ip(request)[:64]
+	agent.mark_seen(startup=False)
+	agent.save(update_fields=['status', 'agent_version', 'ip_address', 'last_seen_at', 'updated_at'])
+
+	return JsonResponse({
+		'ok': True,
+		'server_time': timezone.now().isoformat(),
+		'agent_status': agent.status,
+		'desired_version': agent.desired_version,
+	})
+
+
+@csrf_exempt
+@require_POST
+def agent_check_update(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	agent, err = _authenticate_agent(request, body)
+	if err:
+		return err
+
+	current_version = str(body.get('current_version') or agent.agent_version or '').strip()
+	if current_version:
+		agent.agent_version = current_version[:40]
+
+	latest = RobotAgentRelease.objects.filter(is_active=True).order_by('-created_at').first()
+	desired = str(agent.desired_version or '').strip() or (latest.version if latest else '')
+	available = bool(desired and current_version and desired != current_version)
+
+	agent.mark_seen(startup=False)
+	agent.save(update_fields=['agent_version', 'last_seen_at', 'updated_at'])
+
+	result = {
+		'ok': True,
+		'agent_code': agent.code,
+		'current_version': current_version,
+		'desired_version': desired,
+		'update_available': available,
+	}
+	if latest:
+		release_download_url = latest.download_url or f"/api/robot-agent/releases/download/{latest.version}/"
+		result['release'] = {
+			'version': latest.version,
+			'download_url': release_download_url,
+			'checksum_sha256': latest.checksum_sha256,
+			'is_mandatory': bool(latest.is_mandatory),
+			'release_notes': latest.release_notes,
+		}
+	return JsonResponse(result)
+
+
+@csrf_exempt
+@require_POST
+def agent_log_event(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	agent, err = _authenticate_agent(request, body)
+	if err:
+		return err
+
+	message = str(body.get('message') or '').strip()
+	if not message:
+		return JsonResponse({'ok': False, 'error': 'message gerekli.'}, status=400)
+
+	level = str(body.get('level') or 'info').strip().lower()
+	job_id = body.get('job_id')
+	job = None
+	if job_id:
+		job = RobotJob.objects.filter(pk=job_id).first()
+
+	_create_agent_event(agent, level, message, job=job, extra=body.get('extra'))
+	agent.mark_seen(startup=False)
+	agent.save(update_fields=['last_seen_at', 'updated_at'])
+	return JsonResponse({'ok': True})
+
+
+@csrf_exempt
+@require_POST
+def agent_pull_job(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	agent, err = _authenticate_agent(request, body)
+	if err:
+		return err
+
+	now = timezone.now()
+	with transaction.atomic():
+		job = RobotJob.objects.select_for_update().filter(
+			status='queued'
+		).filter(
+			Q(target_agent__isnull=True) | Q(target_agent=agent)
+		).order_by('-priority', 'created_at').first()
+
+		if not job:
+			agent.mark_seen(startup=False)
+			if agent.status != 'busy':
+				agent.status = 'online'
+			agent.save(update_fields=['status', 'last_seen_at', 'updated_at'])
+			return JsonResponse({'ok': True, 'job': None})
+
+		if not job.started_at:
+			job.started_at = now
+		job.target_agent = agent
+		job.status = 'dispatched'
+		job.last_heartbeat_at = now
+		job.lease_expires_at = now + timedelta(minutes=10)
+		job.save(update_fields=['target_agent', 'status', 'started_at', 'last_heartbeat_at', 'lease_expires_at', 'updated_at'])
+
+	agent.status = 'busy'
+	agent.mark_seen(startup=False)
+	agent.save(update_fields=['status', 'last_seen_at', 'updated_at'])
+
+	return JsonResponse({'ok': True, 'job': _serialize_job(job)})
+
+
+@csrf_exempt
+@require_POST
+def agent_job_update(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	agent, err = _authenticate_agent(request, body)
+	if err:
+		return err
+
+	job_id = body.get('job_id')
+	status_value = str(body.get('status') or '').strip().lower()
+	if not job_id or status_value not in {'running', 'succeeded', 'failed', 'canceled'}:
+		return JsonResponse({'ok': False, 'error': 'job_id ve geçerli status gerekli.'}, status=400)
+
+	job = RobotJob.objects.filter(pk=job_id, target_agent=agent).first()
+	if not job:
+		return JsonResponse({'ok': False, 'error': 'İş bulunamadı veya ajan yetkisiz.'}, status=404)
+
+	now = timezone.now()
+	job.status = status_value
+	job.last_heartbeat_at = now
+	if status_value == 'running' and not job.started_at:
+		job.started_at = now
+
+	if status_value in {'succeeded', 'failed', 'canceled'}:
+		job.finished_at = now
+		job.lease_expires_at = None
+		agent.status = 'online'
+	else:
+		agent.status = 'busy'
+
+	result_message = body.get('result_message')
+	if result_message is not None:
+		job.result_message = str(result_message)
+	result_payload = body.get('result_payload')
+	if isinstance(result_payload, dict):
+		job.result_payload = result_payload
+
+	job.save()
+	agent.mark_seen(startup=False)
+	agent.save(update_fields=['status', 'last_seen_at', 'updated_at'])
+
+	return JsonResponse({'ok': True})
+
+
+def robot_agent_status(request):
+	rows = []
+	for agent in RobotAgent.objects.all().order_by('code'):
+		queued = RobotJob.objects.filter(status='queued').filter(
+			Q(target_agent__isnull=True) | Q(target_agent=agent)
+		).count()
+		version_state = 'ok'
+		if agent.desired_version and agent.agent_version and agent.desired_version != agent.agent_version:
+			version_state = 'outdated'
+		elif agent.desired_version and not agent.agent_version:
+			version_state = 'unknown'
+		rows.append({
+			'code': agent.code,
+			'name': agent.name,
+			'status': agent.status,
+			'is_enabled': agent.is_enabled,
+			'agent_version': agent.agent_version,
+			'desired_version': agent.desired_version,
+			'version_state': version_state,
+			'last_seen_at': agent.last_seen_at.isoformat() if agent.last_seen_at else None,
+			'machine_name': agent.machine_name,
+			'ip_address': agent.ip_address,
+			'pending_jobs': queued,
+		})
+	return JsonResponse({'ok': True, 'agents': rows})
+
+
+def robot_job_list(request):
+	status_filter = str(request.GET.get('status') or '').strip().lower()
+	agent_code_filter = str(request.GET.get('agent_code') or '').strip()
+	search = str(request.GET.get('q') or '').strip()
+	limit_param = request.GET.get('limit', 50)
+	try:
+		limit = max(1, min(200, int(limit_param)))
+	except (TypeError, ValueError):
+		limit = 50
+
+	jobs_qs = RobotJob.objects.select_related('target_agent', 'sap_process').order_by('-created_at')
+	if status_filter:
+		jobs_qs = jobs_qs.filter(status=status_filter)
+	if agent_code_filter:
+		jobs_qs = jobs_qs.filter(target_agent__code=agent_code_filter)
+	if search:
+		jobs_qs = jobs_qs.filter(
+			Q(result_message__icontains=search)
+			| Q(command_type__icontains=search)
+			| Q(target_agent__code__icontains=search)
+			| Q(sap_process__name__icontains=search)
+		)
+
+	jobs = jobs_qs[:limit]
+	rows = []
+	for job in jobs:
+		rows.append({
+			'job_id': job.pk,
+			'status': job.status,
+			'command_type': job.command_type,
+			'priority': job.priority,
+			'target_agent_code': job.target_agent.code if job.target_agent else '',
+			'target_agent_name': job.target_agent.name if job.target_agent else '',
+			'sap_process_id': job.sap_process_id,
+			'sap_process_name': job.sap_process.name if job.sap_process else '',
+			'result_message': job.result_message or '',
+			'result_payload': job.result_payload if isinstance(job.result_payload, dict) else {},
+			'created_at': job.created_at.isoformat() if job.created_at else None,
+			'started_at': job.started_at.isoformat() if job.started_at else None,
+			'finished_at': job.finished_at.isoformat() if job.finished_at else None,
+		})
+
+	return JsonResponse({'ok': True, 'jobs': rows})
+
+
+def robot_agent_event_list(request):
+	agent_code = str(request.GET.get('agent_code') or '').strip()
+	if not agent_code:
+		return JsonResponse({'ok': False, 'error': 'agent_code gerekli.'}, status=400)
+	limit_param = request.GET.get('limit', 50)
+	try:
+		limit = max(1, min(500, int(limit_param)))
+	except (TypeError, ValueError):
+		limit = 50
+	agent = RobotAgent.objects.filter(code=agent_code).first()
+	if not agent:
+		return JsonResponse({'ok': False, 'error': 'Ajan bulunamadı.'}, status=404)
+	rows = []
+	events = RobotAgentEvent.objects.select_related('job').filter(agent=agent).order_by('-created_at')[:limit]
+	for ev in events:
+		rows.append({
+			'id': ev.pk,
+			'level': ev.level,
+			'message': ev.message,
+			'job_id': ev.job_id,
+			'created_at': ev.created_at.isoformat() if ev.created_at else None,
+		})
+	return JsonResponse({'ok': True, 'events': rows})
+
+
+def robot_release_list(request):
+	releases = RobotAgentRelease.objects.all().order_by('-created_at')
+	rows = []
+	for rel in releases:
+		download_path = ''
+		if rel.setup_file:
+			download_path = f"/api/robot-agent/releases/download/{rel.version}/"
+		package_full_path, _ = _package_zip_path(rel.version)
+		package_download_path = f"/api/robot-agent/releases/download-package/{rel.version}/" if os.path.exists(package_full_path) else ''
+		rows.append({
+			'version': rel.version,
+			'release_notes': rel.release_notes,
+			'download_url': rel.download_url,
+			'setup_file': rel.setup_file,
+			'download_path': download_path,
+			'package_download_path': package_download_path,
+			'checksum_sha256': rel.checksum_sha256,
+			'install_command': rel.install_command,
+			'is_active': rel.is_active,
+			'is_mandatory': rel.is_mandatory,
+			'created_by': rel.created_by,
+			'created_at': rel.created_at.isoformat() if rel.created_at else None,
+		})
+	return JsonResponse({'ok': True, 'releases': rows})
+
+
+@require_POST
+def robot_release_save(request):
+	if request.content_type and request.content_type.startswith('multipart/form-data'):
+		body = request.POST
+		setup_upload = request.FILES.get('setup_file')
+	else:
+		body = _read_json_body(request)
+		if body is None:
+			return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+		setup_upload = None
+
+	version = str(body.get('version') or '').strip()
+	if not version:
+		return JsonResponse({'ok': False, 'error': 'version gerekli.'}, status=400)
+	release, _ = RobotAgentRelease.objects.get_or_create(version=version)
+	release.release_notes = str(body.get('release_notes') or '').strip()
+	release.download_url = str(body.get('download_url') or '').strip()
+	release.checksum_sha256 = str(body.get('checksum_sha256') or '').strip()
+	release.install_command = str(body.get('install_command') or '').strip()
+	release.is_active = _as_bool(body.get('is_active', True), True)
+	release.is_mandatory = _as_bool(body.get('is_mandatory', False), False)
+	created_by = str(body.get('created_by') or '').strip()
+	if not created_by and getattr(request, 'user', None) and request.user.is_authenticated:
+		created_by = str(request.user.get_username() or '').strip()
+	release.created_by = created_by[:120]
+
+	if setup_upload is not None:
+		upload_name = str(getattr(setup_upload, 'name', '') or '').lower()
+		if not upload_name.endswith('.exe'):
+			return JsonResponse({'ok': False, 'error': 'Sadece .exe dosya yüklenebilir.'}, status=400)
+		rel_dir = os.path.join(str(settings.MEDIA_ROOT), 'robot_agent', 'releases')
+		os.makedirs(rel_dir, exist_ok=True)
+		safe_version = re.sub(r'[^0-9A-Za-z._-]+', '_', version).strip('_') or 'release'
+		file_name = f'robot-agent-{safe_version}.exe'
+		full_path = os.path.join(rel_dir, file_name)
+		with open(full_path, 'wb') as fp:
+			for chunk in setup_upload.chunks():
+				fp.write(chunk)
+		release.setup_file = os.path.join('robot_agent', 'releases', file_name).replace('\\', '/')
+		if not release.download_url:
+			release.download_url = f"/api/robot-agent/releases/download/{version}/"
+
+	release.save()
+	return JsonResponse({'ok': True, 'version': release.version, 'download_url': release.download_url, 'setup_file': release.setup_file})
+
+
+def robot_release_download(request, version):
+	version_val = str(version or '').strip()
+	release = RobotAgentRelease.objects.filter(version=version_val).first()
+	if not release:
+		return JsonResponse({'ok': False, 'error': 'Release bulunamadı.'}, status=404)
+	if not release.setup_file:
+		return JsonResponse({'ok': False, 'error': 'Bu release için setup dosyası yok.'}, status=404)
+	full_path = os.path.join(str(settings.MEDIA_ROOT), release.setup_file)
+	if not os.path.exists(full_path):
+		return JsonResponse({'ok': False, 'error': 'Dosya bulunamadı.'}, status=404)
+	with open(full_path, 'rb') as fp:
+		content = fp.read()
+	resp = HttpResponse(content, content_type='application/octet-stream')
+	resp['Content-Disposition'] = f'attachment; filename="{os.path.basename(full_path)}"'
+	return resp
+
+
+def robot_release_download_package(request, version):
+	version_val = str(version or '').strip()
+	release = RobotAgentRelease.objects.filter(version=version_val).first()
+	if not release:
+		return JsonResponse({'ok': False, 'error': 'Release bulunamadı.'}, status=404)
+	full_path, file_name = _package_zip_path(version_val)
+	if not os.path.exists(full_path):
+		return JsonResponse({'ok': False, 'error': 'Paket dosyası bulunamadı.'}, status=404)
+	with open(full_path, 'rb') as fp:
+		content = fp.read()
+	resp = HttpResponse(content, content_type='application/zip')
+	resp['Content-Disposition'] = f'attachment; filename="{file_name}"'
+	return resp
+
+
+@require_POST
+def robot_release_deploy(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	version = str(body.get('version') or '').strip()
+	if not version:
+		return JsonResponse({'ok': False, 'error': 'version gerekli.'}, status=400)
+	release = RobotAgentRelease.objects.filter(version=version).first()
+	if not release:
+		return JsonResponse({'ok': False, 'error': 'Release bulunamadı.'}, status=404)
+
+	scope = str(body.get('scope') or 'outdated').strip().lower()
+	agent_codes = body.get('agent_codes') if isinstance(body.get('agent_codes'), list) else []
+
+	agents_qs = RobotAgent.objects.filter(is_enabled=True)
+	if scope == 'single':
+		if not agent_codes:
+			return JsonResponse({'ok': False, 'error': 'single scope için agent_codes gerekli.'}, status=400)
+		agents_qs = agents_qs.filter(code__in=[str(x).strip() for x in agent_codes if str(x).strip()])
+	elif scope == 'all':
+		pass
+	else:
+		agents_qs = agents_qs.exclude(agent_version=version)
+
+	agents = list(agents_qs)
+	if not agents:
+		return JsonResponse({'ok': False, 'error': 'Dağıtıma uygun ajan bulunamadı.'}, status=400)
+
+	default_download = release.download_url or f"/api/robot-agent/releases/download/{release.version}/"
+	if default_download.startswith('/'):
+		default_download = request.build_absolute_uri(default_download)
+	default_cmd = release.install_command or 'powershell -NoProfile -ExecutionPolicy Bypass -Command "$u=\"{download_url}\"; $v=\"{version}\"; $dst=\"C:/SaggioRobotAgent/agent-update-$v.exe\"; Invoke-WebRequest -Uri $u -OutFile $dst; Start-Process -FilePath $dst -ArgumentList \"/update\" -WindowStyle Hidden"'
+	jobs = []
+	for agent in agents:
+		command = default_cmd.format(version=release.version, download_url=default_download)
+		job = RobotJob.objects.create(
+			command_type='run_command',
+			target_agent=agent,
+			status='queued',
+			priority=300,
+			requested_by=str(body.get('requested_by') or 'panel')[:120],
+			payload={
+				'command': command,
+				'release_version': release.version,
+				'download_url': default_download,
+				'kind': 'agent_update',
+			},
+		)
+		_create_agent_event(agent, 'info', f'Panelden update işi kuyruğa alındı: {release.version}', job=job)
+		jobs.append(job.pk)
+
+	return JsonResponse({'ok': True, 'jobs_created': len(jobs), 'job_ids': jobs, 'version': release.version})
+
+
+@require_POST
+def robot_build_setup_exe(request):
+	body = _read_json_body(request)
+	if body is None:
+		body = {}
+
+	version = str(body.get('version') or '').strip() or datetime.now().strftime('bootstrap-%Y%m%d-%H%M%S')
+	force_rebuild = _as_bool(body.get('force_rebuild', False), False)
+
+	safe_version = re.sub(r'[^0-9A-Za-z._-]+', '_', version).strip('_') or 'bootstrap'
+	base_agent_dir = os.path.join(str(settings.BASE_DIR), 'robot_agent')
+	service_script = os.path.join(base_agent_dir, 'robot_agent_service.py')
+	runtime_script = os.path.join(base_agent_dir, 'agent_runtime.py')
+	config_example = os.path.join(base_agent_dir, 'config.example.json')
+	for required_path in (service_script, runtime_script, config_example):
+		if not os.path.exists(required_path):
+			return JsonResponse({'ok': False, 'error': f'Agent build dosyası bulunamadı: {required_path}'}, status=404)
+
+	release_dir = os.path.join(str(settings.MEDIA_ROOT), 'robot_agent', 'releases')
+	os.makedirs(release_dir, exist_ok=True)
+	output_name = f'SaggioRobotAgentSetup_{safe_version}.exe'
+	output_path = os.path.join(release_dir, output_name)
+	rel_path = os.path.join('robot_agent', 'releases', output_name).replace('\\', '/')
+
+	if os.path.exists(output_path) and not force_rebuild:
+		release, _ = RobotAgentRelease.objects.get_or_create(version=version)
+		release.setup_file = rel_path
+		release.download_url = f'/api/robot-agent/releases/download/{version}/'
+		if not release.install_command:
+			release.install_command = 'powershell -NoProfile -ExecutionPolicy Bypass -Command "$u=\"{download_url}\"; $v=\"{version}\"; $dst=\"C:/SaggioRobotAgent/agent-update-$v.exe\"; Invoke-WebRequest -Uri $u -OutFile $dst; Start-Process -FilePath $dst -ArgumentList \"/update\" -WindowStyle Hidden"'
+		release.is_active = True
+		release.save()
+		return JsonResponse({
+			'ok': True,
+			'built': False,
+			'version': version,
+			'download_url': release.download_url,
+			'message': 'Var olan setup.exe kullanıldı.',
+		})
+
+	build_root = os.path.join(str(settings.MEDIA_ROOT), 'robot_agent', '_pyinstaller')
+	work_dir = os.path.join(build_root, 'work', safe_version)
+	dist_dir = os.path.join(build_root, 'dist', safe_version)
+	spec_dir = os.path.join(build_root, 'spec', safe_version)
+	src_dir = os.path.join(build_root, 'src', safe_version)
+	os.makedirs(work_dir, exist_ok=True)
+	os.makedirs(dist_dir, exist_ok=True)
+	os.makedirs(spec_dir, exist_ok=True)
+	os.makedirs(src_dir, exist_ok=True)
+
+	try:
+		pip_cmd = [sys.executable, '-m', 'pip', 'install', 'pyinstaller']
+		pip_run = subprocess.run(pip_cmd, capture_output=True, text=True, timeout=420)
+		if pip_run.returncode != 0:
+			err = (pip_run.stderr or pip_run.stdout or 'pyinstaller kurulamadı')[-2000:]
+			return JsonResponse({'ok': False, 'error': f'PyInstaller kurulum hatası: {err}'}, status=500)
+
+		service_dist = os.path.join(dist_dir, 'service')
+		service_work = os.path.join(work_dir, 'service')
+		service_spec = os.path.join(spec_dir, 'service')
+		installer_dist = os.path.join(dist_dir, 'setup')
+		installer_work = os.path.join(work_dir, 'setup')
+		installer_spec = os.path.join(spec_dir, 'setup')
+		for p in (service_dist, service_work, service_spec, installer_dist, installer_work, installer_spec):
+			os.makedirs(p, exist_ok=True)
+
+		service_build_cmd = [
+			sys.executable,
+			'-m',
+			'PyInstaller',
+			'--noconfirm',
+			'--clean',
+			'--onefile',
+			'--name',
+			'SaggioRobotAgentService',
+			service_script,
+			'--distpath',
+			service_dist,
+			'--workpath',
+			service_work,
+			'--specpath',
+			service_spec,
+		]
+		service_run = subprocess.run(service_build_cmd, capture_output=True, text=True, timeout=1800)
+		if service_run.returncode != 0:
+			err = (service_run.stderr or service_run.stdout or 'service build başarısız')[-4000:]
+			return JsonResponse({'ok': False, 'error': f'servis exe üretilemedi: {err}'}, status=500)
+
+		service_exe = os.path.join(service_dist, 'SaggioRobotAgentService.exe')
+		if not os.path.exists(service_exe):
+			return JsonResponse({'ok': False, 'error': 'Servis exe dosyası bulunamadı.'}, status=500)
+
+		installer_script = os.path.join(src_dir, 'setup_installer_entry.py')
+		installer_code = f'''import os
+import shutil
+import subprocess
+import sys
+
+SERVICE_NAME = "SaggioRobotAgent"
+BASE_DIR = r"C:/SaggioRobotAgent"
+SERVICE_EXE_NAME = "SaggioRobotAgentService.exe"
+
+
+def _run(cmd):
+    return subprocess.run(cmd, capture_output=True, text=True)
+
+
+def _payload_dir():
+    return os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(__file__)), "payload")
+
+
+def install_or_update():
+    os.makedirs(BASE_DIR, exist_ok=True)
+    payload = _payload_dir()
+    service_src = os.path.join(payload, SERVICE_EXE_NAME)
+    config_src = os.path.join(payload, "config.example.json")
+    if not os.path.exists(service_src):
+        raise RuntimeError("Payload içinde service exe yok.")
+
+    service_dst = os.path.join(BASE_DIR, SERVICE_EXE_NAME)
+    config_dst = os.path.join(BASE_DIR, "config.json")
+    config_example_dst = os.path.join(BASE_DIR, "config.example.json")
+
+    _run([service_dst, "stop"])
+    _run([service_dst, "remove"])
+
+    shutil.copyfile(service_src, service_dst)
+    if os.path.exists(config_src):
+        shutil.copyfile(config_src, config_example_dst)
+    if not os.path.exists(config_dst) and os.path.exists(config_src):
+        shutil.copyfile(config_src, config_dst)
+
+    install_run = _run([service_dst, "--startup", "auto", "install"])
+    if install_run.returncode != 0:
+        err = (install_run.stderr or install_run.stdout or "service install failed")[-2000:]
+        raise RuntimeError(err)
+
+    start_run = _run([service_dst, "start"])
+    if start_run.returncode != 0:
+        err = (start_run.stderr or start_run.stdout or "service start failed")[-2000:]
+        raise RuntimeError(err)
+
+    print("Saggio Robot Agent kuruldu/guncellendi. Version: {safe_version}")
+    print("Config: C:/SaggioRobotAgent/config.json")
+
+
+def main():
+    try:
+        install_or_update()
+    except Exception as ex:
+        print(f"[ERROR] {{ex}}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+'''
+		with open(installer_script, 'w', encoding='utf-8') as fp:
+			fp.write(installer_code)
+
+		installer_build_cmd = [
+			sys.executable,
+			'-m',
+			'PyInstaller',
+			'--noconfirm',
+			'--clean',
+			'--onefile',
+			'--name',
+			'SaggioRobotAgentSetup',
+			'--add-data',
+			f'{service_exe}{os.pathsep}payload',
+			'--add-data',
+			f'{config_example}{os.pathsep}payload',
+			installer_script,
+			'--distpath',
+			installer_dist,
+			'--workpath',
+			installer_work,
+			'--specpath',
+			installer_spec,
+		]
+		installer_run = subprocess.run(installer_build_cmd, capture_output=True, text=True, timeout=1800)
+		if installer_run.returncode != 0:
+			err = (installer_run.stderr or installer_run.stdout or 'setup build başarısız')[-4000:]
+			return JsonResponse({'ok': False, 'error': f'setup.exe üretilemedi: {err}'}, status=500)
+
+		built_exe = os.path.join(installer_dist, 'SaggioRobotAgentSetup.exe')
+		if not os.path.exists(built_exe):
+			return JsonResponse({'ok': False, 'error': 'Build tamamlandı ama exe dosyası bulunamadı.'}, status=500)
+
+		shutil.copyfile(built_exe, output_path)
+		release, _ = RobotAgentRelease.objects.get_or_create(version=version)
+		release.setup_file = rel_path
+		release.download_url = f'/api/robot-agent/releases/download/{version}/'
+		if not release.install_command:
+			release.install_command = 'powershell -NoProfile -ExecutionPolicy Bypass -Command "$u=\"{download_url}\"; $v=\"{version}\"; $dst=\"C:/SaggioRobotAgent/agent-update-$v.exe\"; Invoke-WebRequest -Uri $u -OutFile $dst; Start-Process -FilePath $dst -ArgumentList \"/update\" -WindowStyle Hidden"'
+		release.is_active = True
+		release.created_by = 'panel-builder'
+		release.save()
+
+		return JsonResponse({
+			'ok': True,
+			'built': True,
+			'version': version,
+			'download_url': release.download_url,
+			'message': 'setup.exe başarıyla üretildi.',
+		})
+	except subprocess.TimeoutExpired:
+		return JsonResponse({'ok': False, 'error': 'setup.exe üretimi zaman aşımına uğradı.'}, status=500)
+
+
+@require_POST
+def robot_build_install_package(request):
+	body = _read_json_body(request)
+	if body is None:
+		body = {}
+
+	version = str(body.get('version') or '').strip() or datetime.now().strftime('bootstrap-%Y%m%d-%H%M%S')
+	force_rebuild = _as_bool(body.get('force_rebuild', False), False)
+	safe_version = _safe_release_version(version)
+
+	base_agent_dir = os.path.join(str(settings.BASE_DIR), 'robot_agent')
+	files_to_include = [
+		('agent_runtime.py', 'agent_runtime.py'),
+		('robot_agent_service.py', 'robot_agent_service.py'),
+		('config.example.json', 'config.example.json'),
+	]
+	for src_name, _ in files_to_include:
+		src_path = os.path.join(base_agent_dir, src_name)
+		if not os.path.exists(src_path):
+			return JsonResponse({'ok': False, 'error': f'Paket için gerekli dosya yok: {src_path}'}, status=404)
+
+	zip_full_path, zip_file_name = _package_zip_path(version)
+	if os.path.exists(zip_full_path) and not force_rebuild:
+		release, _ = RobotAgentRelease.objects.get_or_create(version=version)
+		release.is_active = True
+		if not release.download_url:
+			release.download_url = f'/api/robot-agent/releases/download-package/{version}/'
+		release.save(update_fields=['is_active', 'download_url'])
+		return JsonResponse({
+			'ok': True,
+			'built': False,
+			'version': version,
+			'package_url': f'/api/robot-agent/releases/download-package/{version}/',
+			'message': 'Var olan kurulum paketi kullanıldı.',
+		})
+
+	install_ps1 = '''$ErrorActionPreference = "Stop"
+$Base = "C:/SaggioRobotAgent"
+$Venv = "$Base/.venv"
+$TaskName = "SaggioRobotAgent"
+
+New-Item -ItemType Directory -Force -Path $Base | Out-Null
+Copy-Item -Force "$PSScriptRoot/agent_runtime.py" "$Base/agent_runtime.py"
+Copy-Item -Force "$PSScriptRoot/robot_agent_service.py" "$Base/robot_agent_service.py"
+if (Test-Path "$PSScriptRoot/update_agent.ps1") {
+	Copy-Item -Force "$PSScriptRoot/update_agent.ps1" "$Base/update_agent.ps1"
+}
+if (-not (Test-Path "$Base/config.json") -and (Test-Path "$PSScriptRoot/config.example.json")) {
+	Copy-Item -Force "$PSScriptRoot/config.example.json" "$Base/config.json"
+}
+
+if (-not (Test-Path $Venv)) {
+	$pyLauncher = Get-Command py -ErrorAction SilentlyContinue
+	$pythonExe = Get-Command python -ErrorAction SilentlyContinue
+	if ($pyLauncher) {
+		& py -3.11 -m venv $Venv
+		if (-not (Test-Path $Venv)) {
+			& py -3 -m venv $Venv
+		}
+	} elseif ($pythonExe) {
+		& python -m venv $Venv
+	} else {
+		throw "Python bulunamadı."
+	}
+}
+
+& "$Venv/Scripts/pip.exe" install --upgrade pip
+& "$Venv/Scripts/pip.exe" install requests
+
+$PythonExe = "$Venv/Scripts/python.exe"
+$ScriptPath = "$Base/agent_runtime.py"
+$RunnerPath = "$Base/run_agent.ps1"
+if (-not (Test-Path $PythonExe)) {
+	throw "Python venv bulunamadı: $PythonExe"
+}
+
+$runnerContent = @"
+$ErrorActionPreference = "Stop"
+$Base = "C:/SaggioRobotAgent"
+$env:SAGGIO_AGENT_CONFIG = "$Base/config.json"
+& "$PythonExe" -u "$ScriptPath" *>> "$Base/agent_runner.log"
+"@
+Set-Content -Path $RunnerPath -Value $runnerContent -Encoding UTF8
+
+try {
+	Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+} catch {
+}
+
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument ('-NoProfile -ExecutionPolicy Bypass -File "' + $RunnerPath + '"')
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
+$userId = ([System.Security.Principal.WindowsIdentity]::GetCurrent()).Name
+try {
+	$principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Highest
+	Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+} catch {
+	Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -User $userId -RunLevel Highest -Force | Out-Null
+}
+Start-ScheduledTask -TaskName $TaskName
+
+Write-Host "Saggio Robot Agent kurulumu tamamlandı. (Task Scheduler)"
+'''
+
+	update_ps1 = '''param(
+	[Parameter(Mandatory=$true)][string]$Version,
+	[Parameter(Mandatory=$true)][string]$Url
+)
+$ErrorActionPreference = "Stop"
+$Base = "C:/SaggioRobotAgent"
+$Venv = "$Base/.venv"
+$TaskName = "SaggioRobotAgent"
+$TmpRoot = "$env:TEMP/SaggioRobotAgentUpdate"
+$ZipPath = "$TmpRoot/agent-$Version.zip"
+$ExtractPath = "$TmpRoot/extract-$Version"
+
+New-Item -ItemType Directory -Force -Path $Base | Out-Null
+New-Item -ItemType Directory -Force -Path $TmpRoot | Out-Null
+if (Test-Path $ExtractPath) {
+	Remove-Item -Recurse -Force $ExtractPath
+}
+
+Invoke-WebRequest -Uri $Url -OutFile $ZipPath
+Expand-Archive -Path $ZipPath -DestinationPath $ExtractPath -Force
+
+try {
+	Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+} catch {
+}
+
+Copy-Item -Force "$ExtractPath/agent_runtime.py" "$Base/agent_runtime.py"
+Copy-Item -Force "$ExtractPath/robot_agent_service.py" "$Base/robot_agent_service.py"
+Copy-Item -Force "$ExtractPath/update_agent.ps1" "$Base/update_agent.ps1"
+if (-not (Test-Path "$Base/config.json") -and (Test-Path "$ExtractPath/config.example.json")) {
+	Copy-Item -Force "$ExtractPath/config.example.json" "$Base/config.json"
+}
+
+if (-not (Test-Path $Venv)) {
+	$pyLauncher = Get-Command py -ErrorAction SilentlyContinue
+	$pythonExe = Get-Command python -ErrorAction SilentlyContinue
+	if ($pyLauncher) {
+		& py -3.11 -m venv $Venv
+		if (-not (Test-Path $Venv)) {
+			& py -3 -m venv $Venv
+		}
+	} elseif ($pythonExe) {
+		& python -m venv $Venv
+	} else {
+		throw "Python bulunamadı."
+	}
+}
+
+& "$Venv/Scripts/pip.exe" install --upgrade pip
+& "$Venv/Scripts/pip.exe" install requests
+
+$PythonExe = "$Venv/Scripts/python.exe"
+$ScriptPath = "$Base/agent_runtime.py"
+$RunnerPath = "$Base/run_agent.ps1"
+if (-not (Test-Path $PythonExe)) {
+	throw "Python venv bulunamadı: $PythonExe"
+}
+
+$runnerContent = @"
+$ErrorActionPreference = "Stop"
+$Base = "C:/SaggioRobotAgent"
+$env:SAGGIO_AGENT_CONFIG = "$Base/config.json"
+& "$PythonExe" -u "$ScriptPath" *>> "$Base/agent_runner.log"
+"@
+Set-Content -Path $RunnerPath -Value $runnerContent -Encoding UTF8
+
+try {
+	Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+} catch {
+}
+
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument ('-NoProfile -ExecutionPolicy Bypass -File "' + $RunnerPath + '"')
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)
+$userId = ([System.Security.Principal.WindowsIdentity]::GetCurrent()).Name
+try {
+	$principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Highest
+	Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+} catch {
+	Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -User $userId -RunLevel Highest -Force | Out-Null
+}
+Start-ScheduledTask -TaskName $TaskName
+
+try {
+	$cfgPath = "$Base/config.json"
+	if (Test-Path $cfgPath) {
+		$cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
+		$cfg.agent_version = $Version
+		$cfg | ConvertTo-Json -Depth 20 | Set-Content -Path $cfgPath -Encoding UTF8
+	}
+} catch {
+}
+
+Write-Host "Ajan güncelleme tamamlandı. Version: $Version"
+'''
+
+	uninstall_ps1 = '''$ErrorActionPreference = "SilentlyContinue"
+$Base = "C:/SaggioRobotAgent"
+$TaskName = "SaggioRobotAgent"
+try {
+	Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+} catch {
+}
+try {
+	Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+} catch {
+}
+Write-Host "Saggio Robot Agent gorev kaldirma tamamlandi."
+'''
+
+	readme_txt = f'''Saggio Robot Agent Kurumsal Paket\n\nVersion: {safe_version}\n\nCrowdStrike Uyumlu Akis (EXE yok, servis yok):\n1) Zip'i robota çıkart\n2) Yönetici PowerShell aç\n3) install_agent.ps1 çalıştır\n\nKurulum modeli:\n- Ajan, Windows Task Scheduler üzerinden mevcut kullanıcı ile OnLogon tetiklenir.\n- SAP/GUI otomasyonu için robot kullanıcısının oturumu açık olmalıdır.\n\nGerekli ayar:\n- C:/SaggioRobotAgent/config.json içine server_base_url, agent_code, token değerlerini gir.\n\nMerkezi guncelleme:\n- Panelden deploy yapıldığında C:/SaggioRobotAgent/update_agent.ps1 çağrılır ve zip paketi indirip ajanı yeniler.\n'''
+
+	tmp_root = os.path.join(str(settings.MEDIA_ROOT), 'robot_agent', '_tmp_pkg', safe_version)
+	os.makedirs(tmp_root, exist_ok=True)
+	for src_name, out_name in files_to_include:
+		shutil.copyfile(os.path.join(base_agent_dir, src_name), os.path.join(tmp_root, out_name))
+	with open(os.path.join(tmp_root, 'install_agent.ps1'), 'w', encoding='utf-8') as fp:
+		fp.write(install_ps1)
+	with open(os.path.join(tmp_root, 'update_agent.ps1'), 'w', encoding='utf-8') as fp:
+		fp.write(update_ps1)
+	with open(os.path.join(tmp_root, 'uninstall_agent.ps1'), 'w', encoding='utf-8') as fp:
+		fp.write(uninstall_ps1)
+	with open(os.path.join(tmp_root, 'README.txt'), 'w', encoding='utf-8') as fp:
+		fp.write(readme_txt)
+
+	os.makedirs(os.path.dirname(zip_full_path), exist_ok=True)
+	with zipfile.ZipFile(zip_full_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+		for item in os.listdir(tmp_root):
+			item_path = os.path.join(tmp_root, item)
+			if os.path.isfile(item_path):
+				zf.write(item_path, arcname=item)
+
+	release, _ = RobotAgentRelease.objects.get_or_create(version=version)
+	release.is_active = True
+	release.download_url = f'/api/robot-agent/releases/download-package/{version}/'
+	release.install_command = 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/SaggioRobotAgent/update_agent.ps1 -Version "{version}" -Url "{download_url}"'
+	if not release.release_notes:
+		release.release_notes = 'Kurumsal kurulum paketi (zip + powershell) üretildi.'
+	release.save()
+
+	return JsonResponse({
+		'ok': True,
+		'built': True,
+		'version': version,
+		'package_url': f'/api/robot-agent/releases/download-package/{version}/',
+		'file_name': zip_file_name,
+		'message': 'Kurumsal kurulum paketi hazır.',
+	})
+
+
+@require_POST
+def robot_set_desired_version(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+	version = str(body.get('version') or '').strip()
+	if not version:
+		return JsonResponse({'ok': False, 'error': 'version gerekli.'}, status=400)
+	if not RobotAgentRelease.objects.filter(version=version).exists():
+		return JsonResponse({'ok': False, 'error': 'Release bulunamadı.'}, status=404)
+	agent_code = str(body.get('agent_code') or '').strip()
+	if agent_code:
+		agent = RobotAgent.objects.filter(code=agent_code).first()
+		if not agent:
+			return JsonResponse({'ok': False, 'error': 'Ajan bulunamadı.'}, status=404)
+		agent.desired_version = version
+		agent.save(update_fields=['desired_version', 'updated_at'])
+		return JsonResponse({'ok': True, 'updated': 1, 'scope': 'single'})
+	updated = RobotAgent.objects.update(desired_version=version, updated_at=timezone.now())
+	return JsonResponse({'ok': True, 'updated': int(updated), 'scope': 'all'})
+
+
+@require_POST
+def robot_agent_upsert(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+	code = str(body.get('code') or '').strip()
+	name = str(body.get('name') or '').strip()
+	if not code or not name:
+		return JsonResponse({'ok': False, 'error': 'code ve name gerekli.'}, status=400)
+	agent, created = RobotAgent.objects.get_or_create(
+		code=code,
+		defaults={
+			'name': name,
+			'token_hash': '',
+			'is_enabled': True,
+			'status': 'offline',
+		},
+	)
+	agent.name = name[:180]
+	agent.is_enabled = bool(body.get('is_enabled', True))
+	desired_version = str(body.get('desired_version') or '').strip()
+	if desired_version:
+		agent.desired_version = desired_version[:40]
+	token = str(body.get('token') or '').strip()
+	if token:
+		agent.set_token(token)
+	agent.save()
+
+	if created:
+		_create_agent_event(agent, 'info', 'Ajan panelden oluşturuldu.')
+	elif token:
+		_create_agent_event(agent, 'warning', 'Ajan token değeri panelden yenilendi.')
+
+	return JsonResponse({'ok': True, 'created': created, 'code': agent.code})
+
+
+@require_POST
+def robot_cancel_job(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	job_id = body.get('job_id')
+	if not job_id:
+		return JsonResponse({'ok': False, 'error': 'job_id gerekli.'}, status=400)
+
+	job = RobotJob.objects.filter(pk=job_id).first()
+	if not job:
+		return JsonResponse({'ok': False, 'error': 'İş bulunamadı.'}, status=404)
+
+	if job.status in {'succeeded', 'failed', 'canceled'}:
+		return JsonResponse({'ok': False, 'error': 'Tamamlanmış iş iptal edilemez.'}, status=400)
+
+	job.status = 'canceled'
+	job.finished_at = timezone.now()
+	job.result_message = str(body.get('reason') or 'Kullanıcı tarafından iptal edildi.').strip()
+	job.lease_expires_at = None
+	job.save(update_fields=['status', 'finished_at', 'result_message', 'lease_expires_at', 'updated_at'])
+
+	if job.target_agent_id:
+		agent = job.target_agent
+		active_count = RobotJob.objects.filter(target_agent=agent, status__in=['dispatched', 'running']).exclude(pk=job.pk).count()
+		if active_count == 0:
+			agent.status = 'online'
+			agent.mark_seen(startup=False)
+			agent.save(update_fields=['status', 'last_seen_at', 'updated_at'])
+
+	return JsonResponse({'ok': True, 'job_id': job.pk, 'status': job.status})
+
+
+@require_POST
+def robot_dispatch_job(request):
+	body = _read_json_body(request)
+	if body is None:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz JSON.'}, status=400)
+
+	command_type = str(body.get('command_type') or 'run_sap_process').strip()
+	if command_type not in {'run_sap_process', 'run_command'}:
+		return JsonResponse({'ok': False, 'error': 'Geçersiz command_type.'}, status=400)
+
+	target_agent = None
+	target_agent_code = str(body.get('target_agent_code') or '').strip()
+	if target_agent_code:
+		target_agent = RobotAgent.objects.filter(code=target_agent_code, is_enabled=True).first()
+		if not target_agent:
+			return JsonResponse({'ok': False, 'error': 'Hedef ajan bulunamadı veya pasif.'}, status=404)
+
+	sap_process = None
+	sap_process_id = body.get('sap_process_id')
+	if command_type == 'run_sap_process':
+		if not sap_process_id:
+			return JsonResponse({'ok': False, 'error': 'run_sap_process için sap_process_id gerekli.'}, status=400)
+		sap_process = SapProcess.objects.filter(pk=sap_process_id).first()
+		if not sap_process:
+			return JsonResponse({'ok': False, 'error': 'SAP süreç bulunamadı.'}, status=404)
+
+	payload = body.get('payload') if isinstance(body.get('payload'), dict) else {}
+	try:
+		priority = int(body.get('priority', 100))
+	except (TypeError, ValueError):
+		priority = 100
+	requested_by = str(body.get('requested_by') or '').strip()
+	if not requested_by and getattr(request, 'user', None) and request.user.is_authenticated:
+		requested_by = str(request.user.get_username() or '').strip()
+
+	job = RobotJob.objects.create(
+		command_type=command_type,
+		sap_process=sap_process,
+		target_agent=target_agent,
+		payload=payload,
+		priority=priority,
+		status='queued',
+		requested_by=requested_by[:120],
+	)
+
+	return JsonResponse({
+		'ok': True,
+		'job': {
+			'job_id': job.pk,
+			'status': job.status,
+			'target_agent_code': target_agent.code if target_agent else '',
+			'command_type': job.command_type,
+			'sap_process_id': job.sap_process_id,
+		}
+	})

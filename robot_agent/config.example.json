@@ -1,0 +1,20 @@
+{
+  "server_base_url": "https://sunucu-adresin.com",
+  "agent_code": "robot-01",
+  "token": "REPLACE_WITH_SECRET_TOKEN",
+  "name": "Robot 01",
+  "agent_version": "1.0.0",
+  "log_level": "INFO",
+  "log_file": "C:/SaggioRobotAgent/agent.log",
+  "poll_interval_seconds": 5,
+  "idle_interval_seconds": 3,
+  "http_timeout_seconds": 20,
+  "update_check_interval_seconds": 300,
+  "command_timeout_seconds": 7200,
+  "process_command_template": "C:/SaggioRobotRunner/run_process.bat {sap_process_id}",
+  "capabilities": {
+    "sap": true,
+    "excel": true,
+    "windows_automation": true
+  }
+}

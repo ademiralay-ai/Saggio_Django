@@ -47,7 +47,7 @@
                 </li>
 
                 <!-- ORKESTRASyon -->
-                <li class="nav-group {% if current == 'robots' or current == 'processes' or current == 'queues' or current == 'scheduler' or current == 'sap_scan' or current == 'sap_process_list' or current == 'sap_process_builder' or current == 'sap_process_delete' %}nav-group-active{% endif %}" data-group="orkestrasyon">
+                <li class="nav-group {% if current == 'robots' or current == 'robot_control_center' or current == 'processes' or current == 'queues' or current == 'scheduler' or current == 'sap_scan' or current == 'sap_process_list' or current == 'sap_process_builder' or current == 'sap_process_delete' %}nav-group-active{% endif %}" data-group="orkestrasyon">
                     <button class="menu-group-btn" type="button" data-target="group-orkestrasyon">
                         <span>Orkestrasyon</span>
                         <i class="fas fa-chevron-down menu-group-arrow"></i>
@@ -57,6 +57,12 @@
                             <a class="nav-link {% if current == 'robots' %}active{% endif %}" href="{% url 'robots' %}" data-label="Robotlar">
                                 <i class="fas fa-robot"></i>
                                 <span>Robotlar</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'robot_control_center' %}active{% endif %}" href="{% url 'robot_control_center' %}" data-label="Robot Operasyon Merkezi">
+                                <i class="fas fa-satellite-dish"></i>
+                                <span>Robot Operasyon</span>
                             </a>
                         </li>
                         <li class="nav-item">

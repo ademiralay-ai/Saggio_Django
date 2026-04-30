@@ -1,0 +1,393 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="stats-grid rcc-stats">
+    <div class="stat-card cyan">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value" id="rcc-total-agents">0</div>
+                <div class="stat-label">Toplam Ajan</div>
+            </div>
+            <div class="stat-icon"><i class="fas fa-robot"></i></div>
+        </div>
+    </div>
+    <div class="stat-card lime">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value" id="rcc-online-agents">0</div>
+                <div class="stat-label">Online Ajan</div>
+            </div>
+            <div class="stat-icon"><i class="fas fa-signal"></i></div>
+        </div>
+    </div>
+    <div class="stat-card magenta">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value" id="rcc-running-jobs">0</div>
+                <div class="stat-label">Çalışan İş</div>
+            </div>
+            <div class="stat-icon"><i class="fas fa-bolt"></i></div>
+        </div>
+    </div>
+    <div class="stat-card amber">
+        <div class="stat-header">
+            <div>
+                <div class="stat-value" id="rcc-queued-jobs">0</div>
+                <div class="stat-label">Kuyruktaki İş</div>
+            </div>
+            <div class="stat-icon"><i class="fas fa-list"></i></div>
+        </div>
+    </div>
+</div>
+
+<div class="rcc-grid">
+    <section class="rcc-panel rcc-panel-span-2">
+        <div class="rcc-panel-head">
+            <h2 class="section-title"><i class="fas fa-broadcast-tower"></i> Ajan Durumları</h2>
+            <button class="btn btn-sm" id="rcc-refresh-btn" type="button"><i class="fas fa-rotate"></i> Yenile</button>
+        </div>
+        <div id="rcc-agents" class="rcc-agent-list"></div>
+    </section>
+
+    <section class="rcc-panel">
+        <div class="rcc-panel-head">
+            <h2 class="section-title"><i class="fas fa-paper-plane"></i> Yeni İş Ata</h2>
+        </div>
+        <form id="rcc-dispatch-form" class="rcc-form">
+            <div class="rcc-field">
+                <label>İş Tipi</label>
+                <select id="rcc-command-type">
+                    <option value="run_sap_process">SAP Süreci Çalıştır</option>
+                    <option value="run_command">Özel Komut Çalıştır</option>
+                </select>
+            </div>
+            <div class="rcc-field">
+                <label>Hedef Robot</label>
+                <select id="rcc-agent-code">
+                    <option value="">Müsait herhangi bir robot</option>
+                </select>
+            </div>
+            <div class="rcc-field" id="rcc-process-wrap">
+                <label>SAP Süreç</label>
+                <select id="rcc-process-id">
+                    <option value="">Süreç seçin</option>
+                </select>
+            </div>
+            <div class="rcc-field">
+                <label>Öncelik</label>
+                <input id="rcc-priority" type="number" min="1" max="999" value="100">
+            </div>
+            <div class="rcc-field rcc-field-full">
+                <label>Komut (opsiyonel)</label>
+                <input id="rcc-command" type="text" placeholder="C:/Scripts/run_x.bat">
+            </div>
+            <div class="rcc-field rcc-field-full">
+                <label>Not</label>
+                <input id="rcc-note" type="text" placeholder="Bu iş neden gönderiliyor?">
+            </div>
+            <div class="rcc-actions">
+                <button class="btn btn-primary" type="submit"><i class="fas fa-paper-plane"></i> İşi Kuyruğa Ekle</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="rcc-panel">
+        <div class="rcc-panel-head">
+            <h2 class="section-title"><i class="fas fa-user-plus"></i> Ajan Yönetimi</h2>
+        </div>
+        <form id="rcc-agent-form" class="rcc-form">
+            <div class="rcc-field">
+                <label>Ajan Kodu</label>
+                <input id="rcc-agent-new-code" type="text" placeholder="robot-06">
+            </div>
+            <div class="rcc-field">
+                <label>Ajan Adı</label>
+                <input id="rcc-agent-new-name" type="text" placeholder="Robot 06">
+            </div>
+            <div class="rcc-field">
+                <label>Token</label>
+                <input id="rcc-agent-new-token" type="text" placeholder="Boş bırakma, güvenli token gir">
+            </div>
+            <div class="rcc-field">
+                <label>Enabled</label>
+                <select id="rcc-agent-enabled">
+                    <option value="1" selected>Aktif</option>
+                    <option value="0">Pasif</option>
+                </select>
+            </div>
+            <div class="rcc-field rcc-field-full">
+                <label>Desired Version (opsiyonel)</label>
+                <input id="rcc-agent-desired" type="text" placeholder="1.0.3">
+            </div>
+            <div class="rcc-actions">
+                <button class="btn btn-primary" type="submit"><i class="fas fa-floppy-disk"></i> Ajan Kaydet / Güncelle</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<section class="rcc-panel rcc-panel-full">
+    <div class="rcc-panel-head">
+        <h2 class="section-title"><i class="fas fa-table-list"></i> Son İşler</h2>
+        <div class="rcc-inline-actions">
+            <input id="rcc-job-search" type="text" placeholder="İş ara...">
+            <select id="rcc-job-status">
+                <option value="">Tüm Durumlar</option>
+                <option value="queued">queued</option>
+                <option value="dispatched">dispatched</option>
+                <option value="running">running</option>
+                <option value="succeeded">succeeded</option>
+                <option value="failed">failed</option>
+                <option value="canceled">canceled</option>
+            </select>
+            <select id="rcc-job-agent-filter">
+                <option value="">Tüm Robotlar</option>
+            </select>
+            <label for="rcc-job-limit">Limit</label>
+            <select id="rcc-job-limit">
+                <option value="20">20</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+            </select>
+        </div>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Durum</th>
+                    <th>İş Tipi</th>
+                    <th>Robot</th>
+                    <th>Süreç</th>
+                    <th>Öncelik</th>
+                    <th>Başlangıç</th>
+                    <th>Bitiş</th>
+                    <th>Sonuç</th>
+                    <th>İşlem</th>
+                </tr>
+            </thead>
+            <tbody id="rcc-jobs-body">
+                <tr><td colspan="10" class="empty-cell">Yükleniyor...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<div class="rcc-grid rcc-grid-bottom">
+    <section class="rcc-panel">
+        <div class="rcc-panel-head">
+            <h2 class="section-title"><i class="fas fa-code-branch"></i> EXE Release Yönetimi</h2>
+        </div>
+        <div class="rcc-panel rcc-subpanel">
+            <div class="rcc-panel-head">
+                <h3 class="section-title"><i class="fas fa-hammer"></i> setup.exe Oluştur</h3>
+            </div>
+            <div class="rcc-inline-actions">
+                <input id="rcc-build-version" type="text" placeholder="örn: 1.0.0-bootstrap">
+                <select id="rcc-build-force">
+                    <option value="0" selected>Var olanı kullan</option>
+                    <option value="1">Zorla yeniden build</option>
+                </select>
+                <button class="btn btn-primary btn-sm" id="rcc-build-btn" type="button"><i class="fas fa-gears"></i> setup.exe oluştur</button>
+            </div>
+            <div id="rcc-build-result" class="rcc-build-result"></div>
+        </div>
+        <div class="rcc-panel rcc-subpanel">
+            <div class="rcc-panel-head">
+                <h3 class="section-title"><i class="fas fa-box-archive"></i> Kurumsal Kurulum Paketi (ZIP)</h3>
+            </div>
+            <div class="rcc-inline-actions">
+                <input id="rcc-package-version" type="text" placeholder="örn: 1.0.0-corp">
+                <select id="rcc-package-force">
+                    <option value="0" selected>Var olanı kullan</option>
+                    <option value="1">Zorla yeniden üret</option>
+                </select>
+                <button class="btn btn-primary btn-sm" id="rcc-package-btn" type="button"><i class="fas fa-box-open"></i> Kurulum Paketi Oluştur</button>
+            </div>
+            <div id="rcc-package-result" class="rcc-build-result"></div>
+        </div>
+        <form id="rcc-release-form" class="rcc-form">
+            <div class="rcc-field">
+                <label>Version</label>
+                <input id="rcc-release-version" type="text" placeholder="1.0.3">
+            </div>
+            <div class="rcc-field">
+                <label>Download URL</label>
+                <input id="rcc-release-url" type="text" placeholder="https://.../agent-1.0.3.exe">
+            </div>
+            <div class="rcc-field rcc-field-full">
+                <label>Setup EXE (opsiyonel upload)</label>
+                <input id="rcc-release-file" type="file" accept=".exe">
+            </div>
+            <div class="rcc-field rcc-field-full">
+                <label>SHA256</label>
+                <input id="rcc-release-sha" type="text" placeholder="opsiyonel">
+            </div>
+            <div class="rcc-field rcc-field-full">
+                <label>Install Command</label>
+                <input id="rcc-release-install-cmd" type="text" placeholder="powershell -ExecutionPolicy Bypass -File C:/SaggioRobotAgent/update_agent.ps1 -Version \"{version}\" -Url \"{download_url}\"">
+            </div>
+            <div class="rcc-field rcc-field-full">
+                <label>Release Notes</label>
+                <input id="rcc-release-notes" type="text" placeholder="Kısa değişiklik notu">
+            </div>
+            <div class="rcc-field">
+                <label>Aktif</label>
+                <select id="rcc-release-active">
+                    <option value="1" selected>Evet</option>
+                    <option value="0">Hayır</option>
+                </select>
+            </div>
+            <div class="rcc-field">
+                <label>Zorunlu</label>
+                <select id="rcc-release-mandatory">
+                    <option value="0" selected>Hayır</option>
+                    <option value="1">Evet</option>
+                </select>
+            </div>
+            <div class="rcc-actions">
+                <button class="btn btn-primary" type="submit"><i class="fas fa-upload"></i> Release Kaydet</button>
+            </div>
+        </form>
+        <div class="rcc-inline-actions rcc-mt-8">
+            <select id="rcc-desired-version"></select>
+            <select id="rcc-desired-agent">
+                <option value="">Tüm ajanlara uygula</option>
+            </select>
+            <button class="btn btn-sm" id="rcc-set-desired-btn" type="button"><i class="fas fa-bullseye"></i> Desired Version Ata</button>
+        </div>
+        <div class="rcc-inline-actions rcc-mt-8">
+            <select id="rcc-deploy-version"></select>
+            <select id="rcc-deploy-scope">
+                <option value="outdated" selected>Outdated ajanlar</option>
+                <option value="all">Tüm ajanlar</option>
+                <option value="single">Seçili ajan</option>
+            </select>
+            <select id="rcc-deploy-agent">
+                <option value="">Ajan seçin (single için)</option>
+            </select>
+            <button class="btn btn-primary btn-sm" id="rcc-deploy-btn" type="button"><i class="fas fa-rocket"></i> Tek Tık Update Dağıt</button>
+        </div>
+        <div class="table-container rcc-mt-8">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Version</th>
+                        <th>Aktif</th>
+                        <th>Zorunlu</th>
+                        <th>URL</th>
+                        <th>Setup</th>
+                        <th>Kurumsal Paket</th>
+                        <th>Oluşturulma</th>
+                    </tr>
+                </thead>
+                <tbody id="rcc-release-body">
+                    <tr><td colspan="7" class="empty-cell">Yükleniyor...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="rcc-panel">
+        <div class="rcc-panel-head">
+            <h2 class="section-title"><i class="fas fa-file-waveform"></i> Ajan Logları</h2>
+            <div class="rcc-inline-actions">
+                <select id="rcc-log-agent"><option value="">Ajan seçin</option></select>
+                <select id="rcc-log-limit">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                </select>
+                <button class="btn btn-sm" id="rcc-log-refresh" type="button"><i class="fas fa-rotate"></i></button>
+            </div>
+        </div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Zaman</th>
+                        <th>Level</th>
+                        <th>Job</th>
+                        <th>Mesaj</th>
+                    </tr>
+                </thead>
+                <tbody id="rcc-log-body">
+                    <tr><td colspan="4" class="empty-cell">Ajan seçip logları görüntüleyin.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<style>
+.rcc-grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top: 12px; }
+.rcc-panel-span-2 { grid-column: 1 / -1; }
+.rcc-panel { background: var(--bg-card); border:1px solid var(--border-glass); border-radius: 12px; padding:14px; }
+.rcc-subpanel { background: rgba(255,255,255,0.02); margin-bottom: 10px; }
+.rcc-panel-full { margin-top: 16px; }
+.rcc-panel-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom: 12px; }
+.rcc-panel-head .section-title { margin:0; font-size:18px; }
+.rcc-agent-list { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:10px; }
+.rcc-agent-card { border:1px solid var(--border-glass); border-radius:10px; padding:10px; background: rgba(255,255,255,0.03); }
+.rcc-agent-row { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; }
+.rcc-agent-code { font-weight:700; color: var(--neon-cyan); }
+.rcc-agent-name { color: var(--text-main); font-size: 13px; }
+.rcc-agent-meta { color: var(--text-dim); font-size: 12px; display:flex; justify-content:space-between; gap:10px; }
+.rcc-agent-version { margin-top: 8px; font-size: 12px; color: var(--text-dim); display: flex; gap: 10px; }
+.rcc-chip { border-radius:999px; padding:3px 9px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; border:1px solid transparent; }
+.rcc-chip.online { color:#4df6be; background: rgba(57,255,20,0.08); border-color: rgba(57,255,20,0.35); }
+.rcc-chip.busy { color:#00f3ff; background: rgba(0,243,255,0.08); border-color: rgba(0,243,255,0.35); }
+.rcc-chip.offline { color:#ff8aa3; background: rgba(255,0,60,0.1); border-color: rgba(255,0,60,0.35); }
+.rcc-chip.maintenance { color:#ffd98b; background: rgba(255,170,0,0.13); border-color: rgba(255,170,0,0.3); }
+.rcc-chip.outdated { color:#ffdf87; background: rgba(255,170,0,0.15); border-color: rgba(255,170,0,0.35); }
+.rcc-form { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+.rcc-field { display:flex; flex-direction:column; gap:6px; }
+.rcc-field-full { grid-column: 1 / -1; }
+.rcc-field label { font-size:12px; color: var(--text-dim); }
+.rcc-field input, .rcc-field select { background: rgba(255,255,255,0.03); border:1px solid var(--border-glass); border-radius:8px; padding:9px 10px; color:var(--text-main); }
+.rcc-actions { grid-column: 1 / -1; display:flex; justify-content:flex-end; margin-top:4px; }
+.rcc-inline-actions { display:flex; align-items:center; gap:8px; color:var(--text-dim); font-size:12px; }
+.rcc-inline-actions select, .rcc-inline-actions input { background: rgba(255,255,255,0.04); border:1px solid var(--border-glass); border-radius:8px; color:var(--text-main); padding:6px 8px; }
+.rcc-mt-8 { margin-top: 8px; }
+.rcc-build-result { margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+.rcc-build-result a { color: var(--neon-cyan); font-weight: 700; text-decoration: none; }
+.rcc-build-result a:hover { text-decoration: underline; }
+.rcc-status-cell { font-weight:700; }
+.rcc-status-cell.running, .rcc-status-cell.dispatched { color: var(--neon-cyan); }
+.rcc-status-cell.queued { color: var(--neon-amber); }
+.rcc-status-cell.succeeded { color: var(--neon-lime); }
+.rcc-status-cell.failed, .rcc-status-cell.canceled { color: #ff8aa3; }
+.rcc-cell-msg { max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1200px) { .rcc-agent-list { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 1100px) { .rcc-grid { grid-template-columns: 1fr; } .rcc-panel-span-2 { grid-column: auto; } }
+@media (max-width: 760px) { .rcc-agent-list { grid-template-columns: 1fr; } .rcc-form { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+window.RCC_BOOT = {
+  agents: {{ agents_json|safe }},
+  processes: {{ processes_json|safe }},
+  releases: {{ releases_json|safe }},
+  urls: {
+    status: "{% url 'robot_agent_status' %}",
+    upsert: "{% url 'robot_agent_upsert' %}",
+    events: "{% url 'robot_agent_event_list' %}",
+    jobs: "{% url 'robot_job_list' %}",
+    dispatch: "{% url 'robot_dispatch_job' %}",
+    cancel: "{% url 'robot_cancel_job' %}",
+    releases: "{% url 'robot_release_list' %}",
+    releaseSave: "{% url 'robot_release_save' %}",
+        releaseBuildSetup: "{% url 'robot_build_setup_exe' %}",
+        releaseBuildPackage: "{% url 'robot_build_install_package' %}",
+        releaseDeploy: "{% url 'robot_release_deploy' %}",
+    setDesired: "{% url 'robot_set_desired_version' %}"
+  },
+  csrf: "{{ csrf_token }}"
+};
+</script>
+<script src="{% static 'core/js/robot_control_center.js' %}"></script>
+{% endblock %}

@@ -7,10 +7,29 @@
     <p>Botlarınıza inline klavye menüleri ekleyin, her butonu bir SAP süreciyle ilişkilendirin ve sohbet simülatörüyle test edin.</p>
 </section>
 
+<div class="tbs-stage">
+
+<!-- Sekme bar -->
+<div class="tbs-tabs" role="tablist">
+    <button type="button" class="tbs-tab active" data-tab="menus" role="tab">
+        <i class="fas fa-keyboard"></i> Menüler &amp; Butonlar
+    </button>
+    <button type="button" class="tbs-tab" data-tab="access" role="tab">
+        <i class="fas fa-shield-halved"></i> Erişim &amp; Webhook
+    </button>
+    <div class="tbs-tabs-spacer"></div>
+    <div class="tbs-tabs-bot-info" id="tbs-tabs-bot-info">Bot seçilmedi</div>
+</div>
+
+<div id="tbs-tab-menus" class="tbs-tab-panel active">
 <div id="tbs-wrap" class="tbs-wrap">
 
     <!-- ── SOL: Editor ────────────────────────────────────────────────── -->
     <div class="tbs-editor-panel">
+        <div class="tbs-panel-head tbs-panel-head-editor">
+            <div class="tbs-panel-head-title"><i class="fas fa-pen-ruler"></i> Menü Editörü</div>
+            <div class="tbs-panel-head-sub">Bot komutu, karşılama mesajı ve klavye butonlarını burada tasarlayın.</div>
+        </div>
 
         <!-- Bot Seç -->
         <div class="tbs-section">
@@ -31,6 +50,14 @@
 
         <!-- Menü Düzenleyici -->
         <div id="tbs-menu-editor" style="display:none">
+
+            <div class="tbs-editor-status" id="tbs-editor-status">
+                <div class="tbs-editor-status-line">
+                    <span class="tbs-status-pill neutral" id="tbs-status-pill">Hazır</span>
+                    <span id="tbs-status-text">Menü düzenlemeye başlayabilirsiniz.</span>
+                </div>
+                <div class="tbs-editor-status-meta" id="tbs-editor-summary">0 satır, 0 buton, 0 süreç bağlı</div>
+            </div>
 
             <div class="tbs-section">
                 <label class="tbs-label">Menü Adı *</label>
@@ -78,6 +105,10 @@
 
     <!-- ── SAĞ: Chat Simülatör ────────────────────────────────────────── -->
     <div class="tbs-chat-panel">
+        <div class="tbs-panel-head tbs-panel-head-sim">
+            <div class="tbs-panel-head-title"><i class="fas fa-comments"></i> Sohbet Simülatörü</div>
+            <div class="tbs-panel-head-sub">Komut ve buton akışını canlı gibi test edin.</div>
+        </div>
         <div class="tbs-chat-header">
             <div class="tbs-chat-avatar"><i class="fas fa-robot"></i></div>
             <div>
@@ -97,6 +128,120 @@
     </div>
 
 </div>
+</div>
+
+<!-- ─── Sekme 2: Erişim & Webhook ────────────────────────────────── -->
+<div id="tbs-tab-access" class="tbs-tab-panel">
+    <div class="tbs-mode-banner">
+        <div class="tbs-mode-banner-title"><i class="fas fa-circle-info"></i> İki çalışma modu var</div>
+        <div class="tbs-mode-banner-grid">
+            <div class="tbs-mode-card">
+                <div class="tbs-mode-card-head"><i class="fas fa-server"></i> Polling (önerilen, kolay)</div>
+                <div class="tbs-mode-card-body">
+                    Public IP / HTTPS gerekmez. Sunucuda şu komut sürekli çalışır:
+                    <pre class="tbs-mode-cmd">python manage.py run_telegram_bots</pre>
+                    Allowlist ve menü değişiklikleri anında yansır. Webhook ayarlamak <strong>gerekmez</strong>.
+                </div>
+            </div>
+            <div class="tbs-mode-card">
+                <div class="tbs-mode-card-head"><i class="fas fa-cloud-arrow-up"></i> Webhook (HTTPS gerekir)</div>
+                <div class="tbs-mode-card-body">
+                    Sunucu HTTPS ile dış dünyadan erişilebilirse Telegram size update yollar.
+                    Aşağıdaki "Webhook'u Kaydet" düğmesini kullanın. Polling ile aynı anda kullanmayın.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tbs-access-grid">
+
+        <!-- Sol: Bot seç + İzinli kullanıcılar -->
+        <div class="tbs-access-card">
+            <div class="tbs-panel-head tbs-panel-head-access">
+                <div class="tbs-panel-head-title"><i class="fas fa-user-shield"></i> İzinli Kullanıcılar</div>
+                <div class="tbs-panel-head-sub">Sadece listede yer alan Telegram kullanıcıları botu kullanabilir. Boş liste = kapalı bot.</div>
+            </div>
+
+            <div class="tbs-section">
+                <label class="tbs-label"><i class="fab fa-telegram"></i> Bot</label>
+                <select id="tbs-access-bot-select" class="tbs-select">
+                    <option value="">-- Bot seçin --</option>
+                </select>
+                <small style="color:var(--text-muted);display:block;margin-top:6px">
+                    Aynı bot için her iki sekmedeki seçim senkronize olur.
+                </small>
+            </div>
+
+            <div class="tbs-section">
+                <div class="tbs-row-between" style="margin-bottom:6px">
+                    <label class="tbs-label" style="margin:0"><i class="fas fa-id-card"></i> İzinli Telegram User ID'leri</label>
+                    <span class="tbs-pill-count" id="tbs-access-count">0 kullanıcı</span>
+                </div>
+                <textarea id="tbs-access-list" class="tbs-input" rows="6"
+                          placeholder="Her satıra bir numerik Telegram user ID&#10;örn: 123456789&#10;987654321"></textarea>
+                <div class="tbs-access-hint">
+                    <i class="fas fa-circle-info"></i>
+                    Kendi Telegram user ID'nizi öğrenmek için botunuza herhangi bir mesaj atın; webhook yoksa
+                    <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> ile ilk yanıtın
+                    <code>message.from.id</code> alanına bakın. Yetkisiz biri ise yanıt mesajında kendi ID'si gösterilir.
+                </div>
+                <div class="tbs-section-actions">
+                    <button id="tbs-access-save-btn" class="btn btn-primary" type="button" disabled>
+                        <i class="fas fa-save"></i> İzinli Listeyi Kaydet
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sağ: Webhook -->
+        <div class="tbs-access-card">
+            <div class="tbs-panel-head tbs-panel-head-webhook">
+                <div class="tbs-panel-head-title"><i class="fas fa-link"></i> Telegram Webhook</div>
+                <div class="tbs-panel-head-sub">Bu sunucu HTTPS ile dış dünyadan erişilebilir olduğunda Telegram size update gönderebilir.</div>
+            </div>
+
+            <div class="tbs-section">
+                <label class="tbs-label"><i class="fas fa-globe"></i> Sunucunun Dış URL'i (Base URL)</label>
+                <input id="tbs-webhook-base" type="text" class="tbs-input" placeholder="https://alaniniz.com">
+                <small style="color:var(--text-muted)">Telegram webhook için <strong>HTTPS</strong> zorunludur. Localhost'tan test için ngrok kullanabilirsiniz.</small>
+            </div>
+
+            <div class="tbs-section">
+                <label class="tbs-label"><i class="fas fa-shield"></i> Webhook URL (otomatik)</label>
+                <div class="tbs-webhook-url-box">
+                    <code id="tbs-webhook-url-preview">Bot seçin…</code>
+                    <button id="tbs-webhook-copy-btn" class="btn btn-sm" type="button" title="Kopyala">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="tbs-section tbs-webhook-status-card">
+                <div class="tbs-row-between">
+                    <span class="tbs-label" style="margin:0">Durum</span>
+                    <span class="tbs-status-pill neutral" id="tbs-webhook-status-pill">Bilinmiyor</span>
+                </div>
+                <div class="tbs-webhook-status-detail" id="tbs-webhook-status-detail">Durumu görmek için "Durumu Kontrol Et" düğmesine basın.</div>
+            </div>
+
+            <div class="tbs-section tbs-save-bar">
+                <button id="tbs-webhook-set-btn" class="btn btn-primary" type="button" disabled>
+                    <i class="fas fa-cloud-arrow-up"></i> Webhook'u Kaydet (Telegram'a Bildir)
+                </button>
+                <button id="tbs-webhook-info-btn" class="btn" type="button" disabled>
+                    <i class="fas fa-magnifying-glass"></i> Durumu Kontrol Et
+                </button>
+                <button id="tbs-webhook-delete-btn" class="btn btn-danger" type="button" disabled>
+                    <i class="fas fa-circle-xmark"></i> Sil
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+<div id="tbs-toast-stack" class="tbs-toast-stack" aria-live="polite"></div>
 
 <!-- Buton Düzenleme Modal -->
 <div id="tbs-btn-modal" class="contact-confirm-modal" role="dialog" aria-modal="true">
@@ -131,6 +276,13 @@
 
 <style>
 /* ── Telegram Bot Studio Layout ─────────────────────────────────── */
+.tbs-stage {
+    background: var(--card-bg, #ffffff);
+    border: 1px solid var(--border, #d6dde8);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
 .tbs-wrap {
     display: grid;
     grid-template-columns: 1fr 380px;
@@ -138,20 +290,102 @@
     align-items: start;
 }
 @media (max-width: 900px) {
+    .tbs-stage { padding: 12px; }
     .tbs-wrap { grid-template-columns: 1fr; }
 }
 
 /* ── Editor Panel ─── */
 .tbs-editor-panel {
-    background: var(--card-bg);
+    background: var(--card-bg, #ffffff);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 20px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 10px;
 }
-.tbs-section { margin-bottom: 16px; }
+.tbs-panel-head {
+    border-radius: 12px;
+    padding: 10px 12px;
+    border: 1px solid transparent;
+}
+.tbs-panel-head-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.tbs-panel-head-sub {
+    margin-top: 4px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.tbs-panel-head-editor {
+    background: color-mix(in srgb, #0ea5e9 14%, var(--card-bg, #ffffff));
+    border-color: color-mix(in srgb, #0284c7 35%, var(--border, #d6dde8));
+}
+.tbs-panel-head-sim {
+    margin: 12px 12px 0;
+    background: color-mix(in srgb, #22c55e 12%, var(--card-bg, #ffffff));
+    border-color: color-mix(in srgb, #16a34a 35%, var(--border, #d6dde8));
+}
+.tbs-section {
+    margin-bottom: 0;
+    background: var(--sidebar-bg, #f8fafc);
+    border: 1px solid var(--border, #d6dde8);
+    border-radius: 12px;
+    padding: 12px;
+}
+.tbs-editor-status {
+    background: var(--sidebar-bg, #f8fafc);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 0;
+}
+.tbs-editor-status-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.87rem;
+}
+.tbs-editor-status-meta {
+    margin-top: 6px;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+.tbs-status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    border: 1px solid transparent;
+}
+.tbs-status-pill.neutral {
+    color: var(--text-muted);
+    background: var(--card-bg);
+    border-color: var(--border);
+}
+.tbs-status-pill.warn {
+    color: #92400e;
+    background: #fef3c7;
+    border-color: #f59e0b;
+}
+.tbs-status-pill.ok {
+    color: #065f46;
+    background: #d1fae5;
+    border-color: #10b981;
+}
+.tbs-status-pill.error {
+    color: #991b1b;
+    background: #fee2e2;
+    border-color: #ef4444;
+}
 .tbs-label {
     display: block;
     font-size: 0.78rem;
@@ -180,7 +414,7 @@ textarea.tbs-input { resize: vertical; }
 .tbs-menu-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .tbs-menu-chip {
     display: inline-flex; align-items: center; gap: 6px;
-    background: var(--sidebar-bg);
+    background: var(--card-bg, #ffffff);
     border: 1px solid var(--border);
     border-radius: 20px;
     padding: 4px 12px;
@@ -194,7 +428,7 @@ textarea.tbs-input { resize: vertical; }
 /* ── Keyboard Builder ─── */
 .tbs-keyboard-builder { display: flex; flex-direction: column; gap: 8px; }
 .tbs-keyboard-row {
-    background: var(--sidebar-bg);
+    background: var(--card-bg, #ffffff);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
@@ -209,7 +443,7 @@ textarea.tbs-input { resize: vertical; }
 .tbs-keyboard-buttons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .tbs-bot-button-preview {
     display: inline-flex; align-items: center; gap: 6px;
-    background: var(--card-bg);
+    background: var(--sidebar-bg, #f8fafc);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 6px 12px;
@@ -218,6 +452,22 @@ textarea.tbs-input { resize: vertical; }
     transition: border-color .2s;
 }
 .tbs-bot-button-preview:hover { border-color: var(--accent); }
+.tbs-bot-button-preview .tbs-btn-label {
+    font-weight: 600;
+}
+.tbs-bot-button-preview .tbs-btn-process-badge {
+    font-size: 0.7rem;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    background: var(--sidebar-bg);
+}
+.tbs-bot-button-preview.has-process .tbs-btn-process-badge {
+    color: #065f46;
+    border-color: #10b981;
+    background: #d1fae5;
+}
 .tbs-bot-button-preview .tbs-btn-edit { color: var(--accent); font-size: 0.7rem; }
 .tbs-bot-button-preview .tbs-btn-remove { color: var(--danger, #e74c3c); font-size: 0.7rem; margin-left: 2px; }
 .tbs-bot-button-preview.has-process { border-color: color-mix(in srgb, var(--success, #2ecc71) 60%, transparent); }
@@ -239,7 +489,7 @@ textarea.tbs-input { resize: vertical; }
 
 /* ── Chat Panel ─── */
 .tbs-chat-panel {
-    background: var(--card-bg);
+    background: var(--card-bg, #ffffff);
     border: 1px solid var(--border);
     border-radius: 12px;
     display: flex;
@@ -253,7 +503,7 @@ textarea.tbs-input { resize: vertical; }
     display: flex; align-items: center; gap: 12px;
     padding: 14px 16px;
     border-bottom: 1px solid var(--border);
-    background: var(--sidebar-bg);
+    background: var(--sidebar-bg, #f8fafc);
 }
 .tbs-chat-avatar {
     width: 38px; height: 38px;
@@ -270,7 +520,7 @@ textarea.tbs-input { resize: vertical; }
 }
 .tbs-chat-system {
     text-align: center; color: var(--text-muted); font-size: 0.78rem;
-    background: var(--sidebar-bg); border-radius: 8px; padding: 8px 12px;
+    background: var(--sidebar-bg, #f8fafc); border-radius: 8px; padding: 8px 12px;
 }
 .tbs-msg-row { display: flex; gap: 8px; }
 .tbs-msg-row.out { flex-direction: row-reverse; }
@@ -302,11 +552,11 @@ textarea.tbs-input { resize: vertical; }
 .tbs-chat-input-row {
     display: flex; gap: 8px; padding: 10px 14px;
     border-top: 1px solid var(--border);
-    background: var(--sidebar-bg);
+    background: var(--sidebar-bg, #f8fafc);
 }
 .tbs-chat-input {
     flex: 1;
-    background: var(--card-bg);
+    background: var(--card-bg, #ffffff);
     border: 1px solid var(--border);
     border-radius: 20px; padding: 8px 14px;
     color: var(--text-primary); font-size: 0.88rem;
@@ -321,6 +571,210 @@ textarea.tbs-input { resize: vertical; }
 .tbs-chat-send-btn:hover { background: #006aaa; }
 
 .btn-sm { padding: 5px 10px; font-size: 0.8rem; }
+
+.tbs-toast-stack {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 1200;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.tbs-toast {
+    min-width: 250px;
+    max-width: min(420px, calc(100vw - 28px));
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    font-size: 0.86rem;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+.tbs-toast.ok {
+    border-color: #10b981;
+    background: #ecfdf5;
+    color: #065f46;
+}
+.tbs-toast.warn {
+    border-color: #f59e0b;
+    background: #fffbeb;
+    color: #92400e;
+}
+.tbs-toast.error {
+    border-color: #ef4444;
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+/* ── Sekmeler ── */
+.tbs-tabs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+}
+.tbs-tab {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    padding: 8px 14px;
+    border-radius: 10px 10px 0 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background .2s, color .2s, border-color .2s;
+}
+.tbs-tab:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.tbs-tab.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 14%, var(--card-bg));
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    border-bottom-color: var(--card-bg);
+}
+.tbs-tabs-spacer { flex: 1; }
+.tbs-tabs-bot-info {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: 999px;
+}
+.tbs-tab-panel { display: none; }
+.tbs-tab-panel.active { display: block; }
+
+/* ── Erişim & Webhook sekmesi ── */
+.tbs-access-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+}
+@media (max-width: 900px) {
+    .tbs-access-grid { grid-template-columns: 1fr; }
+}
+.tbs-access-card {
+    background: var(--card-bg, #ffffff);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.tbs-panel-head-access {
+    background: color-mix(in srgb, #8b5cf6 12%, var(--card-bg, #ffffff));
+    border-color: color-mix(in srgb, #7c3aed 35%, var(--border));
+}
+.tbs-panel-head-webhook {
+    background: color-mix(in srgb, #f97316 10%, var(--card-bg, #ffffff));
+    border-color: color-mix(in srgb, #ea580c 35%, var(--border));
+}
+.tbs-pill-count {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: .75rem;
+    color: var(--text-muted);
+}
+.tbs-access-hint {
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+    background: var(--card-bg);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+.tbs-access-hint code {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: .76rem;
+}
+.tbs-section-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.tbs-webhook-url-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+.tbs-webhook-url-box code {
+    flex: 1;
+    font-size: 0.78rem;
+    word-break: break-all;
+    color: var(--text-primary);
+}
+.tbs-webhook-status-card { background: var(--card-bg); }
+.tbs-webhook-status-detail {
+    margin-top: 6px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+/* Mode banner */
+.tbs-mode-banner {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+.tbs-mode-banner-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+}
+.tbs-mode-banner-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+@media (max-width: 900px) {
+    .tbs-mode-banner-grid { grid-template-columns: 1fr; }
+}
+.tbs-mode-card {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+.tbs-mode-card-head {
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 6px;
+    display: flex; align-items: center; gap: 6px;
+}
+.tbs-mode-card-body { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; }
+.tbs-mode-cmd {
+    margin: 6px 0;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 0.78rem;
+    color: var(--text-primary);
+    overflow-x: auto;
+}
 </style>
 {% endblock %}
 
@@ -337,6 +791,10 @@ const MENUS_URL   = '{% url "telegram_bot_studio_menus" %}';
 const SAVE_URL    = '{% url "telegram_bot_studio_menu_save" %}';
 const DELETE_URL  = '{% url "telegram_bot_studio_menu_delete" %}';
 const SIM_URL     = '{% url "telegram_bot_studio_simulate" %}';
+const BOT_SAVE_URL      = '{% url "telegram_bot_studio_bot_save" %}';
+const WH_SET_URL        = '{% url "telegram_bot_studio_set_webhook" %}';
+const WH_INFO_URL       = '{% url "telegram_bot_studio_webhook_info" %}';
+const WH_DELETE_URL     = '{% url "telegram_bot_studio_delete_webhook" %}';
 
 // ── State ───────────────────────────────────────────────────────────
 let state = {
@@ -363,6 +821,10 @@ const $kbBuilder   = document.getElementById('tbs-keyboard-builder');
 const $kbEmpty     = document.getElementById('tbs-keyboard-empty');
 const $saveBtn     = document.getElementById('tbs-save-btn');
 const $deleteMenuBtn = document.getElementById('tbs-delete-menu-btn');
+const $statusPill  = document.getElementById('tbs-status-pill');
+const $statusText  = document.getElementById('tbs-status-text');
+const $statusSummary = document.getElementById('tbs-editor-summary');
+const $toastStack  = document.getElementById('tbs-toast-stack');
 
 const $btnModal       = document.getElementById('tbs-btn-modal');
 const $btnLabel       = document.getElementById('tbs-btn-label');
@@ -410,11 +872,261 @@ function init() {
 
     $chatSend.addEventListener('click', sendChat);
     $chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+
+    [$menuName, $menuTrigger, $menuWelcome].forEach(el => {
+        el?.addEventListener('input', () => markDirty('Kaydedilmemiş değişiklik var.'));
+    });
+
+    initAccessTab();
+}
+
+// ── Sekme + Erişim & Webhook ─────────────────────────────────────────
+const $tabs        = document.querySelectorAll('.tbs-tab');
+const $tabPanels   = {
+    menus:  document.getElementById('tbs-tab-menus'),
+    access: document.getElementById('tbs-tab-access'),
+};
+const $botInfoBadge = document.getElementById('tbs-tabs-bot-info');
+const $accessBotSelect = document.getElementById('tbs-access-bot-select');
+const $accessList    = document.getElementById('tbs-access-list');
+const $accessCount   = document.getElementById('tbs-access-count');
+const $accessSaveBtn = document.getElementById('tbs-access-save-btn');
+const $whBase        = document.getElementById('tbs-webhook-base');
+const $whUrlPreview  = document.getElementById('tbs-webhook-url-preview');
+const $whCopyBtn     = document.getElementById('tbs-webhook-copy-btn');
+const $whSetBtn      = document.getElementById('tbs-webhook-set-btn');
+const $whInfoBtn     = document.getElementById('tbs-webhook-info-btn');
+const $whDeleteBtn   = document.getElementById('tbs-webhook-delete-btn');
+const $whStatusPill  = document.getElementById('tbs-webhook-status-pill');
+const $whStatusDet   = document.getElementById('tbs-webhook-status-detail');
+
+function initAccessTab() {
+    // Sekme geçişi
+    $tabs.forEach(t => t.addEventListener('click', () => {
+        const name = t.dataset.tab;
+        $tabs.forEach(x => x.classList.toggle('active', x === t));
+        Object.keys($tabPanels).forEach(k => $tabPanels[k].classList.toggle('active', k === name));
+    }));
+
+    // Erişim sekmesindeki bot listesini doldur (BOTS aynı kaynak)
+    BOTS.forEach(b => {
+        const o = document.createElement('option');
+        o.value = b.id; o.textContent = b.name + (b.bot_username ? ` (@${b.bot_username})` : '');
+        $accessBotSelect.appendChild(o);
+    });
+
+    // Default base URL: tarayıcının origin'i (kullanıcı düzenleyebilir)
+    $whBase.value = window.location.origin;
+
+    // Bot seçimleri arasında senkron
+    $accessBotSelect.addEventListener('change', () => {
+        $botSelect.value = $accessBotSelect.value;
+        applyAccessBot();
+    });
+    $botSelect.addEventListener('change', () => {
+        $accessBotSelect.value = $botSelect.value;
+        applyAccessBot();
+    });
+
+    $accessList.addEventListener('input', () => {
+        const ids = parseUserIds($accessList.value);
+        $accessCount.textContent = `${ids.size} kullanıcı`;
+    });
+
+    $accessSaveBtn.addEventListener('click', saveAllowedUsers);
+    $whSetBtn.addEventListener('click', setWebhook);
+    $whInfoBtn.addEventListener('click', () => fetchWebhookInfo(true));
+    $whDeleteBtn.addEventListener('click', deleteWebhook);
+    $whBase.addEventListener('input', refreshWebhookPreview);
+    $whCopyBtn.addEventListener('click', copyWebhookUrl);
+
+    applyAccessBot();
+}
+
+function parseUserIds(text) {
+    const set = new Set();
+    String(text || '').split(/[\s,;]+/).forEach(t => {
+        const v = t.trim();
+        if (!v) return;
+        const m = v.match(/^-?\d+$/);
+        if (m) set.add(v);
+    });
+    return set;
+}
+
+function currentBot() {
+    return BOTS.find(b => String(b.id) === String($accessBotSelect.value)) || null;
+}
+
+function applyAccessBot() {
+    const bot = currentBot();
+    const has = !!bot;
+    $accessSaveBtn.disabled = !has;
+    $whSetBtn.disabled = !has;
+    $whInfoBtn.disabled = !has;
+    $whDeleteBtn.disabled = !has;
+    $botInfoBadge.textContent = bot ? `Aktif bot: ${bot.name}` : 'Bot seçilmedi';
+
+    if (!bot) {
+        $accessList.value = '';
+        $accessCount.textContent = '0 kullanıcı';
+        $whUrlPreview.textContent = 'Bot seçin…';
+        setWebhookStatus('neutral', 'Bilinmiyor', 'Önce bir bot seçin.');
+        return;
+    }
+    $accessList.value = bot.allowed_user_ids || '';
+    const ids = parseUserIds($accessList.value);
+    $accessCount.textContent = `${ids.size} kullanıcı`;
+    refreshWebhookPreview();
+    if (bot.webhook_registered_url) {
+        setWebhookStatus('ok', 'Kayıtlı (yerel)', `Son kayıt URL: ${bot.webhook_registered_url}`);
+    } else {
+        setWebhookStatus('neutral', 'Kayıtsız', 'Telegram tarafında durumu doğrulamak için "Durumu Kontrol Et".');
+    }
+}
+
+function refreshWebhookPreview() {
+    const bot = currentBot();
+    if (!bot) { $whUrlPreview.textContent = 'Bot seçin…'; return; }
+    const base = ($whBase.value || '').trim().replace(/\/+$/, '');
+    const secret = bot.webhook_secret || '<secret>';
+    $whUrlPreview.textContent = `${base || '<base_url>'}/tg/webhook/${bot.id}/${secret}/`;
+}
+
+function setWebhookStatus(kind, label, detail) {
+    $whStatusPill.className = 'tbs-status-pill ' + (kind || 'neutral');
+    $whStatusPill.textContent = label;
+    $whStatusDet.textContent = detail || '';
+}
+
+async function saveAllowedUsers() {
+    const bot = currentBot(); if (!bot) return;
+    $accessSaveBtn.disabled = true;
+    try {
+        const r = await fetch(BOT_SAVE_URL, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRFToken':CSRF},
+            body: JSON.stringify({bot_id: bot.id, allowed_user_ids: $accessList.value}),
+        });
+        const d = await r.json();
+        if (d.ok) {
+            bot.allowed_user_ids = d.allowed_user_ids || '';
+            $accessList.value = bot.allowed_user_ids;
+            const ids = parseUserIds($accessList.value);
+            $accessCount.textContent = `${ids.size} kullanıcı`;
+            toast(`İzinli kullanıcılar kaydedildi (${d.count} ID).`, 'ok');
+        } else {
+            toast('Hata: ' + (d.error || 'bilinmeyen'), 'error');
+        }
+    } catch (e) {
+        toast('Ağ hatası: ' + e.message, 'error');
+    } finally {
+        $accessSaveBtn.disabled = false;
+    }
+}
+
+async function setWebhook() {
+    const bot = currentBot(); if (!bot) return;
+    const base = ($whBase.value || '').trim().replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(base)) {
+        toast('Base URL https:// (veya http://) ile başlamalı.', 'warn');
+        return;
+    }
+    $whSetBtn.disabled = true;
+    setWebhookStatus('warn', 'Kaydediliyor…', 'Telegram\'a setWebhook çağrısı yapılıyor.');
+    try {
+        const r = await fetch(WH_SET_URL, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRFToken':CSRF},
+            body: JSON.stringify({bot_id: bot.id, base_url: base}),
+        });
+        const d = await r.json();
+        if (d.ok) {
+            bot.webhook_registered_url = d.webhook_url;
+            setWebhookStatus('ok', 'Kayıtlı', `URL: ${d.webhook_url}`);
+            toast('Webhook Telegram\'a kaydedildi.', 'ok');
+        } else {
+            setWebhookStatus('error', 'Hata', d.error || 'Bilinmeyen Telegram hatası');
+            toast('Webhook hatası: ' + (d.error || 'bilinmeyen'), 'error');
+        }
+    } catch (e) {
+        setWebhookStatus('error', 'Hata', e.message);
+    } finally {
+        $whSetBtn.disabled = false;
+    }
+}
+
+async function fetchWebhookInfo(showToast) {
+    const bot = currentBot(); if (!bot) return;
+    $whInfoBtn.disabled = true;
+    try {
+        const r = await fetch(`${WH_INFO_URL}?bot_id=${bot.id}`);
+        const d = await r.json();
+        if (d.ok) {
+            const info = d.info || {};
+            const url = info.url || '';
+            const pending = info.pending_update_count ?? 0;
+            const lastErr = info.last_error_message || '';
+            if (!url) {
+                setWebhookStatus('warn', 'Telegram\'da yok', 'Bu bot için henüz webhook kaydı yok.');
+            } else {
+                const matches = (d.expected_url && url === d.expected_url);
+                setWebhookStatus(
+                    matches ? 'ok' : 'warn',
+                    matches ? 'Aktif' : 'URL farklı',
+                    `Telegram URL: ${url}\nBekleyen update: ${pending}` + (lastErr ? `\nSon hata: ${lastErr}` : '')
+                );
+            }
+            if (showToast) toast('Webhook durumu güncellendi.', 'ok');
+        } else {
+            setWebhookStatus('error', 'Hata', d.error || 'bilinmeyen');
+        }
+    } catch (e) {
+        setWebhookStatus('error', 'Hata', e.message);
+    } finally {
+        $whInfoBtn.disabled = false;
+    }
+}
+
+async function deleteWebhook() {
+    const bot = currentBot(); if (!bot) return;
+    if (!confirm('Bu botun webhook\'unu Telegram\'dan silmek istediğinize emin misiniz?')) return;
+    $whDeleteBtn.disabled = true;
+    try {
+        const r = await fetch(WH_DELETE_URL, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRFToken':CSRF},
+            body: JSON.stringify({bot_id: bot.id}),
+        });
+        const d = await r.json();
+        if (d.ok) {
+            bot.webhook_registered_url = '';
+            setWebhookStatus('neutral', 'Kayıtsız', 'Webhook silindi.');
+            toast('Webhook silindi.', 'ok');
+        } else {
+            toast('Hata: ' + (d.error || 'bilinmeyen'), 'error');
+        }
+    } catch (e) {
+        toast('Ağ hatası: ' + e.message, 'error');
+    } finally {
+        $whDeleteBtn.disabled = false;
+    }
+}
+
+function copyWebhookUrl() {
+    const text = $whUrlPreview.textContent || '';
+    if (!text || text.startsWith('<')) return;
+    navigator.clipboard?.writeText(text).then(() => toast('URL kopyalandı.', 'ok'));
 }
 
 // ── Bot change ───────────────────────────────────────────────────────
 async function onBotChange() {
     state.botId = $botSelect.value || null;
+    // Erişim sekmesindeki seçim de senkron olsun
+    if ($accessBotSelect && $accessBotSelect.value !== ($botSelect.value || '')) {
+        $accessBotSelect.value = $botSelect.value || '';
+        if (typeof applyAccessBot === 'function') applyAccessBot();
+    }
     cancelEdit();
     if (!state.botId) {
         $menuBar.style.display = 'none';
@@ -428,6 +1140,7 @@ async function onBotChange() {
     $menuBar.style.display = '';
     await loadMenus();
     addChatSystem('Bot değiştirildi. Komutlarını test etmeye başlayabilirsiniz.');
+    setStatus('neutral', 'Bot seçildi. Menü seçebilir veya yeni menü oluşturabilirsiniz.');
 }
 
 async function loadMenus() {
@@ -465,6 +1178,7 @@ function openNewMenu() {
     state.editWelcome = 'Merhaba! Ne yapmamı istersiniz?';
     state.editRows    = [];
     showEditor();
+    setStatus('warn', 'Yeni menü oluşturuluyor. Kaydetmeden görünmez.');
 }
 
 function openMenu(m) {
@@ -483,6 +1197,7 @@ function openMenu(m) {
 
     showEditor();
     renderMenuChips();
+    setStatus('neutral', `Menü yüklendi: ${m.name}`);
 }
 
 function showEditor() {
@@ -492,12 +1207,14 @@ function showEditor() {
     $menuWelcome.value = state.editWelcome;
     $deleteMenuBtn.style.display = state.activeMenuId ? '' : 'none';
     renderKeyboard();
+    updateSummary();
 }
 
 function cancelEdit() {
     $menuEditor.style.display = 'none';
     state.activeMenuId = null;
     renderMenuChips();
+    setStatus('neutral', 'Düzenleme kapatıldı.');
 }
 
 // ── Keyboard Render ───────────────────────────────────────────────────
@@ -535,14 +1252,15 @@ function renderKeyboard() {
 
         rowEl.querySelector('.tbs-del-row').addEventListener('click', () => deleteRow(ri));
     });
+    updateSummary();
 }
 
 function makeBtnPreview(ri, bi, btn) {
     const el = document.createElement('span');
     el.className = 'tbs-bot-button-preview' + (btn.sap_process_id ? ' has-process' : '');
     el.title = btn.sap_process_name ? `Süreç: ${btn.sap_process_name}` : 'Süreç atanmamış';
-    el.innerHTML = `${esc(btn.label)}
-      ${btn.sap_process_name ? `<span class="tbs-btn-edit" title="${esc(btn.sap_process_name)}"><i class="fas fa-link"></i></span>` : ''}
+        el.innerHTML = `<span class="tbs-btn-label">${esc(btn.label)}</span>
+            <span class="tbs-btn-process-badge">${btn.sap_process_name ? esc(btn.sap_process_name) : 'Süreç yok'}</span>
       <i class="tbs-btn-edit fas fa-pen" title="Düzenle"></i>
       <i class="tbs-btn-remove fas fa-times" title="Sil"></i>`;
     el.querySelector('.fa-pen').addEventListener('click', (e) => { e.stopPropagation(); openBtnModal(ri, bi); });
@@ -557,16 +1275,19 @@ function makeBtnPreview(ri, bi, btn) {
 function addRow() {
     state.editRows.push({buttons: []});
     renderKeyboard();
+    markDirty('Yeni satır eklendi.');
 }
 
 function deleteRow(ri) {
     state.editRows.splice(ri, 1);
     renderKeyboard();
+    markDirty('Satır silindi.');
 }
 
 function deleteBtn(ri, bi) {
     state.editRows[ri].buttons.splice(bi, 1);
     renderKeyboard();
+    markDirty('Buton silindi.');
 }
 
 function openBtnModal(ri, bi) {
@@ -596,6 +1317,7 @@ function btnModalOk() {
     }
     $btnModal.classList.remove('active');
     renderKeyboard();
+    markDirty('Buton güncellendi.');
 }
 
 // ── Save ──────────────────────────────────────────────────────────────
@@ -603,7 +1325,12 @@ async function saveMenu() {
     const name    = $menuName.value.trim();
     const trigger = $menuTrigger.value.trim() || '/start';
     const welcome = $menuWelcome.value.trim();
-    if (!name) { $menuName.focus(); return; }
+    if (!name) {
+        $menuName.focus();
+        toast('Menü adı zorunlu.', 'warn');
+        setStatus('warn', 'Kaydetme için menü adı girin.');
+        return;
+    }
 
     // Butonları düzleştir
     const buttons = [];
@@ -631,11 +1358,15 @@ async function saveMenu() {
             renderMenuChips();
             $deleteMenuBtn.style.display = '';
             addChatSystem(`✅ "${name}" menüsü kaydedildi.`);
+            setStatus('ok', `Kaydedildi: ${name}`);
+            toast(`"${name}" menüsü kaydedildi.`, 'ok');
         } else {
-            alert('Hata: ' + (d.error || 'Bilinmeyen hata'));
+            setStatus('error', 'Kaydetme hatası: ' + (d.error || 'Bilinmeyen hata'));
+            toast('Kaydetme hatası: ' + (d.error || 'Bilinmeyen hata'), 'error');
         }
     } catch (e) {
-        alert('Kayıt sırasında hata: ' + e.message);
+        setStatus('error', 'Kayıt sırasında hata: ' + e.message);
+        toast('Kayıt sırasında hata: ' + e.message, 'error');
     } finally {
         $saveBtn.disabled = false;
     }
@@ -655,11 +1386,15 @@ async function deleteMenu() {
             cancelEdit();
             await loadMenus();
             addChatSystem('Menü silindi.');
+            setStatus('ok', 'Menü silindi.');
+            toast('Menü silindi.', 'ok');
         } else {
-            alert('Hata: ' + (d.error || 'Bilinmeyen hata'));
+            setStatus('error', 'Silme hatası: ' + (d.error || 'Bilinmeyen hata'));
+            toast('Silme hatası: ' + (d.error || 'Bilinmeyen hata'), 'error');
         }
     } catch (e) {
-        alert('Silme sırasında hata: ' + e.message);
+        setStatus('error', 'Silme sırasında hata: ' + e.message);
+        toast('Silme sırasında hata: ' + e.message, 'error');
     }
 }
 
@@ -755,6 +1490,43 @@ function addChatSystem(text) {
     el.textContent = text;
     $chatMessages.appendChild(el);
     $chatMessages.scrollTop = $chatMessages.scrollHeight;
+}
+
+function updateSummary() {
+    if (!$statusSummary) return;
+    const rowCount = state.editRows.length;
+    let btnCount = 0;
+    let linkedCount = 0;
+    state.editRows.forEach(r => {
+        (r.buttons || []).forEach(b => {
+            btnCount += 1;
+            if (b.sap_process_id) linkedCount += 1;
+        });
+    });
+    $statusSummary.textContent = `${rowCount} satır, ${btnCount} buton, ${linkedCount} süreç bağlı`;
+}
+
+function setStatus(kind, text) {
+    if (!$statusPill || !$statusText) return;
+    $statusPill.className = `tbs-status-pill ${kind || 'neutral'}`;
+    const titles = {neutral: 'Hazır', warn: 'Taslak', ok: 'Kaydedildi', error: 'Hata'};
+    $statusPill.textContent = titles[kind] || 'Hazır';
+    $statusText.textContent = text || '';
+}
+
+function markDirty(text) {
+    setStatus('warn', text || 'Kaydedilmemiş değişiklik var.');
+}
+
+function toast(text, kind='neutral') {
+    if (!$toastStack) return;
+    const el = document.createElement('div');
+    el.className = `tbs-toast ${kind}`;
+    el.textContent = text;
+    $toastStack.appendChild(el);
+    setTimeout(() => {
+        try { el.remove(); } catch (e) { /* no-op */ }
+    }, 3200);
 }
 
 function esc(s) {
