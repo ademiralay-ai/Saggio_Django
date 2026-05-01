@@ -26,7 +26,12 @@ SECRET_KEY = 'django-insecure-g+l)da@c*mn*k==$e2qj#+v+=c@^xgcs-^+bvc&%a5peuz!zdv
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+    'localhost',
+    '10.16.88.18',
+    '10.16.88.73',
+]
 
 
 # Application definition
@@ -63,6 +68,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.footer_robots',
             ],
         },
     },
@@ -117,6 +123,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Firebase Configuration
 import firebase_admin

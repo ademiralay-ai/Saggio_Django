@@ -1,0 +1,1143 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<style>
+  .help-shell {
+    --hc-bg-a: #0b111c;
+    --hc-bg-b: #111d2f;
+    --hc-card: rgba(18, 28, 44, 0.86);
+    --hc-border: rgba(104, 150, 214, 0.28);
+    --hc-text: #d6e6ff;
+    --hc-muted: #8ca3c7;
+    --hc-accent: #6fd3ff;
+    --hc-accent-2: #ffd372;
+    --hc-ok: #7be39d;
+    --hc-warn: #ffb266;
+    --hc-danger: #ff8e8e;
+    --hc-strong: #f5fbff;
+    --hc-strong-soft: #eaf7ff;
+    --hc-soft-bg: rgba(12, 20, 34, 0.72);
+    --hc-step-bg: rgba(7, 13, 23, 0.72);
+    --hc-link-bg: rgba(9, 17, 29, 0.72);
+    --hc-mono-bg: #060b14;
+    --hc-mono-text: #b8d7ff;
+    --hc-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+  }
+
+  [data-theme="light"] .help-shell {
+    --hc-bg-a: #f7fbff;
+    --hc-bg-b: #ecf4ff;
+    --hc-card: rgba(255, 255, 255, 0.9);
+    --hc-border: rgba(39, 84, 138, 0.22);
+    --hc-text: #10223b;
+    --hc-muted: #425a79;
+    --hc-accent: #0b76c2;
+    --hc-accent-2: #9b6500;
+    --hc-ok: #1f7f48;
+    --hc-warn: #ac5d00;
+    --hc-danger: #b72828;
+    --hc-strong: #0f2741;
+    --hc-strong-soft: #1a3554;
+    --hc-soft-bg: rgba(244, 248, 255, 0.9);
+    --hc-step-bg: rgba(239, 246, 255, 0.95);
+    --hc-link-bg: rgba(238, 245, 255, 0.95);
+    --hc-mono-bg: #eef4ff;
+    --hc-mono-text: #1b4270;
+    --hc-shadow: 0 10px 24px rgba(19, 49, 82, 0.12);
+  }
+
+  .help-shell {
+    color: var(--hc-text);
+    display: grid;
+    gap: 18px;
+  }
+
+  .help-hero {
+    background:
+      radial-gradient(circle at 12% 18%, rgba(111, 211, 255, 0.22), transparent 42%),
+      radial-gradient(circle at 85% 10%, rgba(255, 211, 114, 0.18), transparent 34%),
+      linear-gradient(120deg, var(--hc-bg-a), var(--hc-bg-b));
+    border: 1px solid var(--hc-border);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: var(--hc-shadow);
+  }
+
+  .help-kicker {
+    color: var(--hc-accent);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .help-hero h2 {
+    margin: 8px 0 10px;
+    font-size: clamp(24px, 3.4vw, 38px);
+    line-height: 1.15;
+    color: var(--hc-strong);
+  }
+
+  .help-hero p {
+    margin: 0;
+    color: var(--hc-muted);
+    max-width: 900px;
+    line-height: 1.6;
+  }
+
+  .help-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .help-badge {
+    border: 1px solid rgba(111, 211, 255, 0.4);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--hc-text);
+    background: var(--hc-soft-bg);
+  }
+
+  .toc-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+
+  .toc-card {
+    display: block;
+    text-decoration: none;
+    color: var(--hc-text);
+    background: var(--hc-card);
+    border: 1px solid var(--hc-border);
+    border-radius: 12px;
+    padding: 14px;
+    transition: transform 0.18s ease, border-color 0.18s ease;
+  }
+
+  .toc-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(111, 211, 255, 0.7);
+  }
+
+  .toc-title {
+    font-weight: 700;
+    color: var(--hc-strong);
+    margin-bottom: 4px;
+  }
+
+  .toc-desc {
+    font-size: 13px;
+    color: var(--hc-muted);
+    line-height: 1.5;
+  }
+
+  .help-section {
+    background: var(--hc-card);
+    border: 1px solid var(--hc-border);
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .help-section h3 {
+    margin: 0 0 12px;
+    color: var(--hc-strong);
+    font-size: 19px;
+  }
+
+  .help-section h4 {
+    margin: 16px 0 8px;
+    font-size: 15px;
+    color: var(--hc-strong-soft);
+  }
+
+  .help-section p,
+  .help-section li {
+    color: var(--hc-muted);
+    line-height: 1.65;
+  }
+
+  .role-grid,
+  .screen-grid,
+  .warning-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  }
+
+  .shot-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .shot-card {
+    border: 1px solid var(--hc-border);
+    border-radius: 12px;
+    background: var(--hc-soft-bg);
+    padding: 12px;
+  }
+
+  .shot-card h5 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: var(--hc-strong-soft);
+  }
+
+  .shot-box {
+    border: 1px dashed rgba(111, 211, 255, 0.45);
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(111, 211, 255, 0.12), rgba(255, 211, 114, 0.08));
+    min-height: 138px;
+    display: grid;
+    place-items: center;
+    color: var(--hc-muted);
+    font-size: 12px;
+    text-align: center;
+    padding: 10px;
+  }
+
+  .shot-media {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--hc-border);
+    background: rgba(0, 0, 0, 0.12);
+    display: block;
+  }
+
+  .shot-media.video {
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+  }
+
+  .shot-media.image {
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+  }
+
+  .shot-meta {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--hc-muted);
+    line-height: 1.55;
+  }
+
+  .shot-status {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--hc-muted);
+  }
+
+  .pill {
+    display: inline-block;
+    border: 1px solid var(--hc-border);
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: var(--hc-text);
+    background: var(--hc-link-bg);
+  }
+
+  .admin-upload {
+    margin-top: 14px;
+    border: 1px solid var(--hc-border);
+    border-radius: 12px;
+    background: var(--hc-soft-bg);
+    padding: 12px;
+  }
+
+  .admin-upload h4 {
+    margin: 0 0 8px;
+    color: var(--hc-strong-soft);
+    font-size: 15px;
+  }
+
+  .upload-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .upload-row input[type="file"] {
+    border: 1px solid var(--hc-border);
+    border-radius: 8px;
+    padding: 8px;
+    background: var(--hc-link-bg);
+    color: var(--hc-text);
+    font-size: 12px;
+  }
+
+  .upload-btn {
+    border: 1px solid rgba(111, 211, 255, 0.5);
+    background: linear-gradient(135deg, rgba(11, 118, 194, 0.25), rgba(111, 211, 255, 0.2));
+    color: var(--hc-text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .upload-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .upload-log {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--hc-muted);
+    line-height: 1.6;
+  }
+
+  .role-card,
+  .screen-card,
+  .warning-card {
+    border: 1px solid var(--hc-border);
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--hc-soft-bg);
+  }
+
+  .role-card h5,
+  .screen-card h5,
+  .warning-card h5 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: var(--hc-strong-soft);
+  }
+
+  .steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 10px;
+  }
+
+  .steps li {
+    border-left: 3px solid rgba(111, 211, 255, 0.65);
+    background: var(--hc-step-bg);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .steps strong {
+    color: var(--hc-strong);
+  }
+
+  .mono {
+    display: block;
+    margin-top: 8px;
+    border: 1px solid rgba(131, 163, 209, 0.4);
+    border-radius: 8px;
+    background: var(--hc-mono-bg);
+    color: var(--hc-mono-text);
+    padding: 9px;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  pre.mono {
+    position: relative;
+    padding-top: 34px;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    border: 1px solid rgba(111, 211, 255, 0.45);
+    border-radius: 8px;
+    background: var(--hc-link-bg);
+    color: var(--hc-text);
+    padding: 4px 8px;
+    font-size: 11px;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+
+  .copy-btn:hover {
+    border-color: rgba(111, 211, 255, 0.75);
+  }
+
+  .shell-block {
+    margin-top: 8px;
+  }
+
+  .shell-tabs {
+    display: flex;
+    gap: 3px;
+    margin-bottom: -1px;
+  }
+
+  .shell-tab {
+    border: 1px solid rgba(131, 163, 209, 0.4);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    background: var(--hc-link-bg);
+    color: var(--hc-text);
+    padding: 4px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity .15s;
+  }
+
+  .shell-tab.active {
+    background: var(--hc-mono-bg);
+    opacity: 1;
+    color: var(--hc-strong);
+    font-weight: 600;
+  }
+
+  .shell-block pre.mono {
+    border-radius: 0 8px 8px 8px;
+    margin-top: 0;
+  }
+
+  .state-ok { color: var(--hc-ok); }
+  .state-warn { color: var(--hc-warn); }
+  .state-danger { color: var(--hc-danger); }
+
+  .help-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .help-links a {
+    border: 1px solid rgba(111, 211, 255, 0.35);
+    border-radius: 8px;
+    padding: 7px 10px;
+    color: var(--hc-text);
+    text-decoration: none;
+    font-size: 12px;
+    background: var(--hc-link-bg);
+  }
+
+  .help-links a:hover {
+    border-color: rgba(111, 211, 255, 0.75);
+  }
+
+  details {
+    border: 1px solid var(--hc-border);
+    border-radius: 10px;
+    background: var(--hc-link-bg);
+    padding: 10px;
+    margin-top: 10px;
+  }
+
+  details > summary {
+    cursor: pointer;
+    color: var(--hc-strong-soft);
+    font-weight: 600;
+    list-style: none;
+  }
+
+  details > summary::-webkit-details-marker { display: none; }
+
+  @media (max-width: 780px) {
+    .help-hero,
+    .help-section { padding: 14px; }
+  }
+</style>
+
+<div class="help-shell">
+  <section class="help-hero" id="baslangic">
+    <div class="help-kicker">Saggio RPA Dokumantasyon</div>
+    <h2>Tek sayfada tum ekranlar, tum roller ve tum calisma mantigi</h2>
+    <p>
+      Bu sayfa, hic bilmeyen bir kullanicidan ileri seviye yazilimciya kadar herkesin sistemi dogru kurup
+      guvenli sekilde calistirmasi icin hazirlandi. Akis tasarlama, robot ajan kurma, scheduler yonetimi,
+      bildirim entegrasyonlari, operasyon takibi, surum dagitimi ve sorun giderme adimlari burada uc uca anlatilir.
+    </p>
+    <div class="help-badges">
+      <span class="help-badge">Kitle: Son kullanici + Admin + Developer</span>
+      <span class="help-badge">Kapsam: Uretim oncesi ve uretim</span>
+      <span class="help-badge">Yaklasim: Ekran bazli + Surec bazli</span>
+    </div>
+  </section>
+
+  <section class="toc-grid" aria-label="Icerik haritasi">
+    <a class="toc-card" href="#sistem-mimarisi">
+      <div class="toc-title">1) Sistem Mimarisi</div>
+      <div class="toc-desc">Django merkez, robot ajan, kuyruk, scheduler ve bildirim katmanlari.</div>
+    </a>
+    <a class="toc-card" href="#roller">
+      <div class="toc-title">2) Rol Bazli Kullanim</div>
+      <div class="toc-desc">Operator, admin ve gelistirici hangi ekranda ne yapar.</div>
+    </a>
+    <a class="toc-card" href="#ekran-rehberi">
+      <div class="toc-title">3) Ekran Ekran Rehber</div>
+      <div class="toc-desc">Sol menudeki tum moduller ve kritik butonlar.</div>
+    </a>
+    <a class="toc-card" href="#gorsel-rehber">
+      <div class="toc-title">4) GIF/Screenshot Placeholder</div>
+      <div class="toc-desc">Her ekrana ait gorsel kutulari ve dosya isim standardi.</div>
+    </a>
+    <a class="toc-card" href="#surec-olusturma">
+      <div class="toc-title">5) Surec Olusturma</div>
+      <div class="toc-desc">SAP sureci olusturma, adim akisi, test ve yayinlama.</div>
+    </a>
+    <a class="toc-card" href="#robot-ekleme">
+      <div class="toc-title">6) Robot Ekleme</div>
+      <div class="toc-desc">Ajan kaydi, token, config, servis kurulumu ve online dogrulama.</div>
+    </a>
+    <a class="toc-card" href="#operasyon">
+      <div class="toc-title">7) Operasyon ve Izleme</div>
+      <div class="toc-desc">Dispatch, scheduler, release deployment, log ve alarm akisleri.</div>
+    </a>
+    <a class="toc-card" href="#api-teknik">
+      <div class="toc-title">8) API ve Teknik</div>
+      <div class="toc-desc">Temel endpoint haritasi, veri akisi ve guvenlik notlari.</div>
+    </a>
+    {% if request.user.is_staff %}
+    <a class="toc-card" href="#admin-prosedur">
+      <div class="toc-title">9) Admin Canli Operasyon</div>
+      <div class="toc-desc">Sadece admin kullanicilar icin operasyon proseduru.</div>
+    </a>
+    {% endif %}
+    {% if request.user.is_superuser %}
+    <a class="toc-card" href="#developer-referans">
+      <div class="toc-title">10) Developer Referans</div>
+      <div class="toc-desc">Sadece developer icin endpoint ve veri modeli referansi.</div>
+    </a>
+    {% endif %}
+    <a class="toc-card" href="#troubleshooting">
+      <div class="toc-title">11) Sorun Giderme</div>
+      <div class="toc-desc">En sik hatalar, sebep/sonuc ve hizli cozum adimlari.</div>
+    </a>
+  </section>
+
+  <section class="help-section" id="sistem-mimarisi">
+    <h3>1) Sistem Mimarisi</h3>
+    <p>
+      Saggio RPA merkezi bir orkestrasyon yapisidir. Django uygulamasi is dagitim merkezi gibi davranir;
+      robot ajanlari kendi makinelerinde calisir ve merkezden is cekerek gorevleri tamamlar.
+    </p>
+    <ul>
+      <li><strong>Django Merkez:</strong> Surec tanimlari, adimlar, kuyruk, scheduler, release ve log kayitlari.</li>
+      <li><strong>Robot Ajan:</strong> Heartbeat atar, bekleyen isi ceker, calistirir, sonuc raporlar.</li>
+      <li><strong>Flow Builder:</strong> SAP ve kontrol adimlarini gorsel olarak olusturur.</li>
+      <li><strong>Notification Katmani:</strong> Telegram, Mail ve FTP ile entegrasyon kurar.</li>
+      <li><strong>Operational UI:</strong> Robot Operasyon ekranindan canli is emri ve release dagitimi yapilir.</li>
+    </ul>
+    <div class="help-links">
+      <a href="{% url 'dashboard' %}">Dashboard</a>
+      <a href="{% url 'robot_control_center' %}">Robot Operasyon</a>
+      <a href="{% url 'sap_process_list' %}">SAP Surecleri</a>
+      <a href="{% url 'scheduler' %}">Scheduler</a>
+    </div>
+  </section>
+
+  <section class="help-section" id="roller">
+    <h3>2) Rol Bazli Kullanim</h3>
+    <div class="role-grid">
+      <article class="role-card">
+        <h5>Operator (Is birimi)</h5>
+        <ul>
+          <li>Hazir surecleri secip tetikler.</li>
+          <li>Kuyruk ve calisma durumunu izler.</li>
+          <li>Hata durumunda yeniden deneme baslatir.</li>
+        </ul>
+      </article>
+      <article class="role-card">
+        <h5>Admin (Operasyon yonetimi)</h5>
+        <ul>
+          <li>Robot ajan tanimlarini yonetir.</li>
+          <li>Scheduler ve release dagitimini kontrol eder.</li>
+          <li>Bildirim hedefleri ve izinleri belirler.</li>
+        </ul>
+      </article>
+      <article class="role-card">
+        <h5>Developer (Teknik ekip)</h5>
+        <ul>
+          <li>SAP adimlarini modeller, test eder, optimize eder.</li>
+          <li>API ve ajan davranisini loglardan analiz eder.</li>
+          <li>Rollback ve versiyonlama stratejisini uygular.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="help-section" id="ekran-rehberi">
+    <h3>3) Ekran Ekran Rehber</h3>
+    <div class="screen-grid">
+      <article class="screen-card">
+        <h5>Dashboard</h5>
+        <p>Genel KPI, online robot sayisi, son aktiviteler. Operasyon saglik kontrolu icin ilk bakis noktasi.</p>
+      </article>
+      <article class="screen-card">
+        <h5>Robotlar</h5>
+        <p>Robot envanteri. Hangi robotun aktif, pasif veya bakimda oldugunu izlersiniz.</p>
+      </article>
+      <article class="screen-card">
+        <h5>Robot Operasyon</h5>
+        <p>Ajan ekleme/guncelleme, job dispatch, job iptal, release yayinlama, desired version atama.</p>
+      </article>
+      <article class="screen-card">
+        <h5>Surecler</h5>
+        <p>Surec performans ozetleri ve is akis bazli gozlem.</p>
+      </article>
+      <article class="screen-card">
+        <h5>Kuyruk Yonetimi</h5>
+        <p>Bekleyen isler, oncelik ve yeniden deneme stratejileri.</p>
+      </article>
+      <article class="screen-card">
+        <h5>Scheduler</h5>
+        <p>Periyodik surecler tanimlanir; saatlik, gunluk veya ozel cron benzeri bakim planlari uygulanir.</p>
+      </article>
+      <article class="screen-card">
+        <h5>SAP Derin Tarama</h5>
+        <p>Buton, input, grid, popup ve ekran ogelerini kesfetmek icin teknik tarama arayuzu.</p>
+      </article>
+      <article class="screen-card">
+        <h5>SAP Surecleri + Flow Builder</h5>
+        <p>Gorsel node editorden surec tasarimi, kosul/dongu kurgusu, adim adim calistirma ve kaydetme.</p>
+      </article>
+      <article class="screen-card">
+        <h5>Bildirim Modulleri</h5>
+        <p>Telegram bot/studio, mail hesaplari ve FTP hesaplari entegrasyonlari.</p>
+      </article>
+      <article class="screen-card">
+        <h5>Raporlar ve Ayarlar</h5>
+        <p>SLA, hata trendi, sure dagilimlari ve genel sistem parametreleri.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="help-section" id="gorsel-rehber">
+    <h3>4) Her Ekran Icin GIF/Screenshot Placeholder</h3>
+    <p>
+      Asagidaki kutular, dokumantasyon gorsellerini sistemli toplamaniz icin hazirlandi.
+      Her kartta onerilen dosya adi verilir. Gorselleri isterseniz PNG, hareketli anlatimlari GIF/MP4 olarak tutabilirsiniz.
+      Dosyalari static dizininde core/help_media altina koydugunuzda bu sayfa otomatik bulup gosterir.
+    </p>
+    <div class="shot-grid">
+      <article class="shot-card"><h5>Dashboard</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">dashboard-overview.gif</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Yardim Merkezi</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">help-center-tour.gif</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Robotlar</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">robots-list.png</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Robot Operasyon</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">robot-operations-dispatch.gif</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Surecler</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">processes-summary.png</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Kuyruk Yonetimi</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">queue-priority.png</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Scheduler</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">scheduler-create-job.gif</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>SAP Derin Tarama</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">sap-scan-elements.gif</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>SAP Surecleri</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">sap-process-list.png</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Flow Builder</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">flow-builder-step-mode.gif</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Telegram Botlari</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">telegram-bots-crud.png</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Bot Studyo</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">bot-studio-menu-design.gif</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Telegram Gruplari</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">telegram-groups.png</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Mail Hesaplari</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">mail-accounts.png</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>FTP Hesaplari</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">ftp-accounts.png</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Raporlar</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">reports-kpi.png</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+      <article class="shot-card"><h5>Ayarlar</h5><div class="shot-box">GIF / Screenshot buraya eklenecek</div><div class="shot-meta"><span class="pill">settings-integrations.png</span><div class="shot-status">Dosya bekleniyor</div></div></article>
+    </div>
+
+    {% if request.user.is_staff %}
+    <div class="admin-upload">
+      <h4>Admin Hizli Medya Yukleme</h4>
+      <p>Dosyalari bu panelden secip yukleyebilirsiniz. Dosya adlari kartlardaki isimlerle ayni olursa otomatik eslesir.</p>
+      <div class="upload-row">
+        <input id="help-media-files" type="file" multiple accept=".gif,.mp4,.png,.jpg,.jpeg,.webp">
+        <button id="help-media-upload-btn" class="upload-btn" type="button">Dosyalari Yukle</button>
+      </div>
+      <div id="help-media-upload-log" class="upload-log">Hazir.</div>
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="help-section" id="surec-olusturma">
+    <h3>5) Sifirdan Surec Olusturma Rehberi</h3>
+    <ol class="steps">
+      <li>
+        <strong>Surec kaydi ac:</strong> SAP Surecleri ekraninda yeni surec ekleyin, isim ve temel runtime parametrelerini girin.
+      </li>
+      <li>
+        <strong>Builder ekranini ac:</strong> Surece girip gorsel editoru acin; Start, SAP adimlari, IF/ELSE, LOOP ve End node yerlesimi yapin.
+      </li>
+      <li>
+        <strong>Node konfiglerini doldur:</strong> Her adimda zorunlu alanlari doldurun (template, komut, bekleme kriteri, degisken vb.).
+      </li>
+      <li>
+        <strong>Baglantilari kur:</strong> Kontrol akisinda true/false ve continue/done cikislarini dogru node'lara baglayin.</li>
+      <li>
+        <strong>Kaydet ve test et:</strong> Once adim modu (step mode), sonra otomatik calisma ile dry run yapin.</li>
+      <li>
+        <strong>Run preview ve runtime ayari:</strong> Sureci ilgili robotta calisacak sekilde timeout/retry ayarlariyla yayinlayin.</li>
+    </ol>
+
+    <details>
+      <summary>Kritik tasarim kurallari</summary>
+      <ul>
+        <li>Her surecte tek bir Start ve en az bir End olmasi tavsiye edilir.</li>
+        <li>Kosul adimlarinda true/false kollarinin ikisi de bos kalmamali.</li>
+        <li>Dongu adimlarinda done kolu cikis yoluna baglanmali; aksi halde surec kilitlenebilir.</li>
+        <li>Uretime cikmadan once ayni data ile en az 3 tekrarli test yapilmalidir.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section class="help-section" id="robot-ekleme">
+    <h3>6) Robot Ekleme ve Ajan Kurulumu</h3>
+
+    <h4>Adım 1 — Sunucu tarafı: yeni ajan kaydı</h4>
+    <p>Merkez sunucuda yeni robot ajanını oluşturun. Bu komut bir <strong>token</strong> üretir; sonraki adımlarda gerekecek.</p>
+    <div class="shell-block">
+      <div class="shell-tabs">
+        <button class="shell-tab active" data-shell="ps">PowerShell</button>
+        <button class="shell-tab" data-shell="cmd">CMD</button>
+      </div>
+      <pre class="mono shell-ps">c:\Util\SaggioDjango\.venv\Scripts\python.exe `
+    c:\Util\SaggioDjango\manage.py create_robot_agent `
+    --code robot-06 --name "Robot 06"</pre>
+      <pre class="mono shell-cmd" style="display:none">c:\Util\SaggioDjango\.venv\Scripts\python.exe ^
+    c:\Util\SaggioDjango\manage.py create_robot_agent ^
+    --code robot-06 --name "Robot 06"</pre>
+    </div>
+    <p class="state-warn"><strong>Önemli:</strong> Komutun çıktısındaki <code>token</code> değerini saklayın — bir daha gösterilmez.</p>
+
+    <h4>Adım 2 — Kurulum paketini hazırla</h4>
+    <p>Sunucu üzerinde aşağıdaki script paketleyiciyi çalıştırın; <code>dist\SaggioRobotAgentPackage_X.Y.Z.zip</code> üretilir.</p>
+    <pre class="mono">cd c:\Util\SaggioDjango
+.\build_robot_agent_package.ps1                    # internet varsa NSSM kurulumda inilir
+.\build_robot_agent_package.ps1 -IncludeNssm       # offline kurulum icin NSSM'i pakete goml</pre>
+
+    <h4>Adım 3 — Robot makinesine paketi gönder ve aç</h4>
+    <ol class="steps">
+      <li>ZIP'i robot makinesine kopyalayın (USB / paylaşılan klasör / RDP).</li>
+      <li>Örnek olarak <code>C:\Users\admin\Desktop\</code> altına çıkartın.</li>
+      <li>Klasörde <strong>PowerShell'i Administrator olarak</strong> açın.</li>
+    </ol>
+
+    <h4>Adım 4 — Tek komutla kurulum</h4>
+    <p>Aşağıdaki komutu kendi <code>ServerUrl</code>, <code>AgentCode</code> ve <code>Token</code> değerlerinizle çalıştırın. Script venv kurulumu, bağımlılıklar, <code>config.json</code> üretimi, NSSM ile servis kaydı dahil her şeyi otomatik halleder.</p>
+    <div class="shell-block">
+      <div class="shell-tabs">
+        <button class="shell-tab active" data-shell="ps">PowerShell</button>
+        <button class="shell-tab" data-shell="cmd">CMD</button>
+      </div>
+      <pre class="mono shell-ps">Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+
+.\install.ps1 -ServerUrl "http://10.16.88.18:8000" `
+              -AgentCode "robot-06" `
+              -Token     "SUNUCUDA_OLUSAN_TOKEN" `
+              -Name      "Robot 06"</pre>
+      <pre class="mono shell-cmd" style="display:none">powershell -ExecutionPolicy Bypass -File install.ps1 ^
+    -ServerUrl "http://10.16.88.18:8000" ^
+    -AgentCode "robot-06" ^
+    -Token     "SUNUCUDA_OLUSAN_TOKEN" ^
+    -Name      "Robot 06"</pre>
+    </div>
+    <p>Kurulum bittiğinde <code>SaggioRobotAgent</code> Windows servisi otomatik başlar ve <code>auto-start</code> olarak kayıtlıdır (yeniden başlatmada da çalışır).</p>
+
+    <h4>Adım 5 — Doğrulama</h4>
+    <pre class="mono">Get-Service SaggioRobotAgent
+Get-Content C:\SaggioRobotAgent\logs\launcher.log -Tail 30
+Get-Content C:\SaggioRobotAgent\logs\stdout.log   -Tail 30
+Test-NetConnection 10.16.88.18 -Port 8000</pre>
+    <p>Sunucudaki <strong>Robot Operasyon</strong> ekranında robotun durumu <span class="state-ok">Online</span> olmalı.</p>
+
+    <h4>Güncelleme</h4>
+    <p>Yeni paketi açıp aynı <code>install.ps1</code> komutunu tekrar çalıştırın; eski servis temizlenip yenisi kurulur. Mevcut <code>config.json</code> otomatik <code>config.json.bak</code> olarak yedeklenir.</p>
+
+    <h4>Kaldırma</h4>
+    <pre class="mono">.\uninstall.ps1                    # sadece servisi kaldirir, veri kalir
+.\uninstall.ps1 -PurgeData         # her seyi siler (config + log dahil)</pre>
+
+    <details>
+      <summary>Sorun giderme</summary>
+      <table class="data-table">
+        <thead><tr><th>Belirti</th><th>Çözüm</th></tr></thead>
+        <tbody>
+          <tr><td><code>install.ps1 cannot be loaded</code></td><td><code>Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force</code></td></tr>
+          <tr><td><code>python bulunamadi</code></td><td>Python 3.11 kurun: <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org</a></td></tr>
+          <tr><td>Servis Online olmuyor</td><td><code>C:\SaggioRobotAgent\logs\</code> altındaki <code>launcher.log</code>, <code>stdout.log</code>, <code>stderr.log</code></td></tr>
+          <tr><td><code>Failed to establish a new connection</code></td><td>Sunucu URL/firewall. <code>Test-NetConnection 10.16.88.18 -Port 8000</code></td></tr>
+          <tr><td><code>register failed: 401</code></td><td>Token yanlış. Sunucuda yeni token üretip <code>config.json</code>'da güncelleyin.</td></tr>
+        </tbody>
+      </table>
+      <p class="state-warn">Eski pywin32 tabanlı <code>robot_agent_service.py</code> akışı artık desteklenmiyor — yeni kurulumlarda <strong>NSSM</strong> kullanın.</p>
+    </details>
+  </section>
+
+  <section class="help-section" id="operasyon">
+    <h3>7) Operasyon Akisi: Is Dagitimi, Scheduler, Release</h3>
+    <h4>Canli is dagitimi (dispatch)</h4>
+    <ul>
+      <li>Robot Operasyon ekranindan hedef robotu secin.</li>
+      <li>command_type ve payload tanimini girin.</li>
+      <li>Oncelik (priority) ile kuyruktaki siralamayi belirleyin.</li>
+    </ul>
+
+    <h4>Scheduler ile otomasyon</h4>
+    <ul>
+      <li>Surec + robot + zamanlama tanimlanir.</li>
+      <li>Bakim penceresi ve cakisma (overlap) kurallari belirlenir.</li>
+      <li>Run-now ile manuel tetikleme yapilarak plan test edilir.</li>
+    </ul>
+
+    <h4>Release ve versiyon dagitimi</h4>
+    <ul>
+      <li>Yeni agent release kaydi acilir (version, url, checksum, install command).</li>
+      <li>Desired version tek ajan veya tum ajanlara atanir.</li>
+      <li>Ajanlar heartbeat/check-update dongusunda eskiyse outdated olarak gorunur.</li>
+    </ul>
+
+    <div class="warning-grid">
+      <article class="warning-card">
+        <h5>Onemli: Is guvenligi</h5>
+        <p>Uretim robotunda ayni anda birden cok agir surec tetiklemek kaynak darbogazi yapabilir.</p>
+      </article>
+      <article class="warning-card">
+        <h5>Onemli: Versiyonlama</h5>
+        <p>Zorunlu (mandatory) release tanimlarken rollback paketi hazir olmadan yayina cikmayin.</p>
+      </article>
+      <article class="warning-card">
+        <h5>Onemli: Gozlemlenebilirlik</h5>
+        <p>Her kritik surecin basari ve hata bildirimini Telegram/Mail ile aktif tutun.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="help-section" id="api-teknik">
+    <h3>8) API ve Teknik Calisma Mantigi</h3>
+    <p>Robot ajan-merkez iletisiminde temel akisin ozeti:</p>
+    <ol class="steps">
+      <li><strong>Register:</strong> Robot ilk acilista kimlik dogrulama ile kaydolur.</li>
+      <li><strong>Heartbeat:</strong> Belirli araliklarla canli oldugunu bildirir.</li>
+      <li><strong>Pull job:</strong> Kuyruktan kendisi icin bekleyen isi ceker.</li>
+      <li><strong>Run process:</strong> Isi yerelde calistirir, ara log/event yollar.</li>
+      <li><strong>Job update:</strong> Basari, hata, iptal, sure gibi sonuc metriklerini merkeze yazar.</li>
+    </ol>
+
+    <details>
+      <summary>Temel endpoint aileleri</summary>
+      <ul>
+        <li>/api/robot-agent/register, /heartbeat, /pull-job, /job-update</li>
+        <li>/api/robot-agent/dispatch-job, /jobs, /events, /status</li>
+        <li>/api/scheduler/list, /save, /toggle, /run-now, /dispatch-due</li>
+        <li>/sap-process/.../flow/* ve scan endpointleri</li>
+      </ul>
+    </details>
+  </section>
+
+  {% if request.user.is_staff %}
+  <section class="help-section" id="admin-prosedur">
+    <h3>9) Sadece Admin: Canli Operasyon Proseduru</h3>
+    <p>
+      Bu bolum yalnizca admin kullanicilara gosterilir. Uretim aninda canli operasyonu
+      durdurmadan risk yonetimi yapmaniz icin adim adim prosedur sunar.
+    </p>
+    <ol class="steps">
+      <li><strong>Durum anlik tespiti:</strong> Dashboard + Robot Operasyon ekranindan online ajan, job backlog ve hata artis hizini kontrol et.</li>
+      <li><strong>Etkilenen kapsam:</strong> Hangi process_id, hangi agent_code ve hangi zaman araliginda bozulma oldugunu ayikla.</li>
+      <li><strong>Hasar sinirlama:</strong> Sorunlu sureci scheduler'da pasife al; kritik olmayan dispatch'leri gecici olarak durdur.</li>
+      <li><strong>Yuk dengeleme:</strong> Uygunsa hedef ajanlari degistirip islemleri saglikli robotlara dagit.</li>
+      <li><strong>Iletisim:</strong> Is birimine etki suresi, beklenen toparlanma zamani ve gecici workaround bilgisini gec.</li>
+      <li><strong>Kalici duzeltme:</strong> Hata kok nedenine gore config/runtime/release duzeltmesi yapip kademeli geri acilis uygula.</li>
+      <li><strong>Kapanis raporu:</strong> Olay kaydi ac, once/sonra metriklerini ekle, tekrar onleme aksiyonlarini planla.</li>
+    </ol>
+    <details>
+      <summary>Admin acil durum checklist</summary>
+      <ul>
+        <li>Robot servisleri calisiyor mu?</li>
+        <li>Token veya desired version uyusmazligi var mi?</li>
+        <li>Ayni surec birden fazla scheduler kaydiyla cakisiyor mu?</li>
+        <li>Dis servis (SAP/FTP/Telegram/Mail) gecikmesi var mi?</li>
+      </ul>
+    </details>
+  </section>
+  {% endif %}
+
+  {% if request.user.is_superuser %}
+  <section class="help-section" id="developer-referans">
+    <h3>10) Sadece Developer: Endpoint + Veri Modeli Referansi</h3>
+    <p>
+      Bu bolum yalnizca superuser (developer) kullanicilara gosterilir. Hizli gelistirme,
+      debug ve entegrasyon icin cekirdek endpoint ve model iliskilerini ozetler.
+    </p>
+
+    <h4>Endpoint gruplari</h4>
+    <ul>
+      <li><strong>Agent Runtime:</strong> /api/robot-agent/register, /heartbeat, /pull-job, /job-update, /check-update, /log-event</li>
+      <li><strong>Robot Admin:</strong> /api/robot-agent/status, /jobs, /events, /dispatch-job, /cancel-job, /upsert</li>
+      <li><strong>Release:</strong> /api/robot-agent/releases/*, /set-desired, /deploy, /build-setup, /build-package</li>
+      <li><strong>Scheduler:</strong> /api/scheduler/list, /save, /toggle, /delete, /run-now, /dispatch-due</li>
+      <li><strong>SAP Process:</strong> /sap-process/&lt;id&gt;/... scan/runtime/flow endpointleri</li>
+    </ul>
+
+    <h4>Veri modeli cekirdegi</h4>
+    <ul>
+      <li><strong>RobotAgent:</strong> Robot kimligi, token, istek surumu, aktiflik ve heartbeat durumu.</li>
+      <li><strong>RobotJob:</strong> Kuyruklanan gorev, command_type, payload, durum ve sonuc metrikleri.</li>
+      <li><strong>RobotAgentRelease:</strong> Agent surumu, dagitim URL'i, setup/install metadata.</li>
+      <li><strong>SapProcess:</strong> Is sureci ana tanimi, akis baglantilari ve runtime parametreleri.</li>
+      <li><strong>PeriodicProcessSchedule:</strong> Planli tetikleme kurallari, overlap ve bakim penceresi.</li>
+    </ul>
+
+    <details>
+      <summary>Developer debug akisi</summary>
+      <ol>
+        <li>Hatali istekte endpoint request/response ciftini izole et.</li>
+        <li>Ilgili model kaydini id/time bazli eslestir.</li>
+        <li>Agent event stream ile server-side job state gecislerini karsilastir.</li>
+        <li>Stale runtime durumunda sureci stop edip temiz heartbeat dongusuyle yeniden baslat.</li>
+      </ol>
+    </details>
+  </section>
+  {% endif %}
+
+  <section class="help-section" id="troubleshooting">
+    <h3>11) Sorun Giderme Rehberi</h3>
+    <h4>Hizli kontrol tablosu</h4>
+    <ul>
+      <li><strong>Diger PC acamiyor:</strong> runserver 0.0.0.0:8000 ve firewall inbound kurali kontrol edin.</li>
+      <li><strong>Robot offline:</strong> config token/agent_code/server_url uyumu ve servis durumu kontrol edin.</li>
+      <li><strong>Job pending kaliyor:</strong> Hedef robot enabled mi, pull-job donuyor mu kontrol edin.</li>
+      <li><strong>PS1 calismiyor:</strong> ExecutionPolicy ve Unblock-File uygulayin.</li>
+      <li><strong>SAP adimi sapti:</strong> Tarama verisini guncelleyip step-mode ile tekrar test edin.</li>
+    </ul>
+
+    <details>
+      <summary>Operatorlar icin 5 dakikalik acil durum akisi</summary>
+      <ol>
+        <li>Dashboard ve Robot Operasyon ekranlarinda online/queue durumunu kontrol et.</li>
+        <li>Hata veren isi job listesinden ac ve hata mesajini not al.</li>
+        <li>Ayni isi dusuk oncelik yerine normal oncelikte yeniden dene.</li>
+        <li>Tekrarlayan hata varsa ilgili sureci adim modu ile test ortaminda calistir.</li>
+        <li>Cozulmezse admin/developer ekibine process_id, agent_code, timestamp ile aktar.</li>
+      </ol>
+    </details>
+
+    <div class="help-links">
+      <a href="{% url 'robot_control_center' %}">Robot Operasyon ekranina git</a>
+      <a href="{% url 'sap_process_list' %}">SAP Surecleri ekranina git</a>
+      <a href="{% url 'scheduler' %}">Scheduler ekranina git</a>
+      <a href="/admin/">Django Admin paneline git</a>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+  (function () {
+    const mediaBaseUrl = "{% static 'core/help_media/' %}";
+
+    function uniq(list) {
+      return Array.from(new Set(list.filter(Boolean)));
+    }
+
+    function buildCandidates(suggestedName) {
+      const extMatch = suggestedName.match(/\.([a-z0-9]+)$/i);
+      const base = suggestedName.replace(/\.[a-z0-9]+$/i, '');
+      const preferred = extMatch ? [suggestedName] : [];
+      const alternates = [
+        base + '.gif',
+        base + '.mp4',
+        base + '.png',
+        base + '.jpg',
+        base + '.jpeg',
+        base + '.webp'
+      ];
+      return uniq(preferred.concat(alternates));
+    }
+
+    function loadImage(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+
+    function loadVideo(url) {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.muted = true;
+        video.loop = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+        video.onloadeddata = () => resolve(video);
+        video.onerror = reject;
+        video.src = url;
+      });
+    }
+
+    async function resolveMedia(candidateNames) {
+      for (const name of candidateNames) {
+        const fullUrl = mediaBaseUrl + name;
+        const isVideo = /\.(mp4|webm)$/i.test(name);
+        try {
+          if (isVideo) {
+            const video = await loadVideo(fullUrl);
+            return { type: 'video', element: video, name: name };
+          }
+          const img = await loadImage(fullUrl);
+          return { type: 'image', element: img, name: name };
+        } catch (err) {
+          continue;
+        }
+      }
+      return null;
+    }
+
+    async function hydrateShots() {
+      const cards = document.querySelectorAll('.shot-card');
+      for (const card of cards) {
+        const hint = card.querySelector('.pill');
+        const box = card.querySelector('.shot-box');
+        const status = card.querySelector('.shot-status');
+        if (!hint || !box) continue;
+
+        const suggested = (hint.textContent || '').trim();
+        const candidates = buildCandidates(suggested);
+        const media = await resolveMedia(candidates);
+
+        if (!media) {
+          if (status) status.textContent = 'Bulunamadi: core/help_media/' + suggested;
+          continue;
+        }
+
+        media.element.classList.add('shot-media');
+        media.element.classList.add(media.type);
+        media.element.setAttribute('title', media.name);
+
+        if (media.type === 'image') {
+          media.element.setAttribute('alt', 'Dokumantasyon gorseli: ' + suggested);
+          media.element.loading = 'lazy';
+        }
+
+        box.innerHTML = '';
+        box.appendChild(media.element);
+        if (status) status.textContent = 'Yuklendi: core/help_media/' + media.name;
+      }
+    }
+
+    function getCsrfToken() {
+      const value = '; ' + document.cookie;
+      const parts = value.split('; csrftoken=');
+      if (parts.length === 2) {
+        return parts.pop().split(';').shift();
+      }
+      return '';
+    }
+
+    function setupAdminUploader() {
+      const fileInput = document.getElementById('help-media-files');
+      const uploadBtn = document.getElementById('help-media-upload-btn');
+      const log = document.getElementById('help-media-upload-log');
+      if (!fileInput || !uploadBtn || !log) return;
+
+      uploadBtn.addEventListener('click', async () => {
+        const files = fileInput.files;
+        if (!files || files.length === 0) {
+          log.textContent = 'Yukleme icin en az bir dosya secin.';
+          return;
+        }
+
+        const formData = new FormData();
+        for (const f of files) formData.append('media_files', f);
+
+        uploadBtn.disabled = true;
+        log.textContent = 'Yukleniyor...';
+
+        try {
+          const res = await fetch('/api/help-media/upload/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() },
+            body: formData,
+          });
+          const data = await res.json();
+
+          if (!data.ok) {
+            log.textContent = 'Hata: ' + (data.error || 'Yukleme basarisiz.');
+            return;
+          }
+
+          const uploaded = (data.uploaded || []).join(', ') || '-';
+          const rejected = (data.rejected || []).map(r => r.name + ' (' + r.reason + ')').join(', ');
+          log.textContent = rejected
+            ? 'Yuklenen: ' + uploaded + ' | Reddedilen: ' + rejected
+            : 'Yuklenen: ' + uploaded;
+
+          await hydrateShots();
+        } catch (err) {
+          log.textContent = 'Yukleme sirasinda baglanti hatasi olustu.';
+        } finally {
+          uploadBtn.disabled = false;
+        }
+      });
+    }
+
+    function setupCopyButtons() {
+      const blocks = document.querySelectorAll('pre.mono');
+      blocks.forEach((block) => {
+        if (block.querySelector('.copy-btn')) return;
+
+        // Metni buton eklenmeden ONCE yakala (bug fix: buton metni kopyaya karismaz)
+        const capturedText = block.textContent.trim();
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'copy-btn';
+        button.textContent = 'Kopyala';
+
+        button.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(capturedText);
+            button.textContent = 'Kopyalandi';
+            setTimeout(() => { button.textContent = 'Kopyala'; }, 1200);
+          } catch (err) {
+            button.textContent = 'Basarisiz';
+            setTimeout(() => { button.textContent = 'Kopyala'; }, 1200);
+          }
+        });
+
+        block.appendChild(button);
+      });
+    }
+
+    function setupShellTabs() {
+      document.querySelectorAll('.shell-block').forEach((block) => {
+        const tabs = block.querySelectorAll('.shell-tab');
+        tabs.forEach((tab) => {
+          tab.addEventListener('click', () => {
+            const shell = tab.dataset.shell;
+            // Aktif tab'i guncelle
+            tabs.forEach((t) => t.classList.remove('active'));
+            tab.classList.add('active');
+            // Ilgili pre'yi goster, digerini gizle
+            block.querySelectorAll('pre.mono').forEach((pre) => {
+              pre.style.display = pre.classList.contains('shell-' + shell) ? '' : 'none';
+            });
+          });
+        });
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        hydrateShots();
+        setupAdminUploader();
+        setupShellTabs();
+        setupCopyButtons();
+      });
+    } else {
+      hydrateShots();
+      setupAdminUploader();
+      setupShellTabs();
+      setupCopyButtons();
+    }
+  })();
+</script>
+{% endblock %}

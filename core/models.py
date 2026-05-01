@@ -1,4 +1,6 @@
 from django.db import models
+from django.contrib.auth.hashers import check_password, make_password
+from django.utils import timezone
 
 from .security_utils import decrypt_secret, encrypt_secret
 
@@ -160,6 +162,18 @@ class TelegramBot(models.Model):
 	default_parse_mode = models.CharField(max_length=20, choices=PARSE_MODE_CHOICES, blank=True, default='')
 	description = models.TextField(blank=True)
 	is_active = models.BooleanField(default=True)
+	allowed_user_ids = models.TextField(
+		blank=True,
+		help_text='İzinli Telegram numerik user ID\'leri. Her satıra bir ID veya virgülle ayrılmış. Boş bırakılırsa kimse butonları kullanamaz (kapalı bot).'
+	)
+	webhook_secret = models.CharField(
+		max_length=64, blank=True,
+		help_text='Telegram webhook URL\'inde kullanılan rastgele güvenlik anahtarı. Boş bırakılırsa otomatik üretilir.'
+	)
+	webhook_registered_url = models.CharField(
+		max_length=500, blank=True,
+		help_text='Telegram tarafına en son kayıt edilen webhook URL\'i (bilgi amaçlı).'
+	)
 	created_at = models.DateTimeField(auto_now_add=True)
 	updated_at = models.DateTimeField(auto_now=True)
 
@@ -173,6 +187,9 @@ class TelegramBot(models.Model):
 
 	def save(self, *args, **kwargs):
 		self.bot_token = encrypt_secret(self.bot_token)
+		if not self.webhook_secret:
+			import secrets
+			self.webhook_secret = secrets.token_urlsafe(32)
 		super().save(*args, **kwargs)
 
 	def get_bot_token(self):
@@ -437,3 +454,195 @@ class TelegramBotButton(models.Model):
 
 	def __str__(self):
 		return f"{self.menu} → {self.label}"
+
+
+class RobotAgent(models.Model):
+	"""Sunucuya bağlanan Windows robot ajanı."""
+	STATUS_CHOICES = [
+		('offline', 'Offline'),
+		('online', 'Online'),
+		('busy', 'Mesgul'),
+		('maintenance', 'Bakim'),
+	]
+
+	code = models.CharField(max_length=80, unique=True, help_text='Ajanin sabit kimligi (robot-01 gibi)')
+	name = models.CharField(max_length=180)
+	token_hash = models.CharField(max_length=255, help_text='Ajan kimlik dogrulama token hash degeri')
+	is_enabled = models.BooleanField(default=True)
+	status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='offline')
+	machine_name = models.CharField(max_length=120, blank=True)
+	host_name = models.CharField(max_length=180, blank=True)
+	ip_address = models.CharField(max_length=64, blank=True)
+	os_user = models.CharField(max_length=120, blank=True)
+	agent_version = models.CharField(max_length=40, blank=True)
+	desired_version = models.CharField(max_length=40, blank=True, help_text='Bu ajan için hedef EXE sürümü')
+	capabilities = models.JSONField(default=dict, blank=True)
+	last_seen_at = models.DateTimeField(null=True, blank=True)
+	last_startup_at = models.DateTimeField(null=True, blank=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		verbose_name = 'Robot Ajanı'
+		verbose_name_plural = 'Robot Ajanları'
+		ordering = ['code']
+
+	def __str__(self):
+		return f"{self.code} - {self.name} ({self.status})"
+
+	def set_token(self, raw_token):
+		raw = str(raw_token or '').strip()
+		if not raw:
+			raise ValueError('Token boş olamaz.')
+		self.token_hash = make_password(raw)
+
+	def verify_token(self, raw_token):
+		raw = str(raw_token or '').strip()
+		if not raw:
+			return False
+		return check_password(raw, self.token_hash)
+
+	def mark_seen(self, startup=False):
+		now = timezone.now()
+		self.last_seen_at = now
+		if startup:
+			self.last_startup_at = now
+
+
+class RobotAgentRelease(models.Model):
+	"""Robot ajan EXE sürüm yayın kaydı."""
+	version = models.CharField(max_length=40, unique=True)
+	release_notes = models.TextField(blank=True)
+	download_url = models.CharField(max_length=600, blank=True)
+	setup_file = models.CharField(max_length=500, blank=True, help_text='Sunucuda saklanan setup exe yolu')
+	checksum_sha256 = models.CharField(max_length=128, blank=True)
+	install_command = models.CharField(max_length=800, blank=True, help_text='Ajan güncelleme için çalıştırılacak komut şablonu')
+	is_active = models.BooleanField(default=True)
+	is_mandatory = models.BooleanField(default=False)
+	created_by = models.CharField(max_length=120, blank=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		verbose_name = 'Robot Ajan Release'
+		verbose_name_plural = 'Robot Ajan Release Kayıtları'
+		ordering = ['-created_at']
+
+	def __str__(self):
+		return f"{self.version} ({'active' if self.is_active else 'passive'})"
+
+
+class RobotAgentEvent(models.Model):
+	"""Ajanlardan gelen operasyon log/event kayıtları."""
+	LEVEL_CHOICES = [
+		('info', 'Info'),
+		('warning', 'Warning'),
+		('error', 'Error'),
+	]
+
+	agent = models.ForeignKey(RobotAgent, on_delete=models.CASCADE, related_name='events')
+	job = models.ForeignKey('RobotJob', on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
+	level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='info')
+	message = models.TextField()
+	extra = models.JSONField(default=dict, blank=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		verbose_name = 'Robot Ajan Event'
+		verbose_name_plural = 'Robot Ajan Event Kayıtları'
+		ordering = ['-created_at']
+		indexes = [
+			models.Index(fields=['agent', 'created_at']),
+			models.Index(fields=['level', 'created_at']),
+		]
+
+	def __str__(self):
+		return f"{self.agent.code} [{self.level}] {self.message[:60]}"
+
+
+class RobotJob(models.Model):
+	"""Robot ajanlarına dağıtılan iş kuyruğu girdisi."""
+	STATUS_CHOICES = [
+		('queued', 'Kuyrukta'),
+		('dispatched', 'Ajan Tarafinda Alindi'),
+		('running', 'Calisiyor'),
+		('succeeded', 'Basarili'),
+		('failed', 'Basarisiz'),
+		('canceled', 'Iptal'),
+	]
+	COMMAND_CHOICES = [
+		('run_sap_process', 'SAP Süreci Çalıştır'),
+		('run_command', 'Komut Çalıştır'),
+	]
+
+	command_type = models.CharField(max_length=40, choices=COMMAND_CHOICES, default='run_sap_process')
+	sap_process = models.ForeignKey(SapProcess, on_delete=models.SET_NULL, null=True, blank=True, related_name='robot_jobs')
+	target_agent = models.ForeignKey(RobotAgent, on_delete=models.SET_NULL, null=True, blank=True, related_name='jobs')
+	status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='queued')
+	priority = models.IntegerField(default=100)
+	payload = models.JSONField(default=dict, blank=True)
+	requested_by = models.CharField(max_length=120, blank=True)
+	lease_expires_at = models.DateTimeField(null=True, blank=True)
+	started_at = models.DateTimeField(null=True, blank=True)
+	finished_at = models.DateTimeField(null=True, blank=True)
+	last_heartbeat_at = models.DateTimeField(null=True, blank=True)
+	result_message = models.TextField(blank=True)
+	result_payload = models.JSONField(default=dict, blank=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		verbose_name = 'Robot İşi'
+		verbose_name_plural = 'Robot İşleri'
+		ordering = ['-priority', 'created_at']
+		indexes = [
+			models.Index(fields=['status', 'priority', 'created_at']),
+			models.Index(fields=['target_agent', 'status']),
+		]
+
+	def __str__(self):
+		target = self.target_agent.code if self.target_agent else 'any'
+		return f"Job#{self.pk} {self.command_type} -> {target} ({self.status})"
+
+
+class PeriodicProcessSchedule(models.Model):
+	"""Periyodik SAP süreç tetikleme planı."""
+	FREQUENCY_CHOICES = [
+		('interval', 'Interval (dakika)'),
+		('daily', 'Günlük'),
+		('weekly', 'Haftalık'),
+		('monthly', 'Aylık'),
+	]
+
+	name = models.CharField(max_length=180, unique=True)
+	sap_process = models.ForeignKey(SapProcess, on_delete=models.CASCADE, related_name='periodic_schedules')
+	target_agent = models.ForeignKey(RobotAgent, on_delete=models.SET_NULL, null=True, blank=True, related_name='periodic_schedules')
+	frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='daily')
+	interval_minutes = models.PositiveIntegerField(null=True, blank=True)
+	run_time = models.TimeField(null=True, blank=True)
+	weekdays = models.CharField(max_length=32, blank=True, help_text='0-6 arası haftanın günleri (virgülle), 0=Pazartesi')
+	day_of_month = models.PositiveSmallIntegerField(null=True, blank=True)
+	priority = models.IntegerField(default=300)
+	payload = models.JSONField(default=dict, blank=True)
+	maintenance_window_start = models.TimeField(null=True, blank=True)
+	maintenance_window_end = models.TimeField(null=True, blank=True)
+	prevent_overlap = models.BooleanField(default=True)
+	overlap_buffer_minutes = models.PositiveIntegerField(default=10)
+	enabled = models.BooleanField(default=True)
+	note = models.CharField(max_length=300, blank=True)
+	last_run_at = models.DateTimeField(null=True, blank=True)
+	next_run_at = models.DateTimeField(null=True, blank=True)
+	created_by = models.CharField(max_length=120, blank=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		verbose_name = 'Periyodik Süreç Planı'
+		verbose_name_plural = 'Periyodik Süreç Planları'
+		ordering = ['enabled', 'next_run_at', 'name']
+		indexes = [
+			models.Index(fields=['enabled', 'next_run_at']),
+			models.Index(fields=['frequency']),
+		]
+
+	def __str__(self):
+		return f"{self.name} [{self.frequency}]"

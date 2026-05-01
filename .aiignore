@@ -1,0 +1,98 @@
+# AI Asistan ignore listesi
+# Bu dosyalar/dizinler context'e dahil edilmemeli (token israfı + alaka düşük).
+# Format: gitignore benzeri glob.
+
+# ─── Python ortamı ──────────────────────────────────────────────
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─── Node / Frontend ────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/build/
+frontend/.next/
+frontend/dist/
+*.tsbuildinfo
+
+# ─── Veritabanları ──────────────────────────────────────────────
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+db_live_before_*.sqlite3
+*.db
+*.dump
+*.sql
+
+# ─── Loglar ─────────────────────────────────────────────────────
+*.log
+logs/
+agent_runner.log
+robot_agent_*.log
+
+# ─── Build / dağıtım çıktıları ──────────────────────────────────
+build/
+dist/
+out/
+*.egg
+staticfiles/
+collected_static/
+
+# ─── Media (kullanıcı yüklemeleri, zip paketleri) ──────────────
+media/
+media/robot_agent/
+media/robot_agent/packages/
+
+# ─── Yedekler ───────────────────────────────────────────────────
+*.bak
+*.backup
+*_backup_*/
+*.zip
+*.tar.gz
+*.7z
+SaggioDjango_Backups/
+
+# ─── IDE / OS ───────────────────────────────────────────────────
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Sırlar ────────────────────────────────────────────────────
+config/firebase-key.json
+.env
+.env.*
+*.pem
+*.key
+*.crt
+secrets/
+
+# ─── Git ───────────────────────────────────────────────────────
+.git/
+.gitignore.swp
+
+# ─── Geçici / cache ────────────────────────────────────────────
+*.tmp
+*.temp
+.cache/
+tmp/
+
+# ─── Migrations (alt dosyalar değil; sadece auto-generated tracking için açık değil) ──
+# core/migrations/  <-- aktif tutuyoruz, model history önemli
+
+# ─── Büyük JSON / data dump'lar ────────────────────────────────
+data/sap_templates_local.json
+*.dump.json

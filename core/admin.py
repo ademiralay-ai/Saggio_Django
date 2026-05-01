@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import MailAccount, Process, Queue, Report, Robot, Schedule, TelegramBot, TelegramGroup
+from .models import MailAccount, Process, Queue, Report, Robot, RobotAgent, RobotAgentEvent, RobotAgentRelease, RobotJob, Schedule, TelegramBot, TelegramGroup
 
 
 @admin.register(Robot)
@@ -212,3 +212,39 @@ class MailAccountAdmin(admin.ModelAdmin):
 	list_display = ('name', 'email', 'smtp_host', 'smtp_port', 'is_active', 'updated_at')
 	list_filter = ('is_active', 'use_tls', 'use_ssl')
 	search_fields = ('name', 'email', 'smtp_host')
+
+
+@admin.register(RobotAgent)
+class RobotAgentAdmin(admin.ModelAdmin):
+	list_display = ('code', 'name', 'status', 'agent_version', 'desired_version', 'is_enabled', 'machine_name', 'ip_address', 'last_seen_at')
+	list_filter = ('status', 'is_enabled', 'updated_at')
+	search_fields = ('code', 'name', 'machine_name', 'host_name', 'ip_address')
+	readonly_fields = ('created_at', 'updated_at', 'last_seen_at', 'last_startup_at', 'token_hash')
+
+
+@admin.register(RobotJob)
+class RobotJobAdmin(admin.ModelAdmin):
+	list_display = ('id', 'command_type', 'sap_process', 'target_agent', 'status', 'priority', 'created_at', 'finished_at')
+	list_filter = ('command_type', 'status', 'created_at', 'target_agent')
+	search_fields = ('id', 'result_message', 'requested_by')
+	readonly_fields = ('created_at', 'updated_at', 'started_at', 'finished_at', 'last_heartbeat_at')
+
+
+@admin.register(RobotAgentRelease)
+class RobotAgentReleaseAdmin(admin.ModelAdmin):
+	list_display = ('version', 'is_active', 'is_mandatory', 'download_url', 'created_by', 'created_at')
+	list_filter = ('is_active', 'is_mandatory', 'created_at')
+	search_fields = ('version', 'download_url', 'created_by', 'release_notes')
+
+
+@admin.register(RobotAgentEvent)
+class RobotAgentEventAdmin(admin.ModelAdmin):
+	list_display = ('id', 'agent', 'job', 'level', 'message_short', 'created_at')
+	list_filter = ('level', 'created_at', 'agent')
+	search_fields = ('message', 'agent__code', 'agent__name')
+	readonly_fields = ('created_at',)
+
+	def message_short(self, obj):
+		msg = str(obj.message or '')
+		return msg if len(msg) <= 90 else msg[:87] + '...'
+	message_short.short_description = 'Mesaj'

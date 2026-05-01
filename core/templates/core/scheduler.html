@@ -1,0 +1,319 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="sch-grid">
+    <!-- ── Sol: Form ─────────────────────────────────────────────── -->
+    <section class="sch-panel sch-panel-form">
+        <div class="sch-head">
+            <h2 class="section-title"><i class="fas fa-calendar-check"></i> Plan Tasarımı</h2>
+            <button id="sch-reset" type="button" class="btn btn-sm"><i class="fas fa-rotate-left"></i> Sıfırla</button>
+        </div>
+
+        <form id="sch-form" class="sch-form">
+            <input id="sch-id" type="hidden">
+
+            <div class="sch-field">
+                <label>Plan Adı *</label>
+                <input id="sch-name" type="text" placeholder="Örn: Sabah Stok Kontrol" required>
+            </div>
+
+            <div class="sch-field">
+                <label>Süreç *</label>
+                <select id="sch-process" required></select>
+            </div>
+
+            <div class="sch-field">
+                <label>Hedef Robot <span class="sch-optional">opsiyonel</span></label>
+                <select id="sch-agent"></select>
+            </div>
+
+            <div class="sch-row">
+                <div class="sch-field">
+                    <label>Frekans</label>
+                    <select id="sch-frequency">
+                        <option value="interval">Interval (dk)</option>
+                        <option value="daily">Günlük</option>
+                        <option value="weekly">Haftalık</option>
+                        <option value="monthly">Aylık</option>
+                    </select>
+                </div>
+                <div class="sch-field" id="sch-wrap-interval">
+                    <label>Interval (dk)</label>
+                    <input id="sch-interval" type="number" min="1" step="1" value="15">
+                </div>
+                <div class="sch-field" id="sch-wrap-time" style="display:none;">
+                    <label>Saat</label>
+                    <input id="sch-time" type="time" value="09:00">
+                </div>
+            </div>
+
+            <div class="sch-field" id="sch-wrap-weekdays" style="display:none;">
+                <label>Hafta Günleri</label>
+                <div class="sch-weekdays" id="sch-weekdays">
+                    <label><input type="checkbox" value="0"> Pzt</label>
+                    <label><input type="checkbox" value="1"> Sal</label>
+                    <label><input type="checkbox" value="2"> Çar</label>
+                    <label><input type="checkbox" value="3"> Per</label>
+                    <label><input type="checkbox" value="4"> Cum</label>
+                    <label><input type="checkbox" value="5"> Cmt</label>
+                    <label><input type="checkbox" value="6"> Paz</label>
+                </div>
+            </div>
+
+            <div class="sch-field" id="sch-wrap-dom" style="display:none;">
+                <label>Ayın Kaçı</label>
+                <input id="sch-dom" type="number" min="1" max="31" value="1">
+            </div>
+
+            <div class="sch-row">
+                <div class="sch-field">
+                    <label>Öncelik</label>
+                    <input id="sch-priority" type="number" value="300" step="10">
+                </div>
+                <div class="sch-field" style="flex:2">
+                    <label>Not</label>
+                    <input id="sch-note" type="text" placeholder="Kısa açıklama">
+                </div>
+            </div>
+
+            <!-- Gelişmiş ayarlar accordion -->
+            <details class="sch-advanced" id="sch-advanced-details">
+                <summary><i class="fas fa-sliders"></i> Gelişmiş Ayarlar <span class="sch-adv-hint">bakım penceresi · çakışma · payload</span></summary>
+
+                <div class="sch-adv-body">
+                    <div class="sch-field">
+                        <label>Ek Payload (JSON)</label>
+                        <textarea id="sch-payload" rows="2" placeholder='{"note":"otomatik"}'></textarea>
+                    </div>
+
+                    <div class="sch-row">
+                        <div class="sch-field">
+                            <label><i class="fas fa-wrench"></i> Bakım Başlangıç</label>
+                            <input id="sch-maint-start" type="time">
+                        </div>
+                        <div class="sch-field">
+                            <label><i class="fas fa-wrench"></i> Bakım Bitiş</label>
+                            <input id="sch-maint-end" type="time">
+                        </div>
+                    </div>
+                    <p class="sch-hint">Bakım penceresi dışında plan tetiklenmez.</p>
+
+                    <div class="sch-row sch-row-center">
+                        <label class="sch-switch">
+                            <input id="sch-prevent-overlap" type="checkbox" checked>
+                            <span class="sch-toggle-track"><span class="sch-toggle-thumb"></span></span>
+                            Çakışma engelle
+                        </label>
+                        <div class="sch-field" style="flex:1">
+                            <label>Tampon (dk)</label>
+                            <input id="sch-overlap-buffer" type="number" min="0" step="1" value="10">
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <div class="sch-form-footer">
+                <label class="sch-switch">
+                    <input id="sch-enabled" type="checkbox" checked>
+                    <span class="sch-toggle-track"><span class="sch-toggle-thumb"></span></span>
+                    Aktif
+                </label>
+                <div class="sch-actions">
+                    <button id="sch-save" type="submit" class="btn btn-primary"><i class="fas fa-floppy-disk"></i> Planı Kaydet</button>
+                    <button id="sch-run-due" type="button" class="btn"><i class="fas fa-bolt"></i> Tetikle</button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <!-- ── Sağ: Durum + Tablo ─────────────────────────────────── -->
+    <section class="sch-panel sch-panel-stats">
+        <div class="sch-head">
+            <h2 class="section-title"><i class="fas fa-gauge-high"></i> Scheduler Durumu</h2>
+            <button id="sch-refresh" class="btn btn-sm" type="button"><i class="fas fa-rotate"></i> Yenile</button>
+        </div>
+
+        <div class="sch-stats-row">
+            <div class="sch-stat cyan"><div class="sch-stat-val" id="sch-total">0</div><div class="sch-stat-lbl">Toplam Plan</div></div>
+            <div class="sch-stat lime"><div class="sch-stat-val" id="sch-active">0</div><div class="sch-stat-lbl">Aktif</div></div>
+            <div class="sch-stat amber"><div class="sch-stat-val" id="sch-due">0</div><div class="sch-stat-lbl">Vakti Gelen</div></div>
+        </div>
+
+        <div class="table-container sch-table-wrap">
+            <table id="sch-table" data-table-key="scheduler-plans" data-table-default-sort-col="sonraki-calisma-8" data-table-default-sort-direction="asc">
+                <thead>
+                    <tr>
+                        <th>Plan</th>
+                        <th>Süreç</th>
+                        <th>Robot</th>
+                        <th>Frekans</th>
+                        <th>Aktif</th>
+                        <th>Son Çalışma</th>
+                        <th>Sonraki Çalışma</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+                <tbody id="sch-body">
+                    <tr><td colspan="8" class="empty-cell">Yükleniyor...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<!-- ── Takvim ──────────────────────────────────────────────────────── -->
+<section class="sch-panel sch-cal-section">
+    <div class="sch-head">
+        <h2 class="section-title"><i class="fas fa-calendar-days"></i> 7 Günlük Çalışma Takvimi</h2>
+        <span class="sch-cal-legend">
+            <span class="sch-cal-dot daily"></span>günlük
+            <span class="sch-cal-dot weekly"></span>haftalık
+            <span class="sch-cal-dot interval"></span>interval
+            <span class="sch-cal-dot monthly"></span>aylık
+        </span>
+    </div>
+    <div id="sch-timeline" class="sch-timeline-empty">Plan yükleniyor...</div>
+</section>
+
+<!-- ── Son Scheduler İşleri ──────────────────────────────────────── -->
+<section class="sch-panel">
+    <div class="sch-head">
+        <h2 class="section-title"><i class="fas fa-list-check"></i> Son Scheduler İşleri</h2>
+    </div>
+    <div class="table-container">
+        <table id="sch-jobs-table" data-table-key="scheduler-jobs" data-table-default-sort-col="olusturma-6" data-table-default-sort-direction="desc">
+            <thead>
+                <tr>
+                    <th>Job ID</th>
+                    <th>Plan</th>
+                    <th>Süreç</th>
+                    <th>Robot</th>
+                    <th>Durum</th>
+                    <th>Mesaj</th>
+                    <th>Oluşturma</th>
+                </tr>
+            </thead>
+            <tbody id="sch-jobs-body">
+                <tr><td colspan="7" class="empty-cell">Henüz scheduler işi yok.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<style>
+/* ── Genel layout ──────────────────────────────────────────── */
+.sch-grid { display:grid; grid-template-columns: 380px 1fr; gap:14px; align-items:start; }
+.sch-panel { background: var(--bg-card); border:1px solid var(--border-glass); border-radius:12px; padding:16px; margin-top:14px; }
+.sch-panel-form { margin-top:0; }
+.sch-panel-stats { margin-top:0; }
+.sch-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+
+/* ── Form ──────────────────────────────────────────────────── */
+.sch-form { display:flex; flex-direction:column; gap:10px; }
+.sch-field { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.sch-field label { color:var(--text-dim); font-size:11.5px; display:flex; align-items:center; gap:4px; }
+.sch-optional { font-size:10px; background:rgba(255,255,255,.07); border-radius:4px; padding:1px 5px; color:var(--text-dim); }
+.sch-field input, .sch-field select, .sch-field textarea {
+    background: rgba(255,255,255,.04); border:1px solid var(--border-glass);
+    border-radius:8px; padding:8px 10px; color:var(--text-main); font-size:13px; width:100%; box-sizing:border-box;
+}
+.sch-field textarea { resize:vertical; }
+
+/* ── Row (side-by-side fields) ────────────────────────────── */
+.sch-row { display:flex; gap:8px; align-items:flex-end; min-width:0; }
+.sch-row .sch-field { flex:1; min-width:0; }
+.sch-row-center { align-items:center; }
+
+/* ── Toggle switch ────────────────────────────────────────── */
+.sch-switch { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:var(--text-main); user-select:none; }
+.sch-switch input[type="checkbox"] { display:none; }
+.sch-toggle-track { width:36px; height:20px; border-radius:10px; background:rgba(255,255,255,.12); border:1px solid var(--border-glass); position:relative; flex-shrink:0; transition:background .2s; }
+.sch-toggle-thumb { width:14px; height:14px; border-radius:50%; background:#888; position:absolute; top:2px; left:2px; transition:left .2s, background .2s; }
+.sch-switch input:checked + .sch-toggle-track { background:rgba(0,243,255,.22); border-color:rgba(0,243,255,.5); }
+.sch-switch input:checked + .sch-toggle-track .sch-toggle-thumb { left:18px; background:#00f3ff; }
+
+/* ── Hafta günleri ────────────────────────────────────────── */
+.sch-weekdays { display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap:4px; }
+.sch-weekdays label { background: rgba(255,255,255,.03); border:1px solid var(--border-glass); border-radius:6px; padding:5px 4px; display:flex; gap:4px; align-items:center; font-size:11px; cursor:pointer; justify-content:center; }
+.sch-weekdays label:has(input:checked) { background:rgba(0,243,255,.1); border-color:rgba(0,243,255,.4); color:#00f3ff; }
+
+/* ── Gelişmiş accordion ───────────────────────────────────── */
+.sch-advanced { border:1px solid var(--border-glass); border-radius:10px; overflow:hidden; }
+.sch-advanced summary { padding:10px 12px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--text-dim); display:flex; align-items:center; gap:6px; list-style:none; user-select:none; }
+.sch-advanced summary::-webkit-details-marker { display:none; }
+.sch-advanced summary::after { content:'\f078'; font-family:'Font Awesome 6 Free'; font-weight:900; margin-left:auto; font-size:10px; transition:transform .2s; }
+.sch-advanced[open] summary::after { transform:rotate(180deg); }
+.sch-adv-hint { font-size:11px; font-weight:400; color:var(--text-dim); opacity:.7; }
+.sch-adv-body { padding:10px 12px 12px; display:flex; flex-direction:column; gap:10px; border-top:1px solid var(--border-glass); }
+.sch-hint { font-size:11px; color:var(--text-dim); margin:0; opacity:.75; }
+
+/* ── Footer (aktif + butonlar) ───────────────────────────── */
+.sch-form-footer { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-top:4px; flex-wrap:wrap; }
+.sch-actions { display:flex; gap:8px; }
+
+/* ── Stats row ───────────────────────────────────────────── */
+.sch-stats-row { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:10px; margin-bottom:14px; }
+.sch-stat { border-radius:10px; padding:12px 14px; border:1px solid var(--border-glass); background:rgba(255,255,255,.02); }
+.sch-stat-val { font-size:26px; font-weight:700; line-height:1; }
+.sch-stat-lbl { font-size:11px; color:var(--text-dim); margin-top:4px; }
+.sch-stat.cyan .sch-stat-val { color:#00f3ff; }
+.sch-stat.lime .sch-stat-val { color:#9fff6e; }
+.sch-stat.amber .sch-stat-val { color:#ffd166; }
+.sch-table-wrap { max-height: 420px; }
+
+/* ── Takvim ──────────────────────────────────────────────── */
+.sch-cal-section { }
+.sch-cal-legend { display:flex; align-items:center; gap:10px; font-size:11.5px; color:var(--text-dim); flex-wrap:wrap; }
+.sch-cal-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:3px; }
+.sch-cal-dot.daily    { background:#00f3ff; }
+.sch-cal-dot.weekly   { background:#9fff6e; }
+.sch-cal-dot.interval { background:#ffd166; }
+.sch-cal-dot.monthly  { background:#c084fc; }
+
+.sch-cal-grid { display:grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap:6px; }
+.sch-cal-col { border:1px solid var(--border-glass); border-radius:10px; overflow:hidden; min-height:80px; }
+.sch-cal-col.sch-cal-today { border-color:rgba(0,243,255,.45); background:rgba(0,243,255,.04); }
+.sch-cal-day-head { padding:8px 8px 6px; border-bottom:1px solid var(--border-glass); }
+.sch-cal-day-name { font-size:10.5px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; }
+.sch-cal-day-num { font-size:18px; font-weight:700; line-height:1.1; color:var(--text-main); }
+.sch-cal-today .sch-cal-day-num { color:#00f3ff; }
+.sch-cal-day-body { padding:6px 6px 8px; display:flex; flex-direction:column; gap:4px; }
+.sch-cal-chip { border-radius:5px; padding:3px 6px; font-size:10.5px; line-height:1.3; font-weight:600; display:flex; flex-direction:column; gap:1px; cursor:default; }
+.sch-cal-chip .sch-chip-time { font-size:9.5px; font-weight:400; opacity:.8; }
+.sch-cal-chip .sch-chip-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.sch-cal-chip.daily    { background:rgba(0,243,255,.12);  color:#00f3ff;  border:1px solid rgba(0,243,255,.25); }
+.sch-cal-chip.weekly   { background:rgba(159,255,110,.1); color:#9fff6e;  border:1px solid rgba(159,255,110,.25); }
+.sch-cal-chip.interval { background:rgba(255,209,102,.1); color:#ffd166;  border:1px solid rgba(255,209,102,.25); }
+.sch-cal-chip.monthly  { background:rgba(192,132,252,.12);color:#c084fc;  border:1px solid rgba(192,132,252,.25); }
+.sch-cal-empty { font-size:10.5px; color:var(--text-dim); padding:4px 6px; opacity:.5; }
+.sch-cal-more  { font-size:10px; color:var(--text-dim); padding:2px 6px; opacity:.7; }
+
+.sch-timeline-empty { color: var(--text-dim); font-size: 13px; padding: 12px 4px; }
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 1280px) { .sch-grid { grid-template-columns: 360px 1fr; } }
+@media (max-width: 1100px) { .sch-grid { grid-template-columns: 1fr; } .sch-panel-form, .sch-panel-stats { margin-top:0; } }
+@media (max-width: 860px)  { .sch-cal-grid { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+@media (max-width: 580px)  { .sch-cal-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } .sch-row { flex-direction:column; } }
+</style>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+window.SCHED_BOOT = {
+    processes: {{ processes_json|safe }},
+    agents: {{ agents_json|safe }},
+    urls: {
+        list: "{% url 'scheduler_list' %}",
+        save: "{% url 'scheduler_save' %}",
+        toggle: "{% url 'scheduler_toggle' %}",
+        delete: "{% url 'scheduler_delete' %}",
+        runNow: "{% url 'scheduler_run_now' %}",
+        dispatchDue: "{% url 'scheduler_dispatch_due' %}"
+    },
+    csrf: "{{ csrf_token }}"
+};
+</script>
+<script src="{% static 'core/js/scheduler_page.js' %}"></script>
+{% endblock %}

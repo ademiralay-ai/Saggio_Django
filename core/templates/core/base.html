@@ -31,7 +31,7 @@
             <ul class="nav-menu" id="nav-menu">
 
                 <!-- GENEL -->
-                <li class="nav-group {% if current == 'dashboard' %}nav-group-active{% endif %}" data-group="genel">
+                <li class="nav-group {% if current == 'dashboard' or current == 'help_center' %}nav-group-active{% endif %}" data-group="genel">
                     <button class="menu-group-btn" type="button" data-target="group-genel">
                         <span>Genel</span>
                         <i class="fas fa-chevron-down menu-group-arrow"></i>
@@ -43,11 +43,17 @@
                                 <span>Dashboard</span>
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'help_center' %}active{% endif %}" href="{% url 'help_center' %}" data-label="Yardim Merkezi">
+                                <i class="fas fa-circle-question"></i>
+                                <span>Yardim Merkezi</span>
+                            </a>
+                        </li>
                     </ul>
                 </li>
 
                 <!-- ORKESTRASyon -->
-                <li class="nav-group {% if current == 'robots' or current == 'processes' or current == 'queues' or current == 'scheduler' or current == 'sap_scan' or current == 'sap_process_list' or current == 'sap_process_builder' or current == 'sap_process_delete' %}nav-group-active{% endif %}" data-group="orkestrasyon">
+                <li class="nav-group {% if current == 'robots' or current == 'robot_control_center' or current == 'processes' or current == 'queues' or current == 'scheduler' or current == 'sap_scan' or current == 'sap_process_list' or current == 'sap_process_builder' or current == 'sap_process_delete' %}nav-group-active{% endif %}" data-group="orkestrasyon">
                     <button class="menu-group-btn" type="button" data-target="group-orkestrasyon">
                         <span>Orkestrasyon</span>
                         <i class="fas fa-chevron-down menu-group-arrow"></i>
@@ -57,6 +63,12 @@
                             <a class="nav-link {% if current == 'robots' %}active{% endif %}" href="{% url 'robots' %}" data-label="Robotlar">
                                 <i class="fas fa-robot"></i>
                                 <span>Robotlar</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current == 'robot_control_center' %}active{% endif %}" href="{% url 'robot_control_center' %}" data-label="Robot Operasyon Merkezi">
+                                <i class="fas fa-satellite-dish"></i>
+                                <span>Robot Operasyon</span>
                             </a>
                         </li>
                         <li class="nav-item">
@@ -194,62 +206,27 @@
 
     <footer class="live-footer" aria-label="Canli robot durumu">
         <div class="live-ticker">
+            {% for track in "12" %}
             <div class="ticker-track" aria-hidden="true">
-                <span class="tk-robot">RBT-QA-01</span> <span class="tk-online">Online</span>
+                {% for robot in footer_robots %}
+                {% if not forloop.first %}<span class="tk-sep">||</span>{% endif %}
+                <span class="tk-robot">{{ robot.code|upper }}</span>
+                {% if robot.status == 'online' %}
+                    <span class="tk-online">Online</span>
+                {% elif robot.status == 'busy' %}
+                    <span class="tk-warn">Mesgul</span>
+                {% elif robot.status == 'maintenance' %}
+                    <span class="tk-warn">Bakim</span>
+                {% else %}
+                    <span class="tk-offline">Offline</span>
+                {% endif %}
                 <span class="tk-sep">|</span>
-                <span class="tk-process">Süreç: Fatura Aktarım</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-hours">Calisma saati: 06:12</span>
-
-                <span class="tk-sep">||</span>
-                <span class="tk-robot">RBT-FIN-02</span> <span class="tk-online">Online</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-process">Süreç: Banka Mutabakat</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-hours">Calisma saati: 02:47</span>
-
-                <span class="tk-sep">||</span>
-                <span class="tk-robot">RBT-OPS-03</span> <span class="tk-offline">Offline</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-process">Süreç: Ticket Kapanış</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-hours">Calisma saati: 00:36</span>
-
-                <span class="tk-sep">||</span>
-                <span class="tk-robot">RBT-HR-04</span> <span class="tk-online">Online</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-process">Süreç: Personel Bordro Ön Kontrol</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-hours">Calisma saati: 03:05</span>
+                <span class="tk-hours">{{ robot.name }}</span>
+                {% empty %}
+                <span class="tk-hours">Henüz kayıtlı robot yok</span>
+                {% endfor %}
             </div>
-            <div class="ticker-track" aria-hidden="true">
-                <span class="tk-robot">RBT-QA-01</span> <span class="tk-online">Online</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-process">Süreç: Fatura Aktarım</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-hours">Calisma saati: 06:12</span>
-
-                <span class="tk-sep">||</span>
-                <span class="tk-robot">RBT-FIN-02</span> <span class="tk-online">Online</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-process">Süreç: Banka Mutabakat</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-hours">Calisma saati: 02:47</span>
-
-                <span class="tk-sep">||</span>
-                <span class="tk-robot">RBT-OPS-03</span> <span class="tk-offline">Offline</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-process">Süreç: Ticket Kapanış</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-hours">Calisma saati: 00:36</span>
-
-                <span class="tk-sep">||</span>
-                <span class="tk-robot">RBT-HR-04</span> <span class="tk-online">Online</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-process">Süreç: Personel Bordro Ön Kontrol</span>
-                <span class="tk-sep">|</span>
-                <span class="tk-hours">Calisma saati: 03:05</span>
-            </div>
+            {% endfor %}
         </div>
     </footer>
 
@@ -257,6 +234,7 @@
 
     {% block vendor_scripts %}{% endblock %}
     <script src="{% static 'core/js/theme.js' %}"></script>
+    <script src="{% static 'core/js/table_enhancer.js' %}"></script>
     {% block page_scripts %}{% endblock %}
 
     <script>
